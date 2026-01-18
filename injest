@@ -1,3 +1,6 @@
+events = data.get("events_results", [])
+print(f"Found {len(events)} events")
+
 import os
 import requests
 
