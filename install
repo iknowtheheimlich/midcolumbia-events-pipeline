@@ -1,2 +1,0 @@
-pip install requests
-export SERPAPI_KEY="ca97d543bed08584307cca5867370ce5cae54b9f93a3efcc839d32ed0e46a76a"
