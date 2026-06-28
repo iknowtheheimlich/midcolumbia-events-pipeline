@@ -12,6 +12,7 @@ Current status: Cargo Harvester core is being formalized from the earlier protot
 - Deduplicates rows.
 - Writes a CSV output.
 - Generates a Reddit weekly draft.
+- Can merge manual CSV rows into the same unified event feed.
 
 ## Windows setup
 
@@ -46,6 +47,18 @@ Visible browser mode:
 python -m cargo_harvester.cli --city kennewick --start 2026-07-01 --end 2026-07-07 --output output --visible
 ```
 
+Manual CSV merge:
+
+```cmd
+python -m cargo_harvester.cli --city kennewick --start 2026-07-01 --end 2026-07-07 --output output --manual-csv examples\manual_events_template.csv
+```
+
+Manual-only run:
+
+```cmd
+python -m cargo_harvester.cli --city kennewick --start 2026-07-01 --end 2026-07-07 --output output --skip-allevents --manual-csv examples\manual_events_template.csv
+```
+
 ## Project architecture
 
 ```text
@@ -55,14 +68,17 @@ src/cargo_harvester/
   cli.py                 Command-line runner
   reddit.py              Reddit weekly draft exporter
   sources/
+    base.py              Source adapter contract
     allevents.py         AllEvents date-sweep adapter
+    manual_csv.py        Manual CSV intake adapter
+    visit_tricities.py   Placeholder source adapter contract
 ```
 
 Planned modules:
 
 ```text
 notion.py                Notion database writer
-sources/visit_tricities.py
+sources/visit_tricities.py implementation
 sources/mcl.py
 sources/richland_library.py
 gui.py                   Windows GUI wrapper
