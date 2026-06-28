@@ -15,5 +15,5 @@ if "%2"=="" (
   set END=%2
 )
 
-python -m cargo_harvester.cli --city %CITY% --start %START% --end %END% --output output
+python -m cargo_harvester.cli --city %CITY% --start %START% --end %END% --output output --debug
 pause
