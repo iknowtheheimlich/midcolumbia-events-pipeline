@@ -8,6 +8,7 @@ from pathlib import Path
 from cargo_harvester.core import dedupe_events, write_events_csv
 from cargo_harvester.reddit import build_reddit_weekly_draft
 from cargo_harvester.sources.allevents import harvest_allevents
+from cargo_harvester.sources.manual_csv import load_manual_csv
 
 
 def parse_date(value: str):
@@ -18,13 +19,23 @@ async def run(args) -> None:
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    events, cards = await harvest_allevents(
-        city=args.city,
-        start=parse_date(args.start),
-        end=parse_date(args.end),
-        headless=not args.visible,
-        log=print,
-    )
+    events = []
+
+    if not args.skip_allevents:
+        allevents_events, _cards = await harvest_allevents(
+            city=args.city,
+            start=parse_date(args.start),
+            end=parse_date(args.end),
+            headless=not args.visible,
+            log=print,
+        )
+        events.extend(allevents_events)
+
+    for manual_csv in args.manual_csv:
+        manual_path = Path(manual_csv)
+        print(f"Manual CSV: {manual_path}")
+        events.extend(load_manual_csv(manual_path))
+
     events = dedupe_events(events)
 
     csv_path = output_dir / "unified_events.csv"
@@ -33,8 +44,11 @@ async def run(args) -> None:
     write_events_csv(events, csv_path)
     reddit_path.write_text(build_reddit_weekly_draft(events), encoding="utf-8")
 
+    review_count = sum(1 for event in events if event.needs_review == "Yes")
+
     print("")
     print(f"Events written: {len(events)}")
+    print(f"Rows needing review: {review_count}")
     print(f"CSV: {csv_path}")
     print(f"Reddit draft: {reddit_path}")
 
@@ -46,6 +60,8 @@ def main() -> None:
     parser.add_argument("--end", required=True, help="YYYY-MM-DD")
     parser.add_argument("--output", default="output")
     parser.add_argument("--visible", action="store_true", help="Show browser while harvesting")
+    parser.add_argument("--skip-allevents", action="store_true", help="Only use manual/source files")
+    parser.add_argument("--manual-csv", action="append", default=[], help="Additional CSV file to merge into the unified event feed")
     args = parser.parse_args()
     asyncio.run(run(args))
 
