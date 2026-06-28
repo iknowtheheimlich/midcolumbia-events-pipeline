@@ -15,6 +15,7 @@ Current status: Cargo Harvester core is being formalized from the earlier protot
 - Can merge manual CSV rows into the same unified event feed.
 - Can optionally include rendered Visit Tri-Cities event listings.
 - Can write source debug JSON for parser diagnosis.
+- Includes baseline unit tests for model, core, and Reddit output behavior.
 
 ## Windows setup
 
@@ -36,6 +37,21 @@ Outputs:
 output\unified_events.csv
 output\reddit_weekly_draft.md
 output\debug\allevents_cards.json
+```
+
+## Tests
+
+Run:
+
+```cmd
+run_tests.bat
+```
+
+Direct command:
+
+```cmd
+set PYTHONPATH=src
+python -m unittest discover -s tests -p "test_*.py"
 ```
 
 ## Direct CLI
