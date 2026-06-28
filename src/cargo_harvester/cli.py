@@ -9,6 +9,7 @@ from cargo_harvester.core import dedupe_events, write_events_csv
 from cargo_harvester.reddit import build_reddit_weekly_draft
 from cargo_harvester.sources.allevents import harvest_allevents
 from cargo_harvester.sources.manual_csv import load_manual_csv
+from cargo_harvester.sources.visit_tricities import harvest_visit_tricities
 
 
 def parse_date(value: str):
@@ -20,16 +21,28 @@ async def run(args) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     events = []
+    start = parse_date(args.start)
+    end = parse_date(args.end)
 
     if not args.skip_allevents:
         allevents_events, _cards = await harvest_allevents(
             city=args.city,
-            start=parse_date(args.start),
-            end=parse_date(args.end),
+            start=start,
+            end=end,
             headless=not args.visible,
             log=print,
         )
         events.extend(allevents_events)
+
+    if args.visit_tricities:
+        visit_result = await harvest_visit_tricities(
+            city=args.city,
+            start=start,
+            end=end,
+            headless=not args.visible,
+            log=print,
+        )
+        events.extend(visit_result.events)
 
     for manual_csv in args.manual_csv:
         manual_path = Path(manual_csv)
@@ -61,6 +74,7 @@ def main() -> None:
     parser.add_argument("--output", default="output")
     parser.add_argument("--visible", action="store_true", help="Show browser while harvesting")
     parser.add_argument("--skip-allevents", action="store_true", help="Only use manual/source files")
+    parser.add_argument("--visit-tricities", action="store_true", help="Include rendered Visit Tri-Cities event listings")
     parser.add_argument("--manual-csv", action="append", default=[], help="Additional CSV file to merge into the unified event feed")
     args = parser.parse_args()
     asyncio.run(run(args))
