@@ -13,6 +13,7 @@ Current status: Cargo Harvester core is being formalized from the earlier protot
 - Writes a CSV output.
 - Generates a Reddit weekly draft.
 - Can merge manual CSV rows into the same unified event feed.
+- Can optionally include rendered Visit Tri-Cities event listings.
 
 ## Windows setup
 
@@ -47,6 +48,12 @@ Visible browser mode:
 python -m cargo_harvester.cli --city kennewick --start 2026-07-01 --end 2026-07-07 --output output --visible
 ```
 
+Include Visit Tri-Cities:
+
+```cmd
+python -m cargo_harvester.cli --city kennewick --start 2026-07-01 --end 2026-07-07 --output output --visit-tricities
+```
+
 Manual CSV merge:
 
 ```cmd
@@ -71,14 +78,13 @@ src/cargo_harvester/
     base.py              Source adapter contract
     allevents.py         AllEvents date-sweep adapter
     manual_csv.py        Manual CSV intake adapter
-    visit_tricities.py   Placeholder source adapter contract
+    visit_tricities.py   Visit Tri-Cities rendered-page adapter
 ```
 
 Planned modules:
 
 ```text
 notion.py                Notion database writer
-sources/visit_tricities.py implementation
 sources/mcl.py
 sources/richland_library.py
 gui.py                   Windows GUI wrapper
