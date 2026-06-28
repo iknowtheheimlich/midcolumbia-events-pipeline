@@ -21,6 +21,7 @@ Review outputs:
 ```text
 output\unified_events.csv
 output\reddit_weekly_draft.md
+output\debug\allevents_cards.json
 ```
 
 ## If counts look too low
@@ -30,10 +31,27 @@ AllEvents may not have loaded the full day feed.
 Try:
 
 ```cmd
-python -m cargo_harvester.cli --city kennewick --start 2026-07-01 --end 2026-07-07 --output output --visible
+python -m cargo_harvester.cli --city kennewick --start 2026-07-01 --end 2026-07-07 --output output --visible --debug
 ```
 
-Visible mode lets you watch what the browser sees.
+Visible mode lets you watch what the browser sees. Debug mode writes the raw card data the parser saw.
+
+## Visit Tri-Cities validation
+
+Run:
+
+```cmd
+python -m cargo_harvester.cli --city kennewick --start 2026-07-01 --end 2026-07-07 --output output --visit-tricities --visible --debug
+```
+
+Then inspect:
+
+```text
+output\debug\visit_tricities_cards.json
+output\unified_events.csv
+```
+
+If fields are poor, the next move is finding the backend listing endpoint from browser dev tools.
 
 ## Review policy
 
@@ -80,10 +98,10 @@ Run CLI directly:
 python -m cargo_harvester.cli --city kennewick --start 2026-07-01 --end 2026-07-07 --output output
 ```
 
-Run with browser visible:
+Run with browser visible and debug output:
 
 ```cmd
-python -m cargo_harvester.cli --city kennewick --start 2026-07-01 --end 2026-07-07 --output output --visible
+python -m cargo_harvester.cli --city kennewick --start 2026-07-01 --end 2026-07-07 --output output --visible --debug
 ```
 
 ## Troubleshooting smell test
