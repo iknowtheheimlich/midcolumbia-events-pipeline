@@ -1,1 +1,2 @@
 playwright
+PyInstaller>=6.15
