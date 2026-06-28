@@ -14,6 +14,7 @@ Current status: Cargo Harvester core is being formalized from the earlier protot
 - Generates a Reddit weekly draft.
 - Can merge manual CSV rows into the same unified event feed.
 - Can optionally include rendered Visit Tri-Cities event listings.
+- Can write source debug JSON for parser diagnosis.
 
 ## Windows setup
 
@@ -34,12 +35,19 @@ Outputs:
 ```text
 output\unified_events.csv
 output\reddit_weekly_draft.md
+output\debug\allevents_cards.json
 ```
 
 ## Direct CLI
 
 ```cmd
 python -m cargo_harvester.cli --city kennewick --start 2026-07-01 --end 2026-07-07 --output output
+```
+
+Debug mode:
+
+```cmd
+python -m cargo_harvester.cli --city kennewick --start 2026-07-01 --end 2026-07-07 --output output --debug
 ```
 
 Visible browser mode:
@@ -51,7 +59,7 @@ python -m cargo_harvester.cli --city kennewick --start 2026-07-01 --end 2026-07-
 Include Visit Tri-Cities:
 
 ```cmd
-python -m cargo_harvester.cli --city kennewick --start 2026-07-01 --end 2026-07-07 --output output --visit-tricities
+python -m cargo_harvester.cli --city kennewick --start 2026-07-01 --end 2026-07-07 --output output --visit-tricities --debug
 ```
 
 Manual CSV merge:
@@ -71,7 +79,7 @@ python -m cargo_harvester.cli --city kennewick --start 2026-07-01 --end 2026-07-
 ```text
 src/cargo_harvester/
   models.py              Canonical EventRecord model
-  core.py                CSV output and dedupe helpers
+  core.py                CSV output, debug output, and dedupe helpers
   cli.py                 Command-line runner
   reddit.py              Reddit weekly draft exporter
   sources/
