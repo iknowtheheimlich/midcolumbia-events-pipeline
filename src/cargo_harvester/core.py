@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import csv
+import json
 from pathlib import Path
+from typing import Any
 
 from cargo_harvester.models import CANONICAL_FIELDS, EventRecord
 
@@ -24,3 +26,8 @@ def write_events_csv(events: list[EventRecord], path: Path) -> None:
         writer.writeheader()
         for event in events:
             writer.writerow(event.to_csv_row())
+
+
+def write_debug_json(data: Any, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
