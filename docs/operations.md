@@ -10,6 +10,8 @@ Run Windows setup once:
 setup_windows.bat
 ```
 
+This installs dependencies, installs the local package in editable mode, and installs Playwright Chromium.
+
 Harvest a date range:
 
 ```cmd
@@ -85,10 +87,11 @@ Python 3.14 may work for runtime, but packaging/build tooling is still catching 
 
 ## Common commands
 
-Install dependencies:
+Install dependencies and package:
 
 ```cmd
 python -m pip install -r requirements.txt
+python -m pip install -e .
 python -m playwright install chromium
 ```
 
@@ -96,6 +99,12 @@ Run CLI directly:
 
 ```cmd
 python -m cargo_harvester.cli --city kennewick --start 2026-07-01 --end 2026-07-07 --output output
+```
+
+Run installed command:
+
+```cmd
+cargo-harvester --city kennewick --start 2026-07-01 --end 2026-07-07 --output output
 ```
 
 Run with browser visible and debug output:
