@@ -17,6 +17,7 @@ Current status: Cargo Harvester core is being formalized from the earlier protot
 - Can write source debug JSON for parser diagnosis.
 - Includes baseline unit tests for model, core, and Reddit output behavior.
 - Runs unit tests through GitHub Actions on PR/push.
+- Installs as an editable local Python package.
 
 ## Windows setup
 
@@ -25,6 +26,14 @@ Run:
 ```cmd
 setup_windows.bat
 ```
+
+That installs dependencies, installs the project with:
+
+```cmd
+python -m pip install -e .
+```
+
+and installs Playwright Chromium.
 
 Then harvest a week:
 
@@ -48,10 +57,9 @@ Run:
 run_tests.bat
 ```
 
-Direct command:
+Direct command after setup:
 
 ```cmd
-set PYTHONPATH=src
 python -m unittest discover -s tests -p "test_*.py"
 ```
 
@@ -61,6 +69,12 @@ GitHub Actions also runs the same unittest suite on PR/push using Python 3.13.
 
 ```cmd
 python -m cargo_harvester.cli --city kennewick --start 2026-07-01 --end 2026-07-07 --output output
+```
+
+Installed console command:
+
+```cmd
+cargo-harvester --city kennewick --start 2026-07-01 --end 2026-07-07 --output output
 ```
 
 Debug mode:
