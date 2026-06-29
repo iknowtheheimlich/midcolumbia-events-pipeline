@@ -16,6 +16,7 @@ Current status: Cargo Harvester core is being formalized from the earlier protot
 - Can optionally include rendered Visit Tri-Cities event listings.
 - Can write source debug JSON for parser diagnosis.
 - Includes baseline unit tests for model, core, and Reddit output behavior.
+- Runs unit tests through GitHub Actions on PR/push.
 
 ## Windows setup
 
@@ -53,6 +54,8 @@ Direct command:
 set PYTHONPATH=src
 python -m unittest discover -s tests -p "test_*.py"
 ```
+
+GitHub Actions also runs the same unittest suite on PR/push using Python 3.13.
 
 ## Direct CLI
 
