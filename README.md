@@ -8,6 +8,7 @@ Current status: Cargo Harvester core is being formalized from the earlier protot
 
 - Sweeps AllEvents by date range instead of relying on the incomplete city/all page.
 - Uses Playwright/Chromium so the site loads like a real browser.
+- Supports a local persistent browser profile for login/session reuse.
 - Normalizes event records into one canonical schema.
 - Deduplicates rows.
 - Writes a CSV output.
@@ -47,6 +48,28 @@ Outputs:
 output\unified_events.csv
 output\reddit_weekly_draft.md
 output\debug\allevents_cards.json
+```
+
+## Login/session calibration
+
+If AllEvents needs a login or browser session, run:
+
+```cmd
+run_harvester_visible_profile.bat 2026-07-01 2026-07-07
+```
+
+This opens a visible browser and uses a local folder:
+
+```text
+browser_profile\
+```
+
+Log in manually in that browser if needed. The script does not know or store your password. The browser session stays local on your computer and is ignored by Git.
+
+Direct command:
+
+```cmd
+python -m cargo_harvester.cli --city kennewick --start 2026-07-01 --end 2026-07-07 --output output --visible --debug --profile-dir browser_profile
 ```
 
 ## Tests
