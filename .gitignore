@@ -7,3 +7,5 @@ build/
 *.spec
 output/*.csv
 output/*.json
+output/debug/
+browser_profile/
