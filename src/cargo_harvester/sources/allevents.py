@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from datetime import date, datetime, timedelta
+from pathlib import Path
 from typing import Any, Callable
 
 from playwright.async_api import async_playwright
@@ -212,15 +213,35 @@ def card_to_event(card: dict[str, str], fallback_city: str) -> EventRecord:
     return event.finalize()
 
 
-async def harvest_allevents(city: str, start: date, end: date, headless: bool = True, log: Callable[[str], None] | None = None) -> tuple[list[EventRecord], list[dict[str, str]]]:
+async def harvest_allevents(
+    city: str,
+    start: date,
+    end: date,
+    headless: bool = True,
+    log: Callable[[str], None] | None = None,
+    profile_dir: str | Path | None = None,
+) -> tuple[list[EventRecord], list[dict[str, str]]]:
     all_cards: list[dict[str, str]] = []
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=headless)
-        context = await browser.new_context(
-            viewport={"width": 1400, "height": 1000},
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36",
-        )
-        for day in iter_dates(start, end):
-            all_cards.extend(await harvest_date(context, city, day, log))
-        await browser.close()
+        if profile_dir:
+            profile_path = Path(profile_dir)
+            profile_path.mkdir(parents=True, exist_ok=True)
+            context = await p.chromium.launch_persistent_context(
+                user_data_dir=str(profile_path),
+                headless=headless,
+                viewport={"width": 1400, "height": 1000},
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36",
+            )
+            for day in iter_dates(start, end):
+                all_cards.extend(await harvest_date(context, city, day, log))
+            await context.close()
+        else:
+            browser = await p.chromium.launch(headless=headless)
+            context = await browser.new_context(
+                viewport={"width": 1400, "height": 1000},
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36",
+            )
+            for day in iter_dates(start, end):
+                all_cards.extend(await harvest_date(context, city, day, log))
+            await browser.close()
     return [card_to_event(card, city) for card in all_cards], all_cards
