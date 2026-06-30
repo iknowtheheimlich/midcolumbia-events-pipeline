@@ -25,6 +25,10 @@ async def run(args) -> None:
     start = parse_date(args.start)
     end = parse_date(args.end)
 
+    profile_dir = Path(args.profile_dir) if args.profile_dir else None
+    if profile_dir:
+        print(f"Browser profile: {profile_dir}")
+
     if not args.skip_allevents:
         allevents_events, allevents_cards = await harvest_allevents(
             city=args.city,
@@ -32,6 +36,7 @@ async def run(args) -> None:
             end=end,
             headless=not args.visible,
             log=print,
+            profile_dir=profile_dir,
         )
         events.extend(allevents_events)
         if args.debug:
@@ -81,6 +86,7 @@ def main() -> None:
     parser.add_argument("--output", default="output")
     parser.add_argument("--visible", action="store_true", help="Show browser while harvesting")
     parser.add_argument("--debug", action="store_true", help="Write raw source debug JSON files")
+    parser.add_argument("--profile-dir", default="", help="Persistent local browser profile directory for login/session reuse")
     parser.add_argument("--skip-allevents", action="store_true", help="Only use manual/source files")
     parser.add_argument("--visit-tricities", action="store_true", help="Include rendered Visit Tri-Cities event listings")
     parser.add_argument("--manual-csv", action="append", default=[], help="Additional CSV file to merge into the unified event feed")
