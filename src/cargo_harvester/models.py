@@ -8,6 +8,7 @@ CANONICAL_FIELDS = [
     "Event Name", "Date Raw", "Start Time", "End Time", "Venue", "City", "Address",
     "Source", "Source URL", "Category", "Cost", "Description", "Image URL",
     "About Date Claim", "About Time Claim", "Date Conflict", "Time Conflict",
+    "Doors Open", "Event Start Detail", "Ticket Info", "Registration Info", "Age Audience", "Pertinent Notes",
     "Harvest Date", "Harvest URL", "Status", "Reddit Include", "Needs Review",
     "Review Notes", "Dedupe Key",
 ]
@@ -38,6 +39,12 @@ class EventRecord:
     about_time_claim: str = ""
     date_conflict: str = "No"
     time_conflict: str = "No"
+    doors_open: str = ""
+    event_start_detail: str = ""
+    ticket_info: str = ""
+    registration_info: str = ""
+    age_audience: str = ""
+    pertinent_notes: str = ""
     harvest_date: str = ""
     harvest_url: str = ""
     status: str = "Raw"
@@ -92,6 +99,12 @@ class EventRecord:
             "About Time Claim": self.about_time_claim,
             "Date Conflict": self.date_conflict,
             "Time Conflict": self.time_conflict,
+            "Doors Open": self.doors_open,
+            "Event Start Detail": self.event_start_detail,
+            "Ticket Info": self.ticket_info,
+            "Registration Info": self.registration_info,
+            "Age Audience": self.age_audience,
+            "Pertinent Notes": self.pertinent_notes,
             "Harvest Date": self.harvest_date,
             "Harvest URL": self.harvest_url,
             "Status": self.status,
