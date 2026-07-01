@@ -49,79 +49,64 @@ async def auto_scroll(page, max_scrolls: int = 12) -> None:
         await page.wait_for_timeout(900)
 
 
-async def extract_cards(page) -> list[dict[str, str]]:
+async def extract_listing_cards(page) -> list[dict[str, str]]:
     return await page.evaluate(r'''
     () => {
-        const anchors = Array.from(document.querySelectorAll('a[href*="allevents.in"]'));
         const out = [];
         const seen = new Set();
-
-        function absUrl(url) {
-            try { return new URL(url, location.href).href; } catch { return url || ""; }
+        function absUrl(url) { try { return new URL(url, location.href).href; } catch { return url || ""; } }
+        function ok(url) {
+            if (!url || !url.includes('allevents.in')) return false;
+            if (/\/all($|\?)|\/events($|\?)|\/tickets($|\?)/i.test(url)) return false;
+            return /allevents\.in\/.+\/[a-z0-9-]+/i.test(url) || /allevents\.in\/.+\/\d{8,}/.test(url);
         }
-        function looksLikeEventUrl(url) {
-            if (!url) return false;
-            if (/allevents\.in\/.+\/\d{8,}/.test(url)) return true;
-            if (/allevents\.in\/[^/]+\/[a-z0-9-]+/i.test(url)
-                && !/\/all($|\?)|\/events($|\?)|\/tickets($|\?)/i.test(url)) return true;
-            return false;
-        }
-        function findCard(el) {
+        function cardFor(el) {
             let cur = el;
             for (let i = 0; i < 8 && cur; i++) {
-                const txt = (cur.innerText || "").trim();
-                const imgs = cur.querySelectorAll ? cur.querySelectorAll("img").length : 0;
-                if (txt.length > 35 && imgs >= 1) return cur;
+                const text = (cur.innerText || '').trim();
+                if (text.length > 35) return cur;
                 cur = cur.parentElement;
             }
             return el;
         }
-        function findImage(card) {
-            const imgs = Array.from(card.querySelectorAll ? card.querySelectorAll("img") : []);
-            const candidates = imgs.map(img =>
-                img.currentSrc || img.src || img.getAttribute("data-src") ||
-                img.getAttribute("data-original") || img.getAttribute("data-lazy") || ""
-            )
-            .filter(Boolean)
-            .map(absUrl)
-            .filter(url => !/logo|icon|avatar|default|blank|svg/i.test(url));
-            return candidates[0] || "";
+        function imgFor(card) {
+            const imgs = Array.from(card.querySelectorAll ? card.querySelectorAll('img') : []);
+            for (const img of imgs) {
+                const url = absUrl(img.currentSrc || img.src || img.getAttribute('data-src') || '');
+                if (url && !/logo|icon|avatar|default|blank|svg/i.test(url)) return url;
+            }
+            return '';
         }
-
-        for (const a of anchors) {
-            const href = absUrl(a.getAttribute("href") || a.href || "");
-            if (!looksLikeEventUrl(href)) continue;
-            const cleanHref = href.split("?")[0].replace(/\/$/, "");
-            if (seen.has(cleanHref)) continue;
-            seen.add(cleanHref);
-            const card = findCard(a);
-            const text = (card.innerText || a.innerText || "").trim();
-            if (text.length < 20) continue;
-            out.push({ url: cleanHref, text, image_url: findImage(card), html_class: card.className || "" });
+        for (const a of Array.from(document.querySelectorAll('a[href]'))) {
+            const href = absUrl(a.getAttribute('href') || a.href || '').split('?')[0].replace(/\/$/, '');
+            if (!ok(href) || seen.has(href)) continue;
+            seen.add(href);
+            const card = cardFor(a);
+            out.push({ url: href, listing_text: (card.innerText || a.innerText || '').trim(), listing_image_url: imgFor(card) });
         }
         return out;
     }
     ''')
 
 
-async def harvest_one_url(context, url: str) -> list[dict[str, str]]:
+async def harvest_listing_url(context, url: str) -> list[dict[str, str]]:
     page = await context.new_page()
     try:
         await page.goto(url, wait_until="domcontentloaded", timeout=45000)
         await page.wait_for_timeout(1800)
         await auto_scroll(page)
-        return await extract_cards(page)
+        return await extract_listing_cards(page)
     except Exception:
         return []
     finally:
         await page.close()
 
 
-async def harvest_date(context, city: str, day: date, log: Callable[[str], None] | None = None) -> list[dict[str, str]]:
+async def discover_date_urls(context, city: str, day: date, log: Callable[[str], None] | None = None) -> list[dict[str, str]]:
     best_cards: list[dict[str, str]] = []
     best_url = ""
     for url in build_candidate_urls(city, day):
-        cards = await harvest_one_url(context, url)
+        cards = await harvest_listing_url(context, url)
         if len(cards) > len(best_cards):
             best_cards = cards
             best_url = url
@@ -131,84 +116,120 @@ async def harvest_date(context, city: str, day: date, log: Callable[[str], None]
         card["harvest_date"] = day.isoformat()
         card["harvest_url"] = best_url
     if log:
-        log(f"{day.isoformat()}: {len(best_cards)} cards")
+        log(f"{day.isoformat()}: discovered {len(best_cards)} listing URLs")
     return best_cards
 
 
-def parse_card_text(text: str) -> dict[str, str]:
-    lines = [clean_text(x) for x in text.splitlines() if clean_text(x)]
-    joined = clean_text(text)
+def parse_event_date(value: str) -> date | None:
+    value = clean_text(value)
+    if not value:
+        return None
+    for fmt in ("%Y-%m-%d", "%a, %d %b, %Y", "%a, %d %B, %Y", "%d %b, %Y", "%d %B, %Y", "%b %d, %Y", "%B %d, %Y"):
+        try:
+            return datetime.strptime(value, fmt).date()
+        except ValueError:
+            continue
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).date()
+    except ValueError:
+        return None
 
+
+def parse_detail_text(text: str) -> dict[str, str]:
+    text = clean_text(text)
     date_raw = ""
     start_time = ""
     end_time = ""
     venue = ""
     city = ""
 
-    for pattern in [
-        r"\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),?\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2}\b",
-        r"\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2}\b",
+    date_patterns = [
+        r"\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),?\s+\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*,?\s+\d{4}\b",
+        r"\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),?\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}\b",
         r"\b\d{4}-\d{2}-\d{2}\b",
-    ]:
-        match = re.search(pattern, joined)
+    ]
+    for pattern in date_patterns:
+        match = re.search(pattern, text, re.I)
         if match:
             date_raw = clean_text(match.group(0))
             break
 
-    for pattern in [
-        r"\b\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)\s*(?:-|–|to)?\s*\d{0,2}(?::?\d{0,2})?\s*(?:AM|PM|am|pm)?\b",
-        r"\bAll day\b",
-    ]:
-        match = re.search(pattern, joined)
-        if match:
-            raw_time = clean_text(match.group(0))
-            parts = re.split(r"\s*(?:-|–|to)\s*", raw_time, maxsplit=1)
-            start_time = clean_text(parts[0])
-            if len(parts) > 1:
-                end_time = clean_text(parts[1])
+    time_match = re.search(r"\b\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)\s*(?:-|–|to)?\s*\d{0,2}(?::?\d{0,2})?\s*(?:AM|PM|am|pm)?\b", text)
+    if time_match:
+        raw_time = clean_text(time_match.group(0))
+        parts = re.split(r"\s*(?:-|–|to)\s*", raw_time, maxsplit=1)
+        start_time = clean_text(parts[0])
+        end_time = clean_text(parts[1]) if len(parts) > 1 else ""
+
+    for candidate in TRI_CITIES:
+        if re.search(rf"\b{re.escape(candidate)}\b", text, re.I):
+            city = candidate
             break
 
-    noise = ["interested", "share", "save", "followers", "going", "event starts"]
-    title = ""
-    for line in lines:
-        lower = line.lower()
-        if any(word in lower for word in noise):
+    return {"date_raw": date_raw, "start_time": start_time, "end_time": end_time, "venue": venue, "city": city}
+
+
+async def scrape_detail(context, listing_card: dict[str, str]) -> dict[str, Any]:
+    page = await context.new_page()
+    url = clean_text(listing_card.get("url"))
+    try:
+        await page.goto(url, wait_until="domcontentloaded", timeout=45000)
+        await page.wait_for_timeout(1500)
+        body_text = await page.evaluate("document.body.innerText || ''")
+        title = await page.evaluate("(document.querySelector('h1') && document.querySelector('h1').innerText) || document.title || ''")
+        image_url = await page.evaluate("(document.querySelector('meta[property=\"og:image\"]') && document.querySelector('meta[property=\"og:image\"]').content) || ''")
+        parsed = parse_detail_text(body_text)
+        return {
+            "url": url,
+            "title": clean_text(title),
+            "body_text": clean_text(body_text)[:5000],
+            "image_url": clean_text(image_url) or clean_text(listing_card.get("listing_image_url")),
+            "listing_card": listing_card,
+            **parsed,
+        }
+    finally:
+        await page.close()
+
+
+async def scrape_detail_pages(context, listing_cards: list[dict[str, str]], start: date, end: date, log: Callable[[str], None] | None = None) -> list[dict[str, Any]]:
+    details = []
+    seen = set()
+    for index, card in enumerate(listing_cards, start=1):
+        url = clean_text(card.get("url"))
+        if not url or url in seen:
             continue
-        if date_raw and date_raw.lower() in lower:
-            continue
-        if start_time and start_time.lower() in lower:
-            continue
-        if len(line) >= 5:
-            title = line
-            break
-
-    for c in TRI_CITIES:
-        if re.search(rf"\b{re.escape(c)}\b", joined, re.I):
-            city = c
-            break
-    for line in lines:
-        if city and city.lower() in line.lower():
-            venue = line
-            break
-
-    return {"title": title, "date_raw": date_raw, "start_time": start_time, "end_time": end_time, "venue": venue, "city": city, "description": joined[:1500]}
+        seen.add(url)
+        try:
+            detail = await scrape_detail(context, card)
+            event_date = parse_event_date(detail.get("date_raw", ""))
+            detail["event_date"] = event_date.isoformat() if event_date else ""
+            detail["filtered_out"] = bool(event_date and not (start <= event_date <= end))
+            if not detail["filtered_out"]:
+                details.append(detail)
+            if log:
+                status = "kept" if not detail["filtered_out"] else "filtered"
+                log(f"  detail {index}/{len(listing_cards)}: {status} - {detail.get('title') or url}")
+        except Exception as exc:
+            if log:
+                log(f"  detail {index}/{len(listing_cards)} failed: {type(exc).__name__} - {url}")
+    return details
 
 
-def card_to_event(card: dict[str, str], fallback_city: str) -> EventRecord:
-    parsed = parse_card_text(card.get("text", ""))
+def detail_to_event(detail: dict[str, Any], fallback_city: str) -> EventRecord:
+    listing = detail.get("listing_card", {}) or {}
     event = EventRecord(
-        event_name=parsed["title"],
-        date_raw=parsed["date_raw"] or clean_text(card.get("harvest_date")),
-        start_time=parsed["start_time"],
-        end_time=parsed["end_time"],
-        venue=parsed["venue"],
-        city=parsed["city"] or fallback_city.title(),
+        event_name=clean_text(detail.get("title")),
+        date_raw=clean_text(detail.get("date_raw")),
+        start_time=clean_text(detail.get("start_time")),
+        end_time=clean_text(detail.get("end_time")),
+        venue=clean_text(detail.get("venue")),
+        city=clean_text(detail.get("city")) or fallback_city.title(),
         source="AllEvents",
-        source_url=clean_text(card.get("url")),
-        description=parsed["description"],
-        image_url=clean_text(card.get("image_url")),
-        harvest_date=clean_text(card.get("harvest_date")),
-        harvest_url=clean_text(card.get("harvest_url")),
+        source_url=clean_text(detail.get("url")),
+        description=clean_text(detail.get("body_text"))[:1500],
+        image_url=clean_text(detail.get("image_url")),
+        harvest_date=clean_text(listing.get("harvest_date")),
+        harvest_url=clean_text(listing.get("harvest_url")),
     )
     return event.finalize()
 
@@ -220,8 +241,9 @@ async def harvest_allevents(
     headless: bool = True,
     log: Callable[[str], None] | None = None,
     profile_dir: str | Path | None = None,
-) -> tuple[list[EventRecord], list[dict[str, str]]]:
-    all_cards: list[dict[str, str]] = []
+) -> tuple[list[EventRecord], list[dict[str, Any]]]:
+    listing_cards: list[dict[str, str]] = []
+    detail_rows: list[dict[str, Any]] = []
     async with async_playwright() as p:
         if profile_dir:
             profile_path = Path(profile_dir)
@@ -233,7 +255,8 @@ async def harvest_allevents(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36",
             )
             for day in iter_dates(start, end):
-                all_cards.extend(await harvest_date(context, city, day, log))
+                listing_cards.extend(await discover_date_urls(context, city, day, log))
+            detail_rows = await scrape_detail_pages(context, listing_cards, start, end, log)
             await context.close()
         else:
             browser = await p.chromium.launch(headless=headless)
@@ -242,6 +265,9 @@ async def harvest_allevents(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/126 Safari/537.36",
             )
             for day in iter_dates(start, end):
-                all_cards.extend(await harvest_date(context, city, day, log))
+                listing_cards.extend(await discover_date_urls(context, city, day, log))
+            detail_rows = await scrape_detail_pages(context, listing_cards, start, end, log)
             await browser.close()
-    return [card_to_event(card, city) for card in all_cards], all_cards
+
+    debug_rows = detail_rows or [{"listing_only": True, **card} for card in listing_cards]
+    return [detail_to_event(detail, city) for detail in detail_rows], debug_rows
