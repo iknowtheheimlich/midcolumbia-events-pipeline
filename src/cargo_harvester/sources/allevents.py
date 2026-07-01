@@ -4,12 +4,21 @@ import re
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable
+from urllib.parse import urlparse
 
 from playwright.async_api import async_playwright
 
 from cargo_harvester.models import EventRecord, clean_text
 
 TRI_CITIES = ["Kennewick", "Richland", "Pasco", "West Richland", "Benton City", "Burbank", "Finley"]
+
+BLOCKED_SLUGS = {
+    "all", "events", "tickets", "music", "concerts", "parties", "performances", "comedy", "dance",
+    "entertainment", "fine-arts", "theatre", "theater", "literary-art", "crafts", "photography",
+    "cooking", "arts", "food-drinks", "business", "festivals", "meetups", "sports", "workshops",
+    "webinars", "kids", "health-wellness", "trips-adventures", "calendar", "signin", "login", "signup",
+    "help", "support", "about", "organizer", "create-event", "add-event", "pricing", "sell-tickets",
+}
 
 
 def iter_dates(start: date, end: date):
@@ -36,6 +45,26 @@ def build_candidate_urls(city: str, day: date) -> list[str]:
     ]
 
 
+def is_probable_event_url(url: str) -> bool:
+    parsed = urlparse(url)
+    if not parsed.netloc.endswith("allevents.in"):
+        return False
+    parts = [p for p in parsed.path.strip("/").split("/") if p]
+    if len(parts) < 2:
+        return False
+    slug = parts[-1].lower()
+    if slug in BLOCKED_SLUGS:
+        return False
+    if any(piece.lower() in BLOCKED_SLUGS for piece in parts[1:]):
+        return False
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}|\d{8}", slug):
+        return False
+    if not re.search(r"[a-z]", slug):
+        return False
+    # AllEvents true event pages commonly include a numeric event id or a long descriptive slug.
+    return bool(re.search(r"\d{6,}", url) or len(slug) >= 12)
+
+
 async def auto_scroll(page, max_scrolls: int = 12) -> None:
     last_height = 0
     stable_count = 0
@@ -50,16 +79,11 @@ async def auto_scroll(page, max_scrolls: int = 12) -> None:
 
 
 async def extract_listing_cards(page) -> list[dict[str, str]]:
-    return await page.evaluate(r'''
+    candidates = await page.evaluate(r'''
     () => {
         const out = [];
         const seen = new Set();
         function absUrl(url) { try { return new URL(url, location.href).href; } catch { return url || ""; } }
-        function ok(url) {
-            if (!url || !url.includes('allevents.in')) return false;
-            if (/\/all($|\?)|\/events($|\?)|\/tickets($|\?)/i.test(url)) return false;
-            return /allevents\.in\/.+\/[a-z0-9-]+/i.test(url) || /allevents\.in\/.+\/\d{8,}/.test(url);
-        }
         function cardFor(el) {
             let cur = el;
             for (let i = 0; i < 8 && cur; i++) {
@@ -79,7 +103,7 @@ async def extract_listing_cards(page) -> list[dict[str, str]]:
         }
         for (const a of Array.from(document.querySelectorAll('a[href]'))) {
             const href = absUrl(a.getAttribute('href') || a.href || '').split('?')[0].replace(/\/$/, '');
-            if (!ok(href) || seen.has(href)) continue;
+            if (!href.includes('allevents.in') || seen.has(href)) continue;
             seen.add(href);
             const card = cardFor(a);
             out.push({ url: href, listing_text: (card.innerText || a.innerText || '').trim(), listing_image_url: imgFor(card) });
@@ -87,6 +111,7 @@ async def extract_listing_cards(page) -> list[dict[str, str]]:
         return out;
     }
     ''')
+    return [card for card in candidates if is_probable_event_url(card.get("url", ""))]
 
 
 async def harvest_listing_url(context, url: str) -> list[dict[str, str]]:
@@ -116,7 +141,7 @@ async def discover_date_urls(context, city: str, day: date, log: Callable[[str],
         card["harvest_date"] = day.isoformat()
         card["harvest_url"] = best_url
     if log:
-        log(f"{day.isoformat()}: discovered {len(best_cards)} listing URLs")
+        log(f"{day.isoformat()}: discovered {len(best_cards)} probable event URLs")
     return best_cards
 
 
