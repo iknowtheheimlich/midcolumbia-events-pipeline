@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 import re
 from typing import Any
 
 CANONICAL_FIELDS = [
     "Event Name", "Date Raw", "Start Time", "End Time", "Venue", "City", "Address",
     "Source", "Source URL", "Category", "Cost", "Description", "Image URL",
+    "About Date Claim", "About Time Claim", "Date Conflict", "Time Conflict",
     "Harvest Date", "Harvest URL", "Status", "Reddit Include", "Needs Review",
     "Review Notes", "Dedupe Key",
 ]
@@ -33,6 +34,10 @@ class EventRecord:
     cost: str = ""
     description: str = ""
     image_url: str = ""
+    about_date_claim: str = ""
+    about_time_claim: str = ""
+    date_conflict: str = "No"
+    time_conflict: str = "No"
     harvest_date: str = ""
     harvest_url: str = ""
     status: str = "Raw"
@@ -43,6 +48,9 @@ class EventRecord:
 
     def finalize(self) -> "EventRecord":
         notes = []
+        existing_notes = clean_text(self.review_notes)
+        if existing_notes:
+            notes.append(existing_notes)
         if not self.event_name:
             notes.append("Missing event name")
         if not self.date_raw:
@@ -55,8 +63,12 @@ class EventRecord:
             notes.append("Missing start time")
         if not self.venue:
             notes.append("Missing venue")
+        if self.date_conflict == "Yes":
+            notes.append("Structured date conflicts with About section")
+        if self.time_conflict == "Yes":
+            notes.append("Structured time conflicts with About section")
         self.needs_review = "Yes" if notes else "No"
-        self.review_notes = "; ".join(notes)
+        self.review_notes = "; ".join(dict.fromkeys(notes))
         if not self.dedupe_key:
             self.dedupe_key = make_dedupe_key(self)
         return self
@@ -76,6 +88,10 @@ class EventRecord:
             "Cost": self.cost,
             "Description": self.description,
             "Image URL": self.image_url,
+            "About Date Claim": self.about_date_claim,
+            "About Time Claim": self.about_time_claim,
+            "Date Conflict": self.date_conflict,
+            "Time Conflict": self.time_conflict,
             "Harvest Date": self.harvest_date,
             "Harvest URL": self.harvest_url,
             "Status": self.status,
