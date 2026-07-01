@@ -24,6 +24,16 @@ SYSTEM_SLUGS = {
     "organizer", "create-event", "add-event", "pricing", "sell-tickets",
 }
 
+DATE_PATTERNS = [
+    r"\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),?\s+\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*,?\s+\d{4}\b",
+    r"\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),?\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}\b",
+    r"\b\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*,?\s+\d{4}\b",
+    r"\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}\b",
+    r"\b\d{4}-\d{2}-\d{2}\b",
+]
+
+TIME_PATTERN = r"\b\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)\s*(?:-|–|to)?\s*\d{0,2}(?::?\d{0,2})?\s*(?:AM|PM|am|pm)?\b"
+
 
 def iter_dates(start: date, end: date):
     current = start
@@ -163,7 +173,6 @@ async def discover_date_urls(context, city: str, day: date, log: Callable[[str],
                 seen_discovery.add(url)
                 discovery_pages.append(url)
 
-    # Category pages are discovery ponds, not fish. Open them, but only keep event URLs found inside.
     for discovery_url in discovery_pages[:40]:
         links = await harvest_listing_url(context, discovery_url)
         for card in links:
@@ -194,26 +203,56 @@ def parse_event_date(value: str) -> date | None:
         return None
 
 
+def first_match(patterns: list[str], text: str) -> str:
+    for pattern in patterns:
+        match = re.search(pattern, text, re.I)
+        if match:
+            return clean_text(match.group(0))
+    return ""
+
+
+def parse_time_claim(text: str) -> str:
+    match = re.search(TIME_PATTERN, text)
+    return clean_text(match.group(0)) if match else ""
+
+
+def normalize_claim(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", clean_text(value).lower())
+
+
+def claims_conflict(structured: str, about_claim: str) -> str:
+    structured_norm = normalize_claim(structured)
+    about_norm = normalize_claim(about_claim)
+    if not structured_norm or not about_norm:
+        return "No"
+    if structured_norm in about_norm or about_norm in structured_norm:
+        return "No"
+    return "Yes"
+
+
+def extract_about_text(body_text: str) -> str:
+    text = clean_text(body_text)
+    marker = re.search(r"\bAbout\s+(?:The\s+)?Event\b", text, re.I)
+    if not marker:
+        return text[:2500]
+    tail = text[marker.end():]
+    stop = re.search(r"\b(?:Location|Organizer|Tags|Share With Friends|Advertisement|Date & Time|Venue)\b", tail, re.I)
+    return clean_text(tail[:stop.start()] if stop else tail[:2500])
+
+
 def parse_detail_text(text: str) -> dict[str, str]:
     text = clean_text(text)
-    date_raw = ""
+    about_text = extract_about_text(text)
+
+    date_raw = first_match(DATE_PATTERNS, text)
+    about_date_claim = first_match(DATE_PATTERNS, about_text)
     start_time = ""
     end_time = ""
     venue = ""
     city = ""
+    about_time_claim = parse_time_claim(about_text)
 
-    date_patterns = [
-        r"\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),?\s+\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*,?\s+\d{4}\b",
-        r"\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),?\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}\b",
-        r"\b\d{4}-\d{2}-\d{2}\b",
-    ]
-    for pattern in date_patterns:
-        match = re.search(pattern, text, re.I)
-        if match:
-            date_raw = clean_text(match.group(0))
-            break
-
-    time_match = re.search(r"\b\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)\s*(?:-|–|to)?\s*\d{0,2}(?::?\d{0,2})?\s*(?:AM|PM|am|pm)?\b", text)
+    time_match = re.search(TIME_PATTERN, text)
     if time_match:
         raw_time = clean_text(time_match.group(0))
         parts = re.split(r"\s*(?:-|–|to)\s*", raw_time, maxsplit=1)
@@ -225,7 +264,17 @@ def parse_detail_text(text: str) -> dict[str, str]:
             city = candidate
             break
 
-    return {"date_raw": date_raw, "start_time": start_time, "end_time": end_time, "venue": venue, "city": city}
+    return {
+        "date_raw": date_raw,
+        "start_time": start_time,
+        "end_time": end_time,
+        "venue": venue,
+        "city": city,
+        "about_date_claim": about_date_claim,
+        "about_time_claim": about_time_claim,
+        "date_conflict": claims_conflict(date_raw, about_date_claim),
+        "time_conflict": claims_conflict(start_time, about_time_claim),
+    }
 
 
 async def scrape_detail(context, listing_card: dict[str, str]) -> dict[str, Any]:
@@ -287,6 +336,10 @@ def detail_to_event(detail: dict[str, Any], fallback_city: str) -> EventRecord:
         source_url=clean_text(detail.get("url")),
         description=clean_text(detail.get("body_text"))[:1500],
         image_url=clean_text(detail.get("image_url")),
+        about_date_claim=clean_text(detail.get("about_date_claim")),
+        about_time_claim=clean_text(detail.get("about_time_claim")),
+        date_conflict=clean_text(detail.get("date_conflict")) or "No",
+        time_conflict=clean_text(detail.get("time_conflict")) or "No",
         harvest_date=clean_text(listing.get("harvest_date")),
         harvest_url=clean_text(listing.get("harvest_url")),
     )
