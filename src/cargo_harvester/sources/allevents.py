@@ -240,9 +240,52 @@ def extract_about_text(body_text: str) -> str:
     return clean_text(tail[:stop.start()] if stop else tail[:2500])
 
 
+def split_sentences(text: str) -> list[str]:
+    text = clean_text(text)
+    pieces = re.split(r"(?<=[.!?])\s+|\s+[•·]\s+|\s{2,}", text)
+    return [clean_text(p) for p in pieces if len(clean_text(p)) >= 6]
+
+
+def first_sentence_matching(text: str, keywords: list[str]) -> str:
+    for sentence in split_sentences(text):
+        lower = sentence.lower()
+        if any(k in lower for k in keywords):
+            return sentence[:500]
+    return ""
+
+
+def all_sentences_matching(text: str, keywords: list[str], limit: int = 4) -> str:
+    out: list[str] = []
+    for sentence in split_sentences(text):
+        lower = sentence.lower()
+        if any(k in lower for k in keywords):
+            out.append(sentence[:300])
+        if len(out) >= limit:
+            break
+    return "; ".join(dict.fromkeys(out))
+
+
+def extract_about_logistics(about_text: str) -> dict[str, str]:
+    doors_open = first_sentence_matching(about_text, ["doors open", "doors at", "gates open", "gate opens"])
+    event_start_detail = first_sentence_matching(about_text, ["starts", "movie starts", "show starts", "music starts", "performance starts", "program begins", "kickoff"])
+    ticket_info = all_sentences_matching(about_text, ["ticket", "tickets", "price", "cost", "admission", "$", "free", "donation"])
+    registration_info = all_sentences_matching(about_text, ["register", "registration", "rsvp", "reserve", "sign up", "sign-up", "pre-register"])
+    age_audience = all_sentences_matching(about_text, ["ages", "age", "kids", "children", "family", "families", "21+", "18+", "adults", "youth", "teen"])
+    pertinent_notes = all_sentences_matching(about_text, ["bring", "parking", "limited", "seating", "chair", "blanket", "cash", "id required", "weather", "outside", "outdoor", "inside", "indoor"])
+    return {
+        "doors_open": doors_open,
+        "event_start_detail": event_start_detail,
+        "ticket_info": ticket_info,
+        "registration_info": registration_info,
+        "age_audience": age_audience,
+        "pertinent_notes": pertinent_notes,
+    }
+
+
 def parse_detail_text(text: str) -> dict[str, str]:
     text = clean_text(text)
     about_text = extract_about_text(text)
+    logistics = extract_about_logistics(about_text)
 
     date_raw = first_match(DATE_PATTERNS, text)
     about_date_claim = first_match(DATE_PATTERNS, about_text)
@@ -274,6 +317,7 @@ def parse_detail_text(text: str) -> dict[str, str]:
         "about_time_claim": about_time_claim,
         "date_conflict": claims_conflict(date_raw, about_date_claim),
         "time_conflict": claims_conflict(start_time, about_time_claim),
+        **logistics,
     }
 
 
@@ -340,6 +384,12 @@ def detail_to_event(detail: dict[str, Any], fallback_city: str) -> EventRecord:
         about_time_claim=clean_text(detail.get("about_time_claim")),
         date_conflict=clean_text(detail.get("date_conflict")) or "No",
         time_conflict=clean_text(detail.get("time_conflict")) or "No",
+        doors_open=clean_text(detail.get("doors_open")),
+        event_start_detail=clean_text(detail.get("event_start_detail")),
+        ticket_info=clean_text(detail.get("ticket_info")),
+        registration_info=clean_text(detail.get("registration_info")),
+        age_audience=clean_text(detail.get("age_audience")),
+        pertinent_notes=clean_text(detail.get("pertinent_notes")),
         harvest_date=clean_text(listing.get("harvest_date")),
         harvest_url=clean_text(listing.get("harvest_url")),
     )
