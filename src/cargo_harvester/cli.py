@@ -7,13 +7,35 @@ from pathlib import Path
 
 from cargo_harvester.core import dedupe_events, write_events_csv, write_debug_json
 from cargo_harvester.reddit import build_reddit_weekly_draft
-from cargo_harvester.sources.allevents import harvest_allevents
+from cargo_harvester.sources.allevents import harvest_allevents, scrape_detail_pages, detail_to_event
 from cargo_harvester.sources.manual_csv import load_manual_csv
+from cargo_harvester.sources.saved_html import load_saved_html_folder
 from cargo_harvester.sources.visit_tricities import harvest_visit_tricities
+from playwright.async_api import async_playwright
 
 
 def parse_date(value: str):
     return datetime.strptime(value, "%Y-%m-%d").date()
+
+
+async def scrape_saved_html_details(cards, start, end, headless: bool, profile_dir: Path | None):
+    async with async_playwright() as p:
+        if profile_dir:
+            profile_dir.mkdir(parents=True, exist_ok=True)
+            context = await p.chromium.launch_persistent_context(
+                user_data_dir=str(profile_dir),
+                headless=headless,
+                viewport={"width": 1400, "height": 1000},
+            )
+            details = await scrape_detail_pages(context, cards, start, end, print)
+            await context.close()
+            return details
+
+        browser = await p.chromium.launch(headless=headless)
+        context = await browser.new_context(viewport={"width": 1400, "height": 1000})
+        details = await scrape_detail_pages(context, cards, start, end, print)
+        await browser.close()
+        return details
 
 
 async def run(args) -> None:
@@ -29,7 +51,16 @@ async def run(args) -> None:
     if profile_dir:
         print(f"Browser profile: {profile_dir}")
 
-    if not args.skip_allevents:
+    if args.saved_html:
+        saved_folder = Path(args.saved_html)
+        cards = load_saved_html_folder(saved_folder)
+        print(f"Saved HTML cards discovered: {len(cards)}")
+        details = await scrape_saved_html_details(cards, start, end, headless=not args.visible, profile_dir=profile_dir)
+        events.extend(detail_to_event(detail, args.city) for detail in details)
+        if args.debug:
+            write_debug_json(details or cards, debug_dir / "saved_html_cards.json")
+
+    if not args.skip_allevents and not args.saved_html:
         allevents_events, allevents_cards = await harvest_allevents(
             city=args.city,
             start=start,
@@ -87,6 +118,7 @@ def main() -> None:
     parser.add_argument("--visible", action="store_true", help="Show browser while harvesting")
     parser.add_argument("--debug", action="store_true", help="Write raw source debug JSON files")
     parser.add_argument("--profile-dir", default="", help="Persistent local browser profile directory for login/session reuse")
+    parser.add_argument("--saved-html", default="", help="Folder containing saved AllEvents HTML pages")
     parser.add_argument("--skip-allevents", action="store_true", help="Only use manual/source files")
     parser.add_argument("--visit-tricities", action="store_true", help="Include rendered Visit Tri-Cities event listings")
     parser.add_argument("--manual-csv", action="append", default=[], help="Additional CSV file to merge into the unified event feed")
