@@ -12,12 +12,16 @@ from cargo_harvester.models import EventRecord, clean_text
 
 TRI_CITIES = ["Kennewick", "Richland", "Pasco", "West Richland", "Benton City", "Burbank", "Finley"]
 
-BLOCKED_SLUGS = {
-    "all", "events", "tickets", "music", "concerts", "parties", "performances", "comedy", "dance",
-    "entertainment", "fine-arts", "theatre", "theater", "literary-art", "crafts", "photography",
-    "cooking", "arts", "food-drinks", "business", "festivals", "meetups", "sports", "workshops",
-    "webinars", "kids", "health-wellness", "trips-adventures", "calendar", "signin", "login", "signup",
-    "help", "support", "about", "organizer", "create-event", "add-event", "pricing", "sell-tickets",
+CATEGORY_SLUGS = {
+    "music", "concerts", "parties", "performances", "comedy", "dance", "entertainment", "fine-arts",
+    "theatre", "theater", "literary-art", "crafts", "photography", "cooking", "arts", "food-drinks",
+    "business", "festivals", "meetups", "sports", "workshops", "webinars", "kids", "health-wellness",
+    "trips-adventures", "4th-of-july", "best-events-this-weekend",
+}
+
+SYSTEM_SLUGS = {
+    "all", "events", "tickets", "calendar", "signin", "login", "signup", "help", "support", "about",
+    "organizer", "create-event", "add-event", "pricing", "sell-tickets",
 }
 
 
@@ -33,7 +37,7 @@ def build_candidate_urls(city: str, day: date) -> list[str]:
     iso = day.isoformat()
     ymd = day.strftime("%Y%m%d")
     month = day.strftime("%B").lower()
-    return [
+    base = [
         f"https://allevents.in/{city}/all?ref=cityhome_tab&date={iso}",
         f"https://allevents.in/{city}/all?date={iso}",
         f"https://allevents.in/{city}/all?from={iso}&to={iso}",
@@ -43,25 +47,37 @@ def build_candidate_urls(city: str, day: date) -> list[str]:
         f"https://allevents.in/{city}/{ymd}",
         f"https://allevents.in/{city}/{month}-{day.day}",
     ]
+    category_pages = [f"https://allevents.in/{city}/{slug}" for slug in sorted(CATEGORY_SLUGS)]
+    return base + category_pages
+
+
+def url_parts(url: str) -> list[str]:
+    return [p for p in urlparse(url).path.strip("/").split("/") if p]
+
+
+def is_allevents_url(url: str) -> bool:
+    return urlparse(url).netloc.endswith("allevents.in")
+
+
+def is_category_url(url: str) -> bool:
+    parts = url_parts(url)
+    return len(parts) >= 2 and parts[-1].lower() in CATEGORY_SLUGS
+
+
+def is_system_url(url: str) -> bool:
+    parts = url_parts(url)
+    return len(parts) < 2 or any(piece.lower() in SYSTEM_SLUGS for piece in parts[1:])
 
 
 def is_probable_event_url(url: str) -> bool:
-    parsed = urlparse(url)
-    if not parsed.netloc.endswith("allevents.in"):
+    if not is_allevents_url(url) or is_system_url(url) or is_category_url(url):
         return False
-    parts = [p for p in parsed.path.strip("/").split("/") if p]
-    if len(parts) < 2:
-        return False
+    parts = url_parts(url)
     slug = parts[-1].lower()
-    if slug in BLOCKED_SLUGS:
-        return False
-    if any(piece.lower() in BLOCKED_SLUGS for piece in parts[1:]):
-        return False
     if re.fullmatch(r"\d{4}-\d{2}-\d{2}|\d{8}", slug):
         return False
     if not re.search(r"[a-z]", slug):
         return False
-    # AllEvents true event pages commonly include a numeric event id or a long descriptive slug.
     return bool(re.search(r"\d{6,}", url) or len(slug) >= 12)
 
 
@@ -78,8 +94,8 @@ async def auto_scroll(page, max_scrolls: int = 12) -> None:
         await page.wait_for_timeout(900)
 
 
-async def extract_listing_cards(page) -> list[dict[str, str]]:
-    candidates = await page.evaluate(r'''
+async def extract_links(page) -> list[dict[str, str]]:
+    return await page.evaluate(r'''
     () => {
         const out = [];
         const seen = new Set();
@@ -111,7 +127,6 @@ async def extract_listing_cards(page) -> list[dict[str, str]]:
         return out;
     }
     ''')
-    return [card for card in candidates if is_probable_event_url(card.get("url", ""))]
 
 
 async def harvest_listing_url(context, url: str) -> list[dict[str, str]]:
@@ -120,7 +135,7 @@ async def harvest_listing_url(context, url: str) -> list[dict[str, str]]:
         await page.goto(url, wait_until="domcontentloaded", timeout=45000)
         await page.wait_for_timeout(1800)
         await auto_scroll(page)
-        return await extract_listing_cards(page)
+        return await extract_links(page)
     except Exception:
         return []
     finally:
@@ -128,21 +143,40 @@ async def harvest_listing_url(context, url: str) -> list[dict[str, str]]:
 
 
 async def discover_date_urls(context, city: str, day: date, log: Callable[[str], None] | None = None) -> list[dict[str, str]]:
-    best_cards: list[dict[str, str]] = []
-    best_url = ""
-    for url in build_candidate_urls(city, day):
-        cards = await harvest_listing_url(context, url)
-        if len(cards) > len(best_cards):
-            best_cards = cards
-            best_url = url
-        if len(cards) >= 8:
-            break
-    for card in best_cards:
-        card["harvest_date"] = day.isoformat()
-        card["harvest_url"] = best_url
+    event_cards: list[dict[str, str]] = []
+    discovery_pages: list[str] = []
+    seen_events: set[str] = set()
+    seen_discovery: set[str] = set()
+
+    for source_url in build_candidate_urls(city, day):
+        links = await harvest_listing_url(context, source_url)
+        for card in links:
+            url = clean_text(card.get("url"))
+            if not url or is_system_url(url):
+                continue
+            if is_probable_event_url(url) and url not in seen_events:
+                seen_events.add(url)
+                card["harvest_date"] = day.isoformat()
+                card["harvest_url"] = source_url
+                event_cards.append(card)
+            elif is_category_url(url) and url not in seen_discovery:
+                seen_discovery.add(url)
+                discovery_pages.append(url)
+
+    # Category pages are discovery ponds, not fish. Open them, but only keep event URLs found inside.
+    for discovery_url in discovery_pages[:40]:
+        links = await harvest_listing_url(context, discovery_url)
+        for card in links:
+            url = clean_text(card.get("url"))
+            if is_probable_event_url(url) and url not in seen_events:
+                seen_events.add(url)
+                card["harvest_date"] = day.isoformat()
+                card["harvest_url"] = discovery_url
+                event_cards.append(card)
+
     if log:
-        log(f"{day.isoformat()}: discovered {len(best_cards)} probable event URLs")
-    return best_cards
+        log(f"{day.isoformat()}: discovery pages {len(discovery_pages)}, probable event URLs {len(event_cards)}")
+    return event_cards
 
 
 def parse_event_date(value: str) -> date | None:
