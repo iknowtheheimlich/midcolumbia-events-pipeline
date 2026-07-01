@@ -26,17 +26,36 @@ output\reddit_weekly_draft.md
 output\debug\allevents_cards.json
 ```
 
+## AllEvents validation
+
+AllEvents listing pages are used for URL discovery only. The harvester then opens each event detail page and extracts the actual event date/time/title from there.
+
+If counts or dates look wrong, run visible persistent-profile mode:
+
+```cmd
+run_harvester_visible_profile.bat 2026-07-01 2026-07-07
+```
+
+Then inspect:
+
+```text
+output\debug\allevents_cards.json
+output\unified_events.csv
+```
+
+If the debug file contains listing-only rows, it means detail pages did not parse or load properly.
+
 ## If counts look too low
 
-AllEvents may not have loaded the full day feed.
+AllEvents may not have loaded the full day feed, or VPN/bot detection may be interfering.
 
 Try:
 
 ```cmd
-python -m cargo_harvester.cli --city kennewick --start 2026-07-01 --end 2026-07-07 --output output --visible --debug
+python -m cargo_harvester.cli --city kennewick --start 2026-07-01 --end 2026-07-07 --output output --visible --debug --profile-dir browser_profile
 ```
 
-Visible mode lets you watch what the browser sees. Debug mode writes the raw card data the parser saw.
+Visible mode lets you watch what the browser sees. Debug mode writes the raw card/detail data the parser saw.
 
 ## Visit Tri-Cities validation
 
