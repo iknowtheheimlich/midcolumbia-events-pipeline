@@ -16,6 +16,12 @@ No output should depend directly on a source website. All sources must emit the 
 AllEvents date sweep
       |
       v
+Listing URL discovery
+      |
+      v
+Event detail page scrape
+      |
+      v
 EventRecord list
       |
       +--> unified_events.csv
@@ -24,7 +30,9 @@ EventRecord list
 
 ## Why date sweep exists
 
-The AllEvents city/all page does not reliably load a comprehensive list. It often returns a partial feed unless a date is supplied. The adapter therefore scans one date at a time, tries several likely date-filter URL patterns, keeps the best result for that day, and deduplicates after the range is complete.
+The AllEvents city/all page does not reliably load a comprehensive list. It often returns a partial feed unless a date is supplied. The adapter therefore scans one date at a time and tries several likely date-filter URL patterns.
+
+However, the listing page is not treated as the source of truth. It may display events outside the requested date. Listing pages are now used for discovery only: collect candidate event URLs, then open each detail page and extract the real title/date/time/venue from the event page itself.
 
 ## Module boundaries
 
