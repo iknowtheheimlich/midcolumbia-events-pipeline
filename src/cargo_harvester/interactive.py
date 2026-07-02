@@ -12,6 +12,9 @@ from cargo_harvester.core import dedupe_events, write_debug_json, write_events_c
 from cargo_harvester.reddit import build_reddit_weekly_draft
 from cargo_harvester.sources.allevents import detail_to_event, is_probable_event_url, scrape_detail_pages
 
+LOCAL_SECTION_KEYWORDS = ["kennewick", "richland", "pasco", "west richland", "tri-cities", "tricities"]
+BLOCKED_SECTION_KEYWORDS = ["around the globe", "popular in", "nearby cities", "other cities", "explore events", "top organizers"]
+
 
 def parse_date(value: str):
     return datetime.strptime(value, "%Y-%m-%d").date()
@@ -28,15 +31,16 @@ async def wait_for_page_to_settle(page) -> None:
 
 async def evaluate_visible_cards(page) -> list[dict[str, Any]]:
     return await page.evaluate(r'''
-    () => {
+    ({localKeywords, blockedKeywords}) => {
         const out = [];
         const seen = new Set();
+        function clean(value) { return (value || '').replace(/\s+/g, ' ').trim(); }
         function absUrl(url) { try { return new URL(url, location.href).href; } catch { return url || ""; } }
         function cardFor(el) {
             let cur = el;
             for (let i = 0; i < 8 && cur; i++) {
                 const rect = cur.getBoundingClientRect ? cur.getBoundingClientRect() : null;
-                const text = (cur.innerText || '').trim();
+                const text = clean(cur.innerText || '');
                 if (text.length > 35 && rect && rect.width > 50 && rect.height > 20) return cur;
                 cur = cur.parentElement;
             }
@@ -50,25 +54,54 @@ async def evaluate_visible_cards(page) -> list[dict[str, Any]]:
             }
             return '';
         }
+        function previousSectionText(card) {
+            const cardTop = card.getBoundingClientRect().top + window.scrollY;
+            const headings = Array.from(document.querySelectorAll('h1,h2,h3,h4,[class*="title" i],[class*="heading" i]'));
+            let best = '';
+            let bestTop = -Infinity;
+            for (const h of headings) {
+                const text = clean(h.innerText || h.textContent || '');
+                if (!text || text.length > 140) continue;
+                const top = h.getBoundingClientRect().top + window.scrollY;
+                if (top <= cardTop && top > bestTop) {
+                    best = text;
+                    bestTop = top;
+                }
+            }
+            return best;
+        }
+        function sectionDecision(sectionText, cardText) {
+            const combined = (sectionText + ' ' + cardText).toLowerCase();
+            const blocked = blockedKeywords.some(k => combined.includes(k));
+            const local = localKeywords.some(k => combined.includes(k));
+            if (blocked && !local) return 'blocked';
+            if (local) return 'local';
+            return 'unknown';
+        }
         for (const a of Array.from(document.querySelectorAll('a[href]'))) {
             const href = absUrl(a.getAttribute('href') || a.href || '').split('?')[0].replace(/\/$/, '');
             if (!href.includes('allevents.in') || seen.has(href)) continue;
             seen.add(href);
             const card = cardFor(a);
+            const cardText = clean(card.innerText || a.innerText || '');
+            const sectionText = previousSectionText(card);
+            const sectionDecisionValue = sectionDecision(sectionText, cardText);
             out.push({
                 url: href,
-                listing_text: (card.innerText || a.innerText || '').trim(),
+                listing_text: cardText,
                 listing_image_url: imgFor(card),
                 harvest_url: location.href,
-                harvest_date: ''
+                harvest_date: '',
+                section_text: sectionText,
+                section_decision: sectionDecisionValue
             });
         }
         return out;
     }
-    ''')
+    ''', {"localKeywords": LOCAL_SECTION_KEYWORDS, "blockedKeywords": BLOCKED_SECTION_KEYWORDS})
 
 
-async def extract_visible_cards(page) -> list[dict[str, str]]:
+async def extract_visible_cards(page, local_only: bool = True) -> list[dict[str, str]]:
     last_error = ""
     raw_cards: list[dict[str, Any]] = []
 
@@ -87,11 +120,16 @@ async def extract_visible_cards(page) -> list[dict[str, str]]:
 
     cards: list[dict[str, str]] = []
     seen: set[str] = set()
+    rejected_section = 0
     for raw in raw_cards:
         url = str(raw.get("url", "")).strip()
         if not url or url in seen:
             continue
         if not is_probable_event_url(url):
+            continue
+        section_decision = str(raw.get("section_decision", "unknown") or "unknown")
+        if local_only and section_decision == "blocked":
+            rejected_section += 1
             continue
         seen.add(url)
         cards.append({
@@ -100,7 +138,11 @@ async def extract_visible_cards(page) -> list[dict[str, str]]:
             "listing_image_url": str(raw.get("listing_image_url", "") or "").strip(),
             "harvest_url": str(raw.get("harvest_url", "") or "").strip(),
             "harvest_date": str(raw.get("harvest_date", "") or "").strip(),
+            "section_text": str(raw.get("section_text", "") or "").strip(),
+            "section_decision": section_decision,
         })
+    if local_only:
+        print(f"Section filter rejected probable non-local cards: {rejected_section}")
     return cards
 
 
@@ -132,10 +174,11 @@ async def run(args) -> None:
         print("Turn VPN off if AllEvents acts feral.")
         print("Select city/date/filters manually.")
         print("Scroll/load until the event cards you want are visible.")
+        print("Default section filter: local city sections only; global sections ignored.")
         print("")
         input("When the correct page is visible and stable, press ENTER here to harvest it...")
 
-        cards = await extract_visible_cards(page)
+        cards = await extract_visible_cards(page, local_only=not args.include_global_sections)
         print(f"Visible event URLs discovered: {len(cards)}")
         if not cards:
             print("No event cards found. Leave the browser open, load/scroll the listing page, then rerun.")
@@ -168,6 +211,7 @@ def main() -> None:
     parser.add_argument("--output", default="output")
     parser.add_argument("--profile-dir", default="browser_profile")
     parser.add_argument("--url", default="https://allevents.in/richland-wa/all")
+    parser.add_argument("--include-global-sections", action="store_true", help="Include Around the Globe / non-local sections")
     args = parser.parse_args()
     asyncio.run(run(args))
 
