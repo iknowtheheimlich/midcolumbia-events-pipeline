@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from playwright.async_api import async_playwright
+from playwright.async_api import Error as PlaywrightError, TimeoutError as PlaywrightTimeoutError, async_playwright
 
 from cargo_harvester.core import dedupe_events, write_debug_json, write_events_csv
 from cargo_harvester.reddit import build_reddit_weekly_draft
@@ -17,8 +17,17 @@ def parse_date(value: str):
     return datetime.strptime(value, "%Y-%m-%d").date()
 
 
-async def extract_visible_cards(page) -> list[dict[str, str]]:
-    raw_cards: list[dict[str, Any]] = await page.evaluate(r'''
+async def wait_for_page_to_settle(page) -> None:
+    for state in ("domcontentloaded", "networkidle"):
+        try:
+            await page.wait_for_load_state(state, timeout=5000)
+        except PlaywrightTimeoutError:
+            pass
+    await page.wait_for_timeout(1500)
+
+
+async def evaluate_visible_cards(page) -> list[dict[str, Any]]:
+    return await page.evaluate(r'''
     () => {
         const out = [];
         const seen = new Set();
@@ -58,6 +67,24 @@ async def extract_visible_cards(page) -> list[dict[str, str]]:
     }
     ''')
 
+
+async def extract_visible_cards(page) -> list[dict[str, str]]:
+    last_error = ""
+    raw_cards: list[dict[str, Any]] = []
+
+    for attempt in range(1, 6):
+        try:
+            await wait_for_page_to_settle(page)
+            raw_cards = await evaluate_visible_cards(page)
+            break
+        except PlaywrightError as exc:
+            last_error = str(exc)
+            print(f"Page changed while reading cards; retrying {attempt}/5...")
+            await page.wait_for_timeout(1500)
+
+    if not raw_cards and last_error:
+        print(f"Card extraction ended with no raw cards. Last browser error: {last_error[:240]}")
+
     cards: list[dict[str, str]] = []
     seen: set[str] = set()
     for raw in raw_cards:
@@ -94,7 +121,8 @@ async def run(args) -> None:
             viewport={"width": 1400, "height": 1000},
         )
         page = context.pages[0] if context.pages else await context.new_page()
-        await page.goto(args.url, wait_until="domcontentloaded", timeout=60000)
+        if args.url:
+            await page.goto(args.url, wait_until="domcontentloaded", timeout=60000)
 
         print("")
         print("Cargo Harvester Interactive Mode")
@@ -105,10 +133,14 @@ async def run(args) -> None:
         print("Select city/date/filters manually.")
         print("Scroll/load until the event cards you want are visible.")
         print("")
-        input("When the correct page is visible, press ENTER here to harvest it...")
+        input("When the correct page is visible and stable, press ENTER here to harvest it...")
 
         cards = await extract_visible_cards(page)
         print(f"Visible event URLs discovered: {len(cards)}")
+        if not cards:
+            print("No event cards found. Leave the browser open, load/scroll the listing page, then rerun.")
+            await context.close()
+            return
 
         details = await scrape_detail_pages(context, cards, start, end, print)
         events = dedupe_events([detail_to_event(detail, args.city) for detail in details])
