@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -22,6 +23,15 @@ CATEGORY_SLUGS = {
 SYSTEM_SLUGS = {
     "all", "events", "tickets", "calendar", "signin", "login", "signup", "help", "support", "about",
     "organizer", "create-event", "add-event", "pricing", "sell-tickets",
+}
+
+DEFAULT_ABOUT_RULES = {
+    "doors_open": ["doors open", "doors at", "gates open", "gate opens", "entry begins"],
+    "event_start_detail": ["movie starts", "show starts", "music starts", "performance starts", "program begins", "kickoff", "starts at"],
+    "ticket_info": ["ticket", "tickets", "price", "cost", "admission", "$", "free", "donation"],
+    "registration_info": ["register", "registration", "rsvp", "reserve", "reservation", "sign up", "sign-up", "pre-register"],
+    "age_audience": ["ages", "age", "kids", "children", "family", "families", "21+", "18+", "adults", "youth", "teen"],
+    "pertinent_notes": ["bring", "parking", "limited", "seating", "chair", "blanket", "cash", "id required", "weather", "rain or shine", "outside", "outdoor", "inside", "indoor", "accessibility", "shuttle", "food truck", "concessions", "beer garden", "dogs welcome", "pet friendly", "no pets"],
 }
 
 DATE_PATTERNS = [
@@ -265,20 +275,30 @@ def all_sentences_matching(text: str, keywords: list[str], limit: int = 4) -> st
     return "; ".join(dict.fromkeys(out))
 
 
+def load_about_rules() -> dict[str, list[str]]:
+    candidates = [
+        Path.cwd() / "rules" / "about_rules.json",
+        Path(__file__).resolve().parents[3] / "rules" / "about_rules.json",
+    ]
+    for path in candidates:
+        try:
+            if path.exists():
+                data = json.loads(path.read_text(encoding="utf-8"))
+                return {key: [clean_text(x).lower() for x in value] for key, value in data.items() if isinstance(value, list)}
+        except Exception:
+            continue
+    return DEFAULT_ABOUT_RULES
+
+
 def extract_about_logistics(about_text: str) -> dict[str, str]:
-    doors_open = first_sentence_matching(about_text, ["doors open", "doors at", "gates open", "gate opens"])
-    event_start_detail = first_sentence_matching(about_text, ["starts", "movie starts", "show starts", "music starts", "performance starts", "program begins", "kickoff"])
-    ticket_info = all_sentences_matching(about_text, ["ticket", "tickets", "price", "cost", "admission", "$", "free", "donation"])
-    registration_info = all_sentences_matching(about_text, ["register", "registration", "rsvp", "reserve", "sign up", "sign-up", "pre-register"])
-    age_audience = all_sentences_matching(about_text, ["ages", "age", "kids", "children", "family", "families", "21+", "18+", "adults", "youth", "teen"])
-    pertinent_notes = all_sentences_matching(about_text, ["bring", "parking", "limited", "seating", "chair", "blanket", "cash", "id required", "weather", "outside", "outdoor", "inside", "indoor"])
+    rules = load_about_rules()
     return {
-        "doors_open": doors_open,
-        "event_start_detail": event_start_detail,
-        "ticket_info": ticket_info,
-        "registration_info": registration_info,
-        "age_audience": age_audience,
-        "pertinent_notes": pertinent_notes,
+        "doors_open": first_sentence_matching(about_text, rules.get("doors_open", [])),
+        "event_start_detail": first_sentence_matching(about_text, rules.get("event_start_detail", [])),
+        "ticket_info": all_sentences_matching(about_text, rules.get("ticket_info", [])),
+        "registration_info": all_sentences_matching(about_text, rules.get("registration_info", [])),
+        "age_audience": all_sentences_matching(about_text, rules.get("age_audience", [])),
+        "pertinent_notes": all_sentences_matching(about_text, rules.get("pertinent_notes", [])),
     }
 
 
