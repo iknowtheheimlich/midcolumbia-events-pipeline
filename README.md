@@ -35,6 +35,28 @@ See:
 - [`docs/ResolverPipeline.md`](docs/ResolverPipeline.md) — venue resolution decision tree
 - [`docs/Attempt_14_RegistryOptimizerVerification.md`](docs/Attempt_14_RegistryOptimizerVerification.md) — local verification checklist before Attempt_15
 
+## GitHub Roadmap Issues
+
+Current execution chain:
+
+```text
+#6   Attempt_14_Lock_Registry_Optimizer
+  ↓
+#7   Attempt_15_Visit_Tri-Cities
+  ↓
+#8   Attempt_16_Multi-Source_Deduplication
+  ↓
+#9   Attempt_17_Richland_Library
+  ↓
+#10  Attempt_18_Mid-Columbia_Libraries
+  ↓
+#11  Attempt_19_Notion_Export
+  ↓
+#13  Attempt_20_Regression_Test_Suite
+  ↓
+#12  Attempt_21_Production_Release
+```
+
 ## Development Rule
 
 Every milestone uses this naming format:
@@ -51,4 +73,6 @@ The event schema should remain backwards compatible whenever possible.
 Attempt_15_Visit_Tri-Cities
 ```
 
-Before beginning Attempt_15, complete the Attempt_14 Registry Optimizer verification checklist.
+Before beginning Attempt_15, complete the Attempt_14 Registry Optimizer verification checklist in issue #6.
+
+Production release is now gated by `Attempt_20_Regression_Test_Suite`.
