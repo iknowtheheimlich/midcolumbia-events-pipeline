@@ -19,11 +19,63 @@ Attempt_##_<Description>
 - Added `docs/VenueRegistry.md` to document the canonical venue system.
 - Added `docs/ResolverPipeline.md` to document venue resolution behavior.
 - Added `docs/Attempt_14_RegistryOptimizerVerification.md` to define the verification checklist for locking Attempt_14.
+- Added GitHub issues for roadmap milestones Attempt_14 through Attempt_21.
+- Added `Attempt_20_Regression_Test_Suite` as a required milestone before production release.
+- Renumbered production release planning from `Attempt_20_Production_Release` to `Attempt_21_Production_Release`.
 
 ### Notes
 
 - Attempt_14 documentation now treats the Registry Optimizer, Venue Registry, Resolver Pipeline, Source Adapter boundary, and Event Schema as formal system contracts.
 - Runtime verification of Registry Optimizer output still needs to be completed locally before starting `Attempt_15_Visit_Tri-Cities`.
+- Production release now requires regression coverage before tagging/release.
+
+## Attempt_21_Production_Release
+
+### Planned
+
+- First production release after regression suite passes.
+
+## Attempt_20_Regression_Test_Suite
+
+### Planned
+
+- Known-good fixtures.
+- Regression runner.
+- Reddit output comparison.
+- Notion export mapping comparison.
+- Venue resolution coverage.
+- Unknown venue queue coverage.
+- Deduplication coverage.
+
+## Attempt_19_Notion_Export
+
+### Planned
+
+- Notion export target using the canonical event schema.
+
+## Attempt_18_Mid-Columbia_Libraries
+
+### Planned
+
+- Mid-Columbia Libraries source adapter.
+
+## Attempt_17_Richland_Library
+
+### Planned
+
+- Richland Library source adapter.
+
+## Attempt_16_Multi-Source_Deduplication
+
+### Planned
+
+- Shared deduplication stage across source adapters.
+
+## Attempt_15_Visit_Tri-Cities
+
+### Planned
+
+- Visit Tri-Cities source adapter.
 
 ## Attempt_14_Registry_Optimizer
 
