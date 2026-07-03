@@ -1,0 +1,75 @@
+{
+  "doors_open": [
+    "doors open",
+    "doors at",
+    "gates open",
+    "gate opens",
+    "entry begins"
+  ],
+  "event_start_detail": [
+    "movie starts",
+    "show starts",
+    "music starts",
+    "performance starts",
+    "program begins",
+    "kickoff",
+    "starts at"
+  ],
+  "ticket_info": [
+    "ticket",
+    "tickets",
+    "price",
+    "cost",
+    "admission",
+    "$",
+    "free",
+    "donation"
+  ],
+  "registration_info": [
+    "register",
+    "registration",
+    "rsvp",
+    "reserve",
+    "reservation",
+    "sign up",
+    "sign-up",
+    "pre-register"
+  ],
+  "age_audience": [
+    "ages",
+    "age",
+    "kids",
+    "children",
+    "family",
+    "families",
+    "21+",
+    "18+",
+    "adults",
+    "youth",
+    "teen"
+  ],
+  "pertinent_notes": [
+    "bring",
+    "parking",
+    "limited",
+    "seating",
+    "chair",
+    "blanket",
+    "cash",
+    "id required",
+    "weather",
+    "rain or shine",
+    "outside",
+    "outdoor",
+    "inside",
+    "indoor",
+    "accessibility",
+    "shuttle",
+    "food truck",
+    "concessions",
+    "beer garden",
+    "dogs welcome",
+    "pet friendly",
+    "no pets"
+  ]
+}

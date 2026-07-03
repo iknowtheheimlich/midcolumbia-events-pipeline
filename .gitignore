@@ -1,4 +1,11 @@
-.env
 __pycache__/
 *.pyc
-
+.env
+.venv/
+dist/
+build/
+*.spec
+output/*.csv
+output/*.json
+output/debug/
+browser_profile/
