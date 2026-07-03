@@ -34,7 +34,8 @@ The event schema should remain backwards compatible whenever possible. Existing 
 - [ ] Attempt_17_Richland_Library
 - [ ] Attempt_18_Mid-Columbia_Libraries
 - [ ] Attempt_19_Notion_Export
-- [ ] Attempt_20_Production_Release
+- [ ] Attempt_20_Regression_Test_Suite
+- [ ] Attempt_21_Production_Release
 
 ## Current System Status
 
@@ -69,15 +70,17 @@ Target sources include:
 - Mid-Columbia Libraries
 - Additional local civic and community event sources as needed
 
-### Phase IV: Publishing and Release
+### Phase IV: Publishing, Testing, and Release
 
-Attempts 19-20 will formalize export targets and production readiness.
+Attempts 19-21 will formalize export targets, regression testing, and production readiness.
 
 Primary publishing targets:
 
 - Reddit chronological event posts
 - Notion export
 - Future structured exports as needed
+
+Production readiness requires a regression test suite before release.
 
 ## Schema Compatibility Policy
 
