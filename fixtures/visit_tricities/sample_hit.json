@@ -1,0 +1,34 @@
+{
+  "id": 1288032,
+  "title": "Summer Block Party Series with Fleet Feet Tri-Cities",
+  "uri": "/summer-block-party-series-with-fleet-feet-tri-cities/",
+  "content": "Join Fleet Feet Tri-Cities on the last Thursday of each month, May-August, for the Fleet Feet Summer Block Party, Tri-Cities' favorite scavenger hunt run!",
+  "typeHandle": "event",
+  "eventCategories": [
+    "Annual Events",
+    "Community Events"
+  ],
+  "partnerRegions": [
+    "Nearby",
+    "Richland",
+    "Richland » Columbia Point"
+  ],
+  "_geoloc": {
+    "lat": 46.273741,
+    "lng": -119.273495
+  },
+  "readableRepeatRule": "Jul 31, 2026",
+  "eventLocation": "Fleet Feet Richland",
+  "address": [
+    "Fleet Feet Richland",
+    "620 George Washington Way",
+    "Richland, Washington 99352"
+  ],
+  "phone": "(509) 420-4702",
+  "website": "https://runsignup.com/Race/WA/Richland/SummerBlockPartySerieswithFleetFeetTriCities",
+  "startDate": 1779991200,
+  "endDate": 1787788800,
+  "isAllDay": false,
+  "isMultiDay": true,
+  "objectID": "1288032"
+}
