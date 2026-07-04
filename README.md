@@ -1,13 +1,13 @@
 # Mid-Columbia Events Pipeline
 
-A local event harvesting, normalization, venue-resolution, and publishing pipeline for Mid-Columbia community event posts.
+A local event harvesting, normalization, venue-resolution, deduplication, and publishing pipeline for Mid-Columbia community event posts.
 
 ## Current Status
 
 The current foundation is stable through:
 
 ```text
-Attempt_16_Unified_Pipeline
+Attempt_17_Multi-Source_Deduplication
 ```
 
 Core capabilities documented so far:
@@ -22,6 +22,7 @@ Core capabilities documented so far:
 - Recurrence classification and publisher safety split
 - Legacy CSV importer for old `unified_events.csv`
 - Unified pipeline spine accepting multiple normalized source batches
+- Conservative exact-key deduplication with source attribution preservation
 
 ## Verified Smoke Tests
 
@@ -39,6 +40,17 @@ Visit Tri-Cities plus legacy unified CSV through unified pipeline:
 all_events: 111
 publisher_ready_events: 102
 recurrence_review_events: 9
+```
+
+Visit Tri-Cities plus legacy unified CSV with dedupe enabled:
+
+```text
+all_events: 111
+publisher_ready_events: 102
+deduplicated_publisher_ready_events: 101
+duplicate_groups: 1
+recurrence_review_events: 9
+skipped_low_quality_dedupe: 30
 ```
 
 ## Project Roadmap
@@ -69,7 +81,7 @@ Current execution chain:
   ↓
 #15  Attempt_16_Unified_Pipeline
   ↓
-#8   Attempt_17_Multi-Source_Deduplication
+#16  Attempt_17_Multi-Source_Deduplication
   ↓
 #9   Attempt_18_Richland_Library
   ↓
@@ -95,9 +107,9 @@ The event schema should remain backwards compatible whenever possible.
 ## Next Planned Milestone
 
 ```text
-Attempt_17_Multi-Source_Deduplication
+Attempt_18_Richland_Library
 ```
 
-Before starting broad source expansion, keep the unified pipeline source-agnostic and preserve review queues separately from publisher-ready output.
+Before starting broad source expansion, keep the unified pipeline source-agnostic and preserve review queues separately from deduplicated publisher-ready output.
 
 Production release is gated by the regression test suite.
