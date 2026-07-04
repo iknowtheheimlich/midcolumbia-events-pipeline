@@ -13,6 +13,7 @@ from typing import Any
 
 from adapters.algolia.payload import extract_hits
 from adapters.visit_tricities.config import BASE_URL, SOURCE_NAME
+from src.recurrence_classifier import classify_event_kind
 
 
 def parse_visit_tricities_html(html: str) -> list[dict]:
@@ -47,9 +48,8 @@ def normalize_hit(hit: dict[str, Any]) -> dict:
     url = normalize_url(hit.get("uri"))
     venue = first_non_empty(hit.get("eventLocation"), first_address_line(hit.get("address")))
     city = city_from_address(hit.get("address")) or city_from_regions(hit.get("partnerRegions"))
-    is_multi_day = bool(hit.get("isMultiDay"))
 
-    return {
+    event = {
         "title": clean_text(hit.get("title")),
         "venue": clean_text(venue),
         "venue_id": None,
@@ -65,12 +65,15 @@ def normalize_hit(hit: dict[str, Any]) -> dict:
         "description": clean_text(hit.get("content")),
         # Optional VTC/series metadata. These fields must not be required by downstream consumers.
         "external_url": clean_text(hit.get("website")) or None,
-        "is_series": is_multi_day,
+        "source_is_multi_day": bool(hit.get("isMultiDay")),
         "recurrence_note": clean_text(hit.get("readableRepeatRule")) or None,
         "source_event_id": clean_text(hit.get("objectID") or hit.get("id")) or None,
         "source_start_timestamp": int_or_none(hit.get("startDate")),
         "source_end_timestamp": int_or_none(hit.get("endDate")),
     }
+    event["event_kind"] = classify_event_kind(event)
+    event["is_series"] = event["event_kind"] == "series"
+    return event
 
 
 def unix_to_utc_datetime(value: Any) -> datetime | None:
