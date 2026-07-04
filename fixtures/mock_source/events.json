@@ -1,0 +1,33 @@
+[
+  {
+    "title": "Mock Single Event",
+    "venue": "Mock Venue",
+    "venue_id": null,
+    "address": "123 Test Way, Richland, Washington 99352",
+    "city": "Richland",
+    "start_date": "2026-07-10",
+    "end_date": "2026-07-10",
+    "start_time": "18:00",
+    "end_time": "20:00",
+    "url": "https://example.com/mock-single-event",
+    "source": "MockSource",
+    "category": "Test Events",
+    "description": "A single mock event used to prove the unified pipeline accepts multiple source batches."
+  },
+  {
+    "title": "Mock Weekly Series",
+    "venue": "Mock Venue",
+    "venue_id": null,
+    "address": "123 Test Way, Richland, Washington 99352",
+    "city": "Richland",
+    "start_date": "2026-07-01",
+    "end_date": "2026-08-26",
+    "start_time": "18:00",
+    "end_time": "20:00",
+    "url": "https://example.com/mock-weekly-series",
+    "source": "MockSource",
+    "category": "Test Events",
+    "description": "A weekly mock series used to prove recurrence review handling.",
+    "recurrence_note": "Wednesdays"
+  }
+]
