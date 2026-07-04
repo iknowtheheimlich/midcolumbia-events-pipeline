@@ -40,6 +40,19 @@ Rules:
 | category | string/null | No | Optional category |
 | description | string/null | No | Optional description |
 
+## Optional Enrichment Fields
+
+These fields may be provided by source adapters when available. Downstream consumers must treat them as optional.
+
+| Field | Type | Description |
+|------|------|-------------|
+| external_url | string/null | External event or registration URL distinct from the source listing URL |
+| is_series | boolean/null | True when the source event appears to represent a recurring series or multi-date container |
+| recurrence_note | string/null | Human-readable recurrence or repeat note from source |
+| source_event_id | string/null | Source-specific event identifier |
+| source_start_timestamp | integer/null | Source-provided raw start timestamp |
+| source_end_timestamp | integer/null | Source-provided raw end timestamp |
+
 ## Processing Contract
 
 Harvesters -> Parsers -> Canonical Event Schema -> Venue Resolver -> Validation -> Publisher
