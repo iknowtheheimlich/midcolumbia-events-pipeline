@@ -19,23 +19,24 @@ Attempt_##_<Description>
 - Added `docs/VenueRegistry.md` to document the canonical venue system.
 - Added `docs/ResolverPipeline.md` to document venue resolution behavior.
 - Added `docs/Attempt_14_RegistryOptimizerVerification.md` to define the verification checklist for locking Attempt_14.
-- Added GitHub issues for roadmap milestones Attempt_14 through Attempt_21.
-- Added `Attempt_20_Regression_Test_Suite` as a required milestone before production release.
-- Renumbered production release planning from `Attempt_20_Production_Release` to `Attempt_21_Production_Release`.
+- Added `docs/Attempt_15_VisitTriCities_SourceStrategy.md` to document the Visit Tri-Cities source strategy.
+- Added GitHub issues for roadmap milestones Attempt_14 through Attempt_22.
+- Added `Attempt_21_Regression_Test_Suite` as a required milestone before production release.
+- Renumbered production release planning to `Attempt_22_Production_Release`.
 
 ### Notes
 
 - Attempt_14 documentation now treats the Registry Optimizer, Venue Registry, Resolver Pipeline, Source Adapter boundary, and Event Schema as formal system contracts.
-- Runtime verification of Registry Optimizer output still needs to be completed locally before starting `Attempt_15_Visit_Tri-Cities`.
-- Production release now requires regression coverage before tagging/release.
+- Visit Tri-Cities proved the adapter architecture can support an API-backed source without changing the publisher or resolver.
+- Production release requires regression coverage before tagging/release.
 
-## Attempt_21_Production_Release
+## Attempt_22_Production_Release
 
 ### Planned
 
 - First production release after regression suite passes.
 
-## Attempt_20_Regression_Test_Suite
+## Attempt_21_Regression_Test_Suite
 
 ### Planned
 
@@ -47,35 +48,70 @@ Attempt_##_<Description>
 - Unknown venue queue coverage.
 - Deduplication coverage.
 
-## Attempt_19_Notion_Export
+## Attempt_20_Notion_Export
 
 ### Planned
 
 - Notion export target using the canonical event schema.
 
-## Attempt_18_Mid-Columbia_Libraries
+## Attempt_19_Mid-Columbia_Libraries
 
 ### Planned
 
 - Mid-Columbia Libraries source adapter.
 
-## Attempt_17_Richland_Library
+## Attempt_18_Richland_Library
 
 ### Planned
 
 - Richland Library source adapter.
 
-## Attempt_16_Multi-Source_Deduplication
+## Attempt_17_Multi-Source_Deduplication
 
 ### Planned
 
 - Shared deduplication stage across source adapters.
 
+## Attempt_16_Unified_Pipeline
+
+### Added
+
+- Added `src/pipeline.py` as the unified source-agnostic pipeline spine.
+- Added `SourceBatch` and `PipelineResult` contracts.
+- Added `tools/run_visit_tricities_pipeline.py` for VTC pipeline smoke testing.
+- Added `tools/run_multi_source_pipeline.py` for mock multi-source smoke testing.
+- Added `tools/run_real_multi_source_pipeline.py` for VTC plus second-source pipeline runs.
+- Added `tools/import_legacy_unified_events.py` to convert legacy `unified_events.csv` into canonical JSON.
+- Added `fixtures/legacy/normalized_events.json` workflow as the bridge from old pipeline output into the new pipeline.
+
+### Verified
+
+- Visit Tri-Cities fixture pipeline run:
+  - `all_events`: 24
+  - `publisher_ready_events`: 15
+  - `recurrence_review_events`: 9
+- Visit Tri-Cities plus legacy unified CSV pipeline run:
+  - `all_events`: 111
+  - `publisher_ready_events`: 102
+  - `recurrence_review_events`: 9
+
 ## Attempt_15_Visit_Tri-Cities
 
-### Planned
+### Added
 
-- Visit Tri-Cities source adapter.
+- Visit Tri-Cities adapter scaffold.
+- Generic Algolia payload utilities.
+- Generic Algolia client.
+- Visit Tri-Cities Algolia config and request builder.
+- Fixture fetch and normalization tools.
+- Recurrence classification safety split.
+
+### Verified
+
+- VTC Algolia payload builder runs.
+- VTC fixture fetch runs.
+- VTC normalization writes 24 normalized events.
+- Publisher safety split produces 15 publisher-ready events and 9 recurrence-review events after classifier tightening.
 
 ## Attempt_14_Registry_Optimizer
 
