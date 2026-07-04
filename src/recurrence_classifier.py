@@ -34,21 +34,25 @@ def classify_event_kind(event: dict[str, Any]) -> str:
     title = str(event.get("title") or "").strip()
     description = str(event.get("description") or "").strip()
 
-    if has_series_signal(recurrence_note, title, description):
-        return "series"
-
     if start and end:
         duration_days = (end - start).days + 1
         if duration_days <= 0:
             return "unknown"
         if duration_days == 1:
             return "single"
+        if has_series_signal(recurrence_note, title, description):
+            return "series"
         if duration_days <= 4:
             return "multi_day"
         return "series"
 
     if start and not end:
+        if has_series_signal(recurrence_note, title, description):
+            return "series"
         return "single"
+
+    if has_series_signal(recurrence_note, title, description):
+        return "series"
 
     return "unknown"
 
