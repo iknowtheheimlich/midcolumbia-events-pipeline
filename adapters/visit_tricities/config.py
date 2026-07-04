@@ -1,13 +1,22 @@
 """Visit Tri-Cities Algolia configuration.
 
 These values are shipped publicly by the Visit Tri-Cities website.
+Environment overrides allow rotation without source edits.
 """
+
+from __future__ import annotations
+
+import os
 
 SOURCE_NAME = "VisitTriCities"
 BASE_URL = "https://www.visittri-cities.com"
-ALGOLIA_APP_ID = "EYQHJ2IY2M"
-ALGOLIA_INDEX_NAME = "prod-visit-tri-cities-2024-listings"
-ALGOLIA_MULTI_QUERY_URL = "https://eyqhj2iy2m-dsn.algolia.net/1/indexes/*/queries"
+ALGOLIA_APP_ID = os.getenv("VTC_ALGOLIA_APP_ID", "EYQHJ2IY2M")
+ALGOLIA_API_KEY = os.getenv("VTC_ALGOLIA_API_KEY", "c6d5977cb5cd80c09abfd2a7e5d9e88b")
+ALGOLIA_INDEX_NAME = os.getenv("VTC_ALGOLIA_INDEX_NAME", "prod-visit-tri-cities-2024-listings")
+ALGOLIA_MULTI_QUERY_URL = os.getenv(
+    "VTC_ALGOLIA_MULTI_QUERY_URL",
+    "https://eyqhj2iy2m-dsn.algolia.net/1/indexes/*/queries",
+)
 
 # Captured from the public site request payload.
 ALGOLIA_EVENT_FILTERS = (
