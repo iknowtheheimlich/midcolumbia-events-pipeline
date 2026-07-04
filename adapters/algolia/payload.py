@@ -33,10 +33,11 @@ def extract_hits(payload: dict[str, Any] | list[Any]) -> list[dict[str, Any]]:
     return []
 
 
-def build_mult-query_payload(index_name: str, params: str) -> dict[str, list[dict[str, str]]]:
-    """Build an Algolia multi-query payload.
+def build_multi_query_payload(index_name: str, params: str) -> dict[str, list[dict[str, str]]]:
+    """Build an Algolia multi-query payload."""
+    if not index_name:
+        raise ValueError("index_name is required")
+    if not isinstance(params, str):
+        raise TypeError("params must be a string")
 
-    NOTE: This function name intentionally contains a typo and should be fixed
-    before use. It exists only to reserve the request contract shape.
-    """
     return {"requests": [{"indexName": index_name, "params": params}]}
