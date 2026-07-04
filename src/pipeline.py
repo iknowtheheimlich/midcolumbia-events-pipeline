@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from src.deduplicate import DeduplicationResult, deduplicate_events
 from src.recurrence_classifier import split_publisher_ready
 
 
@@ -23,6 +24,9 @@ class PipelineResult:
     all_events: list[dict[str, Any]] = field(default_factory=list)
     publisher_ready_events: list[dict[str, Any]] = field(default_factory=list)
     recurrence_review_events: list[dict[str, Any]] = field(default_factory=list)
+    deduplicated_publisher_ready_events: list[dict[str, Any]] = field(default_factory=list)
+    duplicate_groups: list[dict[str, Any]] = field(default_factory=list)
+    skipped_low_quality_dedupe: int = 0
 
     @property
     def counts(self) -> dict[str, int]:
@@ -31,22 +35,29 @@ class PipelineResult:
             "all_events": len(self.all_events),
             "publisher_ready_events": len(self.publisher_ready_events),
             "recurrence_review_events": len(self.recurrence_review_events),
+            "deduplicated_publisher_ready_events": len(self.deduplicated_publisher_ready_events),
+            "duplicate_groups": len(self.duplicate_groups),
+            "skipped_low_quality_dedupe": self.skipped_low_quality_dedupe,
         }
 
 
-def run_pipeline(source_batches: list[SourceBatch]) -> PipelineResult:
-    """Run normalized source batches through shared pre-publisher stages.
-
-    This is intentionally small. Venue resolution, deduplication, and publishing
-    will plug into this spine as separate milestones.
-    """
+def run_pipeline(source_batches: list[SourceBatch], *, deduplicate: bool = False) -> PipelineResult:
+    """Run normalized source batches through shared pre-publisher stages."""
     all_events = combine_source_batches(source_batches)
     publisher_ready, recurrence_review = split_publisher_ready(all_events)
+
+    if deduplicate:
+        dedupe_result = deduplicate_events(publisher_ready)
+    else:
+        dedupe_result = DeduplicationResult(events=list(publisher_ready))
 
     return PipelineResult(
         all_events=all_events,
         publisher_ready_events=publisher_ready,
         recurrence_review_events=recurrence_review,
+        deduplicated_publisher_ready_events=dedupe_result.events,
+        duplicate_groups=dedupe_result.duplicate_groups,
+        skipped_low_quality_dedupe=dedupe_result.skipped_low_quality,
     )
 
 
