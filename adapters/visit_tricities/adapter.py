@@ -11,8 +11,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-SOURCE_NAME = "VisitTriCities"
-VTC_BASE_URL = "https://www.visittri-cities.com"
+from adapters.algolia.payload import extract_hits
+from adapters.visit_tricities.config import BASE_URL, SOURCE_NAME
 
 
 def parse_visit_tricities_html(html: str) -> list[dict]:
@@ -39,28 +39,6 @@ def parse_visit_tricities_payload(payload: dict[str, Any] | list[Any]) -> list[d
     return [normalize_hit(hit) for hit in hits if isinstance(hit, dict)]
 
 
-def extract_hits(payload: dict[str, Any] | list[Any]) -> list[dict[str, Any]]:
-    """Extract Algolia-style hits from common response shapes."""
-    if isinstance(payload, list):
-        return [item for item in payload if isinstance(item, dict)]
-
-    if not isinstance(payload, dict):
-        raise TypeError("payload must be a dict or list")
-
-    if isinstance(payload.get("hits"), list):
-        return [item for item in payload["hits"] if isinstance(item, dict)]
-
-    results = payload.get("results")
-    if isinstance(results, list):
-        hits: list[dict[str, Any]] = []
-        for result in results:
-            if isinstance(result, dict) and isinstance(result.get("hits"), list):
-                hits.extend(item for item in result["hits"] if isinstance(item, dict))
-        return hits
-
-    return []
-
-
 def normalize_hit(hit: dict[str, Any]) -> dict:
     """Normalize a Visit Tri-Cities Algolia hit into the canonical event schema."""
     start_dt = unix_to_utc_datetime(hit.get("startDate"))
@@ -69,6 +47,7 @@ def normalize_hit(hit: dict[str, Any]) -> dict:
     url = normalize_url(hit.get("uri"))
     venue = first_non_empty(hit.get("eventLocation"), first_address_line(hit.get("address")))
     city = city_from_address(hit.get("address")) or city_from_regions(hit.get("partnerRegions"))
+    is_multi_day = bool(hit.get("isMultiDay"))
 
     return {
         "title": clean_text(hit.get("title")),
@@ -84,6 +63,13 @@ def normalize_hit(hit: dict[str, Any]) -> dict:
         "source": SOURCE_NAME,
         "category": first_category(hit.get("eventCategories")),
         "description": clean_text(hit.get("content")),
+        # Optional VTC/series metadata. These fields must not be required by downstream consumers.
+        "external_url": clean_text(hit.get("website")) or None,
+        "is_series": is_multi_day,
+        "recurrence_note": clean_text(hit.get("readableRepeatRule")) or None,
+        "source_event_id": clean_text(hit.get("objectID") or hit.get("id")) or None,
+        "source_start_timestamp": int_or_none(hit.get("startDate")),
+        "source_end_timestamp": int_or_none(hit.get("endDate")),
     }
 
 
@@ -106,8 +92,8 @@ def normalize_url(value: Any) -> str:
     if text.startswith("http://") or text.startswith("https://"):
         return text
     if text.startswith("/"):
-        return f"{VTC_BASE_URL}{text}"
-    return f"{VTC_BASE_URL}/{text}"
+        return f"{BASE_URL}{text}"
+    return f"{BASE_URL}/{text}"
 
 
 def clean_text(value: Any) -> str:
@@ -191,3 +177,13 @@ def first_category(value: Any) -> str | None:
                 return text
     text = clean_text(value)
     return text or None
+
+
+def int_or_none(value: Any) -> int | None:
+    """Return int(value) or None."""
+    if value in (None, ""):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
