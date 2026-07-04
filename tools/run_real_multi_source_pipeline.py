@@ -1,41 +1,50 @@
-"""Run Visit Tri-Cities and Allevents fixtures through the unified pipeline."""
+"""Run Visit Tri-Cities and legacy/Allevents fixtures through the unified pipeline."""
 
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 
 from adapters.algolia.fixtures import load_json_fixture, save_json_fixture
 from adapters.visit_tricities.config import SOURCE_NAME as VTC_SOURCE_NAME
 from src.pipeline import SourceBatch, run_pipeline
 
-VTC_INPUT = Path("fixtures/visit_tricities/normalized_events.json")
-ALLEVENTS_INPUT = Path("fixtures/allevents/normalized_events.json")
-READY_OUTPUT = Path("fixtures/real_multi_source/publisher_ready_events.json")
-REVIEW_OUTPUT = Path("fixtures/real_multi_source/series_review_queue.json")
+DEFAULT_VTC_INPUT = Path("fixtures/visit_tricities/normalized_events.json")
+DEFAULT_SECOND_INPUT = Path("fixtures/allevents/normalized_events.json")
+DEFAULT_READY_OUTPUT = Path("fixtures/real_multi_source/publisher_ready_events.json")
+DEFAULT_REVIEW_OUTPUT = Path("fixtures/real_multi_source/series_review_queue.json")
 
 
 def main() -> None:
-    vtc_events = load_json_fixture(VTC_INPUT)
-    allevents_events = load_json_fixture(ALLEVENTS_INPUT)
+    parser = argparse.ArgumentParser(description="Run real source fixtures through unified pipeline")
+    parser.add_argument("--vtc-input", type=Path, default=DEFAULT_VTC_INPUT)
+    parser.add_argument("--second-input", type=Path, default=DEFAULT_SECOND_INPUT)
+    parser.add_argument("--second-source-name", default="Allevents")
+    parser.add_argument("--publisher-ready", type=Path, default=DEFAULT_READY_OUTPUT)
+    parser.add_argument("--series-review", type=Path, default=DEFAULT_REVIEW_OUTPUT)
+    args = parser.parse_args()
+
+    vtc_events = load_json_fixture(args.vtc_input)
+    second_events = load_json_fixture(args.second_input)
 
     if not isinstance(vtc_events, list):
         raise TypeError("Visit Tri-Cities fixture must be a list")
-    if not isinstance(allevents_events, list):
-        raise TypeError("Allevents fixture must be a list")
+    if not isinstance(second_events, list):
+        raise TypeError("second source fixture must be a list")
 
     result = run_pipeline(
         [
             SourceBatch(source_name=VTC_SOURCE_NAME, events=vtc_events),
-            SourceBatch(source_name="Allevents", events=allevents_events),
+            SourceBatch(source_name=args.second_source_name, events=second_events),
         ]
     )
 
-    save_json_fixture(READY_OUTPUT, result.publisher_ready_events)
-    save_json_fixture(REVIEW_OUTPUT, result.recurrence_review_events)
+    save_json_fixture(args.publisher_ready, result.publisher_ready_events)
+    save_json_fixture(args.series_review, result.recurrence_review_events)
 
     print(result.counts)
-    print(f"Publisher-ready: {READY_OUTPUT}")
-    print(f"Series review: {REVIEW_OUTPUT}")
+    print(f"Publisher-ready: {args.publisher_ready}")
+    print(f"Series review: {args.series_review}")
 
 
 if __name__ == "__main__":
