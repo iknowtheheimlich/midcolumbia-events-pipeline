@@ -68,9 +68,41 @@ Attempt_##_<Description>
 
 ## Attempt_17_Multi-Source_Deduplication
 
-### Planned
+### Added
 
-- Shared deduplication stage across source adapters.
+- Added `src/deduplicate.py` with conservative exact-key deduplication.
+- Added low-quality key gating to prevent unsafe merges when legacy fields are sparse.
+- Added `tools/deduplicate_real_multi_source.py` as a standalone dedupe smoke tool.
+- Added deduplication into `src/pipeline.py` as an optional formal pipeline stage.
+- Updated `tools/run_real_multi_source_pipeline.py` to write publisher-ready, deduplicated publisher-ready, dedupe report, and recurrence-review outputs.
+- Added `tools/inspect_legacy_csv.py` to inspect legacy CSV headers and sample rows.
+- Updated `tools/import_legacy_unified_events.py` to map Title Case legacy CSV columns into canonical event fields.
+
+### Verified
+
+- Initial unsafe dedupe test correctly exposed false grouping risk:
+  - `input_events`: 102
+  - `deduplicated_events`: 16
+  - `duplicate_groups`: 1
+  - `duplicate_events_removed`: 86
+- After key-quality gating:
+  - `input_events`: 102
+  - `deduplicated_events`: 102
+  - `duplicate_groups`: 0
+  - `skipped_low_quality`: 87
+- After legacy importer field mapping:
+  - `input_events`: 102
+  - `deduplicated_events`: 101
+  - `duplicate_groups`: 1
+  - `duplicate_events_removed`: 1
+  - `skipped_low_quality`: 30
+- Formal pipeline run with dedupe enabled:
+  - `all_events`: 111
+  - `publisher_ready_events`: 102
+  - `deduplicated_publisher_ready_events`: 101
+  - `duplicate_groups`: 1
+  - `recurrence_review_events`: 9
+  - `skipped_low_quality_dedupe`: 30
 
 ## Attempt_16_Unified_Pipeline
 
