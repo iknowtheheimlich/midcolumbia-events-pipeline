@@ -30,13 +30,13 @@ Attempt_##_<Description>
 - Visit Tri-Cities proved the adapter architecture can support an API-backed source without changing the publisher or resolver.
 - Production release requires regression coverage before tagging/release.
 
-## Attempt_22_Production_Release
+## Attempt_24_Production_Release
 
 ### Planned
 
 - First production release after regression suite passes.
 
-## Attempt_21_Regression_Test_Suite
+## Attempt_23_Regression_Test_Suite
 
 ### Planned
 
@@ -48,11 +48,37 @@ Attempt_##_<Description>
 - Unknown venue queue coverage.
 - Deduplication coverage.
 
-## Attempt_20_Notion_Export
+## Attempt_22_Notion_Export
 
 ### Planned
 
 - Notion export target using the canonical event schema.
+
+## Attempt_21_TriCityVibe
+
+### Planned
+
+- Saved HTML / DOM parser for Tri-City Vibe event cards.
+- Normalized fixture output.
+- Registration in `adapters/registry.py` after fixture validation.
+- Regression coverage for WordPress-rendered event markup.
+
+## Attempt_20_AdapterFramework
+
+### Added
+
+- Added `adapters/contract.py` with the shared `SourceAdapter` protocol and `AdapterManifest` metadata contract.
+- Updated `adapters/registry.py` to use the shared manifest shape while preserving the existing `AdapterInfo` name for backward compatibility.
+- Added raw fixture path and notes metadata to registered adapters.
+- Added `list_active_adapters()` helper for source-agnostic runner/status use.
+- Added `docs/Attempt_20_AdapterFramework.md`.
+- Updated `docs/SourceAdapters.md` with the Attempt_20 contract.
+- Updated `docs/ROADMAP.md` so completed/planned milestones match the actual pipeline state.
+
+### Notes
+
+- Attempt_20 does not change the event schema, publisher, resolver, or pipeline spine.
+- Tri-City Vibe inspection indicates a WordPress-rendered HTML parser is the appropriate next adapter strategy.
 
 ## Attempt_19_Mid-Columbia_Libraries
 
