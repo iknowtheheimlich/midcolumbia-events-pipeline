@@ -1,0 +1,24 @@
+[
+  {
+    "canonical_title": "Downtown Farmers Market",
+    "dedupe_key": "downtown farmers market|single|2026 07 04|09 00|walla walla|chijyauojisqmfqrxyt2w1xw88m",
+    "source_events": [
+      {
+        "source": "AllEvents",
+        "start_date": "2026-07-04",
+        "start_time": "09:00",
+        "title": "Downtown Farmers Market",
+        "url": "https://allevents.in/walla-walla/event/200030277383011",
+        "venue": "Prosser Farmers' Market"
+      },
+      {
+        "source": "AllEvents",
+        "start_date": "2026-07-04",
+        "start_time": "09:00",
+        "title": "Downtown Farmers Market",
+        "url": "https://allevents.in/walla-walla/event/200030192016630",
+        "venue": "Prosser Farmers' Market"
+      }
+    ]
+  }
+]
