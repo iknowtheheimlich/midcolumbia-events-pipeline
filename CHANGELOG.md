@@ -56,9 +56,25 @@ Attempt_##_<Description>
 
 ## Attempt_19_Mid-Columbia_Libraries
 
-### Planned
+### Added
 
-- Mid-Columbia Libraries source adapter.
+- Added Mid-Columbia Libraries source strategy documentation.
+- Added Mid-Columbia Libraries adapter package scaffold.
+- Added events listing request builder.
+- Added text-oriented listing parser for date, title, time range, description, branch, event type, and audience.
+- Added Mid-Columbia Libraries normalized fixture with 6 representative events.
+- Registered `MidColumbiaLibraries` in `adapters/registry.py`.
+- Added regression tests for fixture shape, parser behavior, time parsing, metadata parsing, and pipeline counts.
+
+### Verified
+
+- Mid-Columbia Libraries fixture alone through the pipeline:
+  - `all_events`: 6
+  - `publisher_ready_events`: 6
+  - `recurrence_review_events`: 0
+  - `deduplicated_publisher_ready_events`: 6
+  - `duplicate_groups`: 0
+  - `skipped_low_quality_dedupe`: 0
 
 ## Attempt_19_Status_Command
 
