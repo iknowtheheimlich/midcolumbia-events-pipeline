@@ -45,18 +45,20 @@ Adapters
 LegacyUnifiedCSV       MIGRATION_BRIDGE
 RichlandLibrary        ACTIVE
 VisitTriCities         ACTIVE
+MidColumbiaLibraries   ACTIVE
 
 Fixtures
 --------
 LegacyUnifiedCSV         87 events
+MidColumbiaLibraries     37 events
 RichlandLibrary          12 events
 VisitTriCities           24 events
 
 Latest Pipeline
 ---------------
-Input                   123
-Publisher               114
-Deduplicated            113
+Input                   160
+Publisher               151
+Deduplicated            150
 Series Review             9
 Duplicate Groups          1
 Low Quality Skips        30

@@ -56,6 +56,18 @@ Attempt_##_<Description>
 
 ## Attempt_19_Mid-Columbia_Libraries
 
+### Verified
+
+- Mid-Columbia Libraries real fixture normalized 37 events.
+- Four-source status run:
+  - Input: 160
+  - Publisher: 151
+  - Deduplicated: 150
+  - Series Review: 9
+  - Duplicate Groups: 1
+  - Low Quality Skips: 30
+- Regression suite passes.
+
 ### Planned
 
 - Mid-Columbia Libraries source adapter.
