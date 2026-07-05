@@ -39,6 +39,12 @@ AVAILABLE_ADAPTERS: dict[str, AdapterInfo] = {
         adapter_package="adapters.richland_library",
         status="active",
     ),
+    "MidColumbiaLibraries": AdapterInfo(
+        source_name="MidColumbiaLibraries",
+        fixture_path=Path("fixtures/mid_columbia_libraries/normalized_events.json"),
+        adapter_package="adapters.mid_columbia_libraries",
+        status="active",
+    ),
 }
 
 
