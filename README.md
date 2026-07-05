@@ -7,7 +7,7 @@ A local event harvesting, normalization, venue-resolution, deduplication, and pu
 The current foundation is stable through:
 
 ```text
-Attempt_17_Multi-Source_Deduplication
+Attempt_19_Status_Command
 ```
 
 Core capabilities documented so far:
@@ -19,10 +19,48 @@ Core capabilities documented so far:
 - Resolver Pipeline with Unknown Venue Queue routing
 - Reddit Publisher chronological output
 - Visit Tri-Cities Algolia-backed adapter
+- Richland Library LibCal-backed adapter
 - Recurrence classification and publisher safety split
 - Legacy CSV importer for old `unified_events.csv`
 - Unified pipeline spine accepting multiple normalized source batches
+- Generic N-source pipeline runner
+- Adapter registry for supported source metadata
 - Conservative exact-key deduplication with source attribution preservation
+- Regression suite with 8 passing tests
+- Pipeline status command
+
+## Status Command
+
+Run:
+
+```powershell
+python -m tools.status
+```
+
+Current verified output shape:
+
+```text
+Adapters
+--------
+LegacyUnifiedCSV       MIGRATION_BRIDGE
+RichlandLibrary        ACTIVE
+VisitTriCities         ACTIVE
+
+Fixtures
+--------
+LegacyUnifiedCSV         87 events
+RichlandLibrary          12 events
+VisitTriCities           24 events
+
+Latest Pipeline
+---------------
+Input                   123
+Publisher               114
+Deduplicated            113
+Series Review             9
+Duplicate Groups          1
+Low Quality Skips        30
+```
 
 ## Verified Smoke Tests
 
@@ -42,15 +80,35 @@ publisher_ready_events: 102
 recurrence_review_events: 9
 ```
 
-Visit Tri-Cities plus legacy unified CSV with dedupe enabled:
+Visit Tri-Cities plus legacy unified CSV plus Richland Library with dedupe enabled:
 
 ```text
-all_events: 111
-publisher_ready_events: 102
-deduplicated_publisher_ready_events: 101
+all_events: 123
+publisher_ready_events: 114
+deduplicated_publisher_ready_events: 113
 duplicate_groups: 1
 recurrence_review_events: 9
 skipped_low_quality_dedupe: 30
+```
+
+## Regression Tests
+
+Run:
+
+```powershell
+python -m pytest
+```
+
+or on Windows:
+
+```powershell
+.\run_tests.bat
+```
+
+Current verified test suite:
+
+```text
+8 passed
 ```
 
 ## Project Roadmap
@@ -69,6 +127,7 @@ See:
 - [`docs/ResolverPipeline.md`](docs/ResolverPipeline.md) — venue resolution decision tree
 - [`docs/Attempt_14_RegistryOptimizerVerification.md`](docs/Attempt_14_RegistryOptimizerVerification.md) — local verification checklist before Attempt_15
 - [`docs/Attempt_15_VisitTriCities_SourceStrategy.md`](docs/Attempt_15_VisitTriCities_SourceStrategy.md) — Visit Tri-Cities source strategy
+- [`docs/Attempt_18_RichlandLibrary_SourceStrategy.md`](docs/Attempt_18_RichlandLibrary_SourceStrategy.md) — Richland Library source strategy
 
 ## GitHub Roadmap Issues
 
@@ -83,7 +142,7 @@ Current execution chain:
   ↓
 #16  Attempt_17_Multi-Source_Deduplication
   ↓
-#9   Attempt_18_Richland_Library
+#17  Attempt_18_Richland_Library
   ↓
 #10  Attempt_19_Mid-Columbia_Libraries
   ↓
@@ -107,7 +166,7 @@ The event schema should remain backwards compatible whenever possible.
 ## Next Planned Milestone
 
 ```text
-Attempt_18_Richland_Library
+Attempt_19_Mid-Columbia_Libraries
 ```
 
 Before starting broad source expansion, keep the unified pipeline source-agnostic and preserve review queues separately from deduplicated publisher-ready output.
