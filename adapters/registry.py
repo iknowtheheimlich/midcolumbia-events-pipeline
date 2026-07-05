@@ -1,4 +1,4 @@
-"""Known source adapter registry.
+﻿"""Known source adapter registry.
 
 This module intentionally tracks source identity and fixture locations only.
 Actual parsing/normalization still belongs inside each source adapter.
@@ -39,6 +39,12 @@ AVAILABLE_ADAPTERS: dict[str, AdapterInfo] = {
         adapter_package="adapters.richland_library",
         status="active",
     ),
+    "MidColumbiaLibraries": AdapterInfo(
+        source_name="MidColumbiaLibraries",
+        fixture_path=Path("fixtures/mcl/normalized_events.json"),
+        adapter_package="adapters.mcl",
+        status="active",
+    ),
 }
 
 
@@ -54,3 +60,4 @@ def get_adapter(source_name: str) -> AdapterInfo:
 def list_source_names() -> list[str]:
     """Return known source names in stable sorted order."""
     return sorted(AVAILABLE_ADAPTERS)
+

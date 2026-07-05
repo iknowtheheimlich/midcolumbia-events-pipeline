@@ -1,0 +1,36 @@
+[
+  {
+    "address": null,
+    "category": "Adult Program",
+    "city": "Pasco",
+    "description": "Device help and reading recommendations.",
+    "end_date": "2026-07-05",
+    "end_time": "15:00",
+    "source": "MidColumbiaLibraries",
+    "source_audience": "Adults",
+    "source_branch": "Pasco",
+    "start_date": "2026-07-05",
+    "start_time": "13:00",
+    "title": "Coffee and Conversation",
+    "url": "https://midcolumbialibraries.org/events/coffee-and-conversation",
+    "venue": "Mid-Columbia Library (Pasco)",
+    "venue_id": null
+  },
+  {
+    "address": null,
+    "category": "Storytime",
+    "city": "West Richland",
+    "description": "Stories, songs, and early literacy play.",
+    "end_date": "2026-07-06",
+    "end_time": "11:30",
+    "source": "MidColumbiaLibraries",
+    "source_audience": "0-5",
+    "source_branch": "West Richland",
+    "start_date": "2026-07-06",
+    "start_time": "10:30",
+    "title": "Baby Storytime",
+    "url": "https://midcolumbialibraries.org/events/baby-storytime",
+    "venue": "Mid-Columbia Library (West Richland)",
+    "venue_id": null
+  }
+]
