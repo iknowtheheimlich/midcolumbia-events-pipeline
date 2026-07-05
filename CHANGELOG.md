@@ -60,11 +60,57 @@ Attempt_##_<Description>
 
 - Mid-Columbia Libraries source adapter.
 
+## Attempt_19_Status_Command
+
+### Added
+
+- Added `tools/status.py` as a compact project status command.
+- Status command loads all registered adapters from `adapters/registry.py`.
+- Status command reports adapter statuses, fixture counts, latest pipeline counts, review queue count, duplicate group count, and low-quality dedupe skips.
+
+### Verified
+
+- `python -m tools.status` reports:
+  - `Input`: 123
+  - `Publisher`: 114
+  - `Deduplicated`: 113
+  - `Series Review`: 9
+  - `Duplicate Groups`: 1
+  - `Low Quality Skips`: 30
+
 ## Attempt_18_Richland_Library
 
-### Planned
+### Added
 
-- Richland Library source adapter.
+- Added Richland Library source strategy documentation.
+- Added Richland Library adapter package scaffold.
+- Added LibCal/Springshare request configuration and request builder.
+- Added Richland Library HTML fragment parser.
+- Added fixture workflow for Richland Library raw and normalized events.
+- Added generic N-source pipeline runner: `tools/run_sources_pipeline.py`.
+- Added adapter registry: `adapters/registry.py`.
+- Added regression tests for Richland Library, deduplication, adapter registry, and three-source pipeline counts.
+- Added `requirements-dev.txt` and `run_tests.bat` for repeatable local test runs.
+
+### Verified
+
+- Richland Library LibCal monthly fragment normalized 12 events.
+- Richland Library alone through the pipeline:
+  - `all_events`: 12
+  - `publisher_ready_events`: 12
+  - `recurrence_review_events`: 0
+  - `deduplicated_publisher_ready_events`: 12
+  - `duplicate_groups`: 0
+  - `skipped_low_quality_dedupe`: 0
+- Three-source run with Visit Tri-Cities + Legacy CSV + Richland Library:
+  - `all_events`: 123
+  - `publisher_ready_events`: 114
+  - `deduplicated_publisher_ready_events`: 113
+  - `duplicate_groups`: 1
+  - `recurrence_review_events`: 9
+  - `skipped_low_quality_dedupe`: 30
+- Regression suite:
+  - `8 passed`
 
 ## Attempt_17_Multi-Source_Deduplication
 
