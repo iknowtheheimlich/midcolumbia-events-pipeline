@@ -32,17 +32,17 @@ The event schema should remain backwards compatible whenever possible. Existing 
 - [x] Attempt_18_Richland_Library
 - [x] Attempt_19_Mid-Columbia_Libraries
 - [x] Attempt_20_AdapterFramework
+- [x] Attempt_21_TriCityVibe
 
 ## Planned Milestones
 
-- [ ] Attempt_21_TriCityVibe
 - [ ] Attempt_22_Notion_Export
 - [ ] Attempt_23_Regression_Test_Suite
 - [ ] Attempt_24_Production_Release
 
 ## Current System Status
 
-The current foundation is stable through Attempt_20.
+The current foundation is stable through Attempt_21.
 
 - Cargo Harvester is operational using saved HTML.
 - Event schema is considered stable.
@@ -52,6 +52,7 @@ The current foundation is stable through Attempt_20.
 - Unknown venues are separated into a dedicated review queue.
 - Active source adapters are registered in `adapters/registry.py`.
 - Adapter contract is formalized in `adapters/contract.py`.
+- Tri-City Vibe is registered as a WordPress-rendered saved-HTML adapter.
 
 ## Development Phases
 
@@ -65,22 +66,22 @@ Attempts 08-14 established the venue resolution system, unknown venue workflow, 
 
 ### Phase III: Source Expansion
 
-Attempts 15-19 added the first production-style source adapters and unified multi-source handling.
+Attempts 15-21 added the first production-style source adapters and unified multi-source handling.
 
 Completed source work includes:
 
 - Visit Tri-Cities
 - Richland Library
 - Mid-Columbia Libraries
+- Tri-City Vibe
 - Legacy unified CSV migration bridge
 
 ### Phase IV: Adapter Framework and Additional Sources
 
-Attempt_20 formalized the adapter manifest and registry contract.
+Attempt_20 formalized the adapter manifest and registry contract. Attempt_21 proved the contract with a WordPress-rendered saved-HTML parser.
 
 Near-term source targets include:
 
-- Tri-City Vibe
 - City of Richland
 - additional local civic and community event sources as needed
 
@@ -122,12 +123,12 @@ Each Attempt should be considered complete only when the relevant items are sati
 
 ## Near-Term Priority
 
-Build the next source adapter without modifying publisher, resolver, or canonical schema behavior.
+Keep new source work confined to adapter packages and fixture-backed tests.
 
 Immediate priority:
 
-1. Parse Tri-City Vibe saved HTML fixture.
-2. Identify stable event-card selectors or text-token extraction strategy.
-3. Normalize Tri-City Vibe events into canonical event dictionaries.
-4. Register `TriCityVibe` only after a normalized fixture exists.
-5. Add adapter-specific regression coverage.
+1. Pull the latest repo changes locally.
+2. Run `python -m pytest`.
+3. Run `python -m tools.status`.
+4. Replace the small Tri-City Vibe fixture with a harvested full-page fixture when ready.
+5. Expand normalized Tri-City Vibe fixture coverage from representative events to full-page output.
