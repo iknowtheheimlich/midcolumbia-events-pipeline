@@ -47,6 +47,14 @@ def main() -> None:
     if not args.skip_pipeline_smoke:
         print_pipeline_smoke()
 
+    warned = [result for result in results if result.error]
+    if warned:
+        print("Harvest warnings")
+        print("----------------")
+        for result in warned:
+            print(f"{result.source_name}: {result.error}")
+        print()
+
     print(LINE)
 
 
@@ -103,6 +111,8 @@ def print_harvest_result(result: HarvestResult) -> None:
     print(f"  raw        {raw_count:>5}  {raw_path}")
     print(f"  normalized {result.normalized_count:>5}  {result.normalized_fixture_path}")
     print(f"  mode              {mode}")
+    if result.error:
+        print("  warning           preserved normalized fixture after harvest error")
     print()
 
 
