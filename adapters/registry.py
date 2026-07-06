@@ -54,6 +54,14 @@ AVAILABLE_ADAPTERS: dict[str, AdapterInfo] = {
         status="active",
         notes="Saved HTML listing parser.",
     ),
+    "TriCityVibe": AdapterInfo(
+        source_name="TriCityVibe",
+        fixture_path=Path("fixtures/tricity_vibe/normalized_events.json"),
+        raw_fixture_path=Path("fixtures/tricity_vibe/raw_events.html"),
+        adapter_package="adapters.tricity_vibe",
+        status="active",
+        notes="WordPress-rendered saved HTML event listing parser.",
+    ),
 }
 
 
