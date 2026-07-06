@@ -98,9 +98,11 @@ def print_harvest_result(result: HarvestResult) -> None:
     """Print one compact source harvest summary."""
     raw_count = "n/a" if result.raw_count is None else str(result.raw_count)
     raw_path = "existing normalized bridge" if result.raw_fixture_path is None else str(result.raw_fixture_path)
+    mode = "reused existing normalized fixture" if result.reused_normalized else "regenerated normalized fixture"
     print(f"{result.source_name}")
     print(f"  raw        {raw_count:>5}  {raw_path}")
     print(f"  normalized {result.normalized_count:>5}  {result.normalized_fixture_path}")
+    print(f"  mode              {mode}")
     print()
 
 
