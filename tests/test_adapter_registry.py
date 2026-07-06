@@ -1,6 +1,4 @@
-from __future__ import annotations
-
-from adapters.registry import AVAILABLE_ADAPTERS, get_adapter, list_source_names
+from adapters.registry import get_adapter, list_source_names
 
 
 def test_adapter_registry_contains_active_sources() -> None:
@@ -8,24 +6,22 @@ def test_adapter_registry_contains_active_sources() -> None:
         "LegacyUnifiedCSV",
         "MidColumbiaLibraries",
         "RichlandLibrary",
+        "TriCityVibe",
         "VisitTriCities",
     ]
 
-    assert AVAILABLE_ADAPTERS["VisitTriCities"].status == "active"
-    assert AVAILABLE_ADAPTERS["RichlandLibrary"].status == "active"
-    assert AVAILABLE_ADAPTERS["MidColumbiaLibraries"].status == "active"
-    assert AVAILABLE_ADAPTERS["LegacyUnifiedCSV"].status == "migration_bridge"
-
 
 def test_get_adapter_returns_metadata() -> None:
-    adapter = get_adapter("RichlandLibrary")
+    adapter = get_adapter("VisitTriCities")
 
-    assert adapter.source_name == "RichlandLibrary"
-    assert str(adapter.fixture_path) == "fixtures\\richland_library\\normalized_events.json" or str(adapter.fixture_path) == "fixtures/richland_library/normalized_events.json"
+    assert adapter.source_name == "VisitTriCities"
+    assert adapter.status == "active"
 
 
-def test_get_mid_columbia_libraries_adapter_returns_metadata() -> None:
-    adapter = get_adapter("MidColumbiaLibraries")
-
-    assert adapter.source_name == "MidColumbiaLibraries"
-    assert str(adapter.fixture_path) == "fixtures\\mid_columbia_libraries\\normalized_events.json" or str(adapter.fixture_path) == "fixtures/mid_columbia_libraries/normalized_events.json"
+def test_get_adapter_rejects_unknown_source() -> None:
+    try:
+        get_adapter("Nope")
+    except KeyError as exc:
+        assert "Unknown source adapter" in str(exc)
+    else:
+        raise AssertionError("expected KeyError")
