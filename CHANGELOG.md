@@ -56,12 +56,23 @@ Attempt_##_<Description>
 
 ## Attempt_21_TriCityVibe
 
-### Planned
+### Added
 
-- Saved HTML / DOM parser for Tri-City Vibe event cards.
-- Normalized fixture output.
-- Registration in `adapters/registry.py` after fixture validation.
-- Regression coverage for WordPress-rendered event markup.
+- Added `adapters/tricity_vibe` package.
+- Added Tri-City Vibe adapter config.
+- Added WordPress-rendered saved HTML parser using ordered visible text/link token extraction.
+- Added date/time parsing for listing lines like `07/10/2026 Friday 6 - 9pm`.
+- Added source typo tolerance for known live-site defects such as `Thursady` and `6pjm`.
+- Added city parsing from `City, ST` source location lines.
+- Added source event slug extraction from `/event/<slug>/` URLs.
+- Added raw and normalized Tri-City Vibe fixtures.
+- Registered `TriCityVibe` in `adapters/registry.py`.
+- Added Tri-City Vibe regression tests for registry wiring, fixture parsing, past-event cutoff, time parsing, city parsing, and normalized fixture shape.
+
+### Notes
+
+- Parser intentionally stops at `Past Events` to avoid routing stale live music entries into publisher-ready output.
+- Attempt_21 does not change the canonical event schema, publisher, resolver, or pipeline spine.
 
 ## Attempt_20_AdapterFramework
 
