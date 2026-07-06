@@ -26,20 +26,23 @@ The event schema should remain backwards compatible whenever possible. Existing 
 - [x] Attempt_12_Venue_Builder
 - [x] Attempt_13_Skeptical_Builder
 - [x] Attempt_14_Registry_Optimizer
+- [x] Attempt_15_Visit_Tri-Cities
+- [x] Attempt_16_Unified_Pipeline
+- [x] Attempt_17_Multi-Source_Deduplication
+- [x] Attempt_18_Richland_Library
+- [x] Attempt_19_Mid-Columbia_Libraries
+- [x] Attempt_20_AdapterFramework
+- [x] Attempt_21_TriCityVibe
 
 ## Planned Milestones
 
-- [ ] Attempt_15_Visit_Tri-Cities
-- [ ] Attempt_16_Multi-Source_Deduplication
-- [ ] Attempt_17_Richland_Library
-- [ ] Attempt_18_Mid-Columbia_Libraries
-- [ ] Attempt_19_Notion_Export
-- [ ] Attempt_20_Regression_Test_Suite
-- [ ] Attempt_21_Production_Release
+- [ ] Attempt_22_Notion_Export
+- [ ] Attempt_23_Regression_Test_Suite
+- [ ] Attempt_24_Production_Release
 
 ## Current System Status
 
-The current foundation is stable.
+The current foundation is stable through Attempt_21.
 
 - Cargo Harvester is operational using saved HTML.
 - Event schema is considered stable.
@@ -47,6 +50,9 @@ The current foundation is stable.
 - Registry Optimizer generates lookup tables from the Venue Registry.
 - Reddit Publisher produces chronological output.
 - Unknown venues are separated into a dedicated review queue.
+- Active source adapters are registered in `adapters/registry.py`.
+- Adapter contract is formalized in `adapters/contract.py`.
+- Tri-City Vibe is registered as a WordPress-rendered saved-HTML adapter.
 
 ## Development Phases
 
@@ -60,19 +66,28 @@ Attempts 08-14 established the venue resolution system, unknown venue workflow, 
 
 ### Phase III: Source Expansion
 
-Attempts 15-18 will add additional source adapters and deduplication across event sources.
+Attempts 15-21 added the first production-style source adapters and unified multi-source handling.
 
-Target sources include:
+Completed source work includes:
 
 - Visit Tri-Cities
-- Tri-City Vibe
 - Richland Library
 - Mid-Columbia Libraries
-- Additional local civic and community event sources as needed
+- Tri-City Vibe
+- Legacy unified CSV migration bridge
 
-### Phase IV: Publishing, Testing, and Release
+### Phase IV: Adapter Framework and Additional Sources
 
-Attempts 19-21 will formalize export targets, regression testing, and production readiness.
+Attempt_20 formalized the adapter manifest and registry contract. Attempt_21 proved the contract with a WordPress-rendered saved-HTML parser.
+
+Near-term source targets include:
+
+- City of Richland
+- additional local civic and community event sources as needed
+
+### Phase V: Publishing, Testing, and Release
+
+Attempts 22-24 will formalize export targets, regression testing, and production readiness.
 
 Primary publishing targets:
 
@@ -108,12 +123,12 @@ Each Attempt should be considered complete only when the relevant items are sati
 
 ## Near-Term Priority
 
-Finish the Venue Registry system before adding more source complexity.
+Keep new source work confined to adapter packages and fixture-backed tests.
 
 Immediate priority:
 
-1. Verify Registry Optimizer output tables.
-2. Confirm resolver uses generated lookup tables correctly.
-3. Confirm unknown venue queue remains clean and reviewable.
-4. Lock Attempt_14 behavior.
-5. Begin Attempt_15_Visit_Tri-Cities.
+1. Pull the latest repo changes locally.
+2. Run `python -m pytest`.
+3. Run `python -m tools.status`.
+4. Replace the small Tri-City Vibe fixture with a harvested full-page fixture when ready.
+5. Expand normalized Tri-City Vibe fixture coverage from representative events to full-page output.

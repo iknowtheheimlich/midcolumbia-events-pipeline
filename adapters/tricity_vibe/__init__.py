@@ -1,1 +1,1 @@
-"""Tri-City Vibe source adapter package."""
+"""Tri-City Vibe source adapter."""

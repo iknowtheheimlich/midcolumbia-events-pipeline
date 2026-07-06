@@ -7,7 +7,7 @@ A local event harvesting, normalization, venue-resolution, deduplication, and pu
 The current foundation is stable through:
 
 ```text
-Attempt_19_Status_Command
+Attempt_21_TriCityVibe
 ```
 
 Core capabilities documented so far:
@@ -20,13 +20,16 @@ Core capabilities documented so far:
 - Reddit Publisher chronological output
 - Visit Tri-Cities Algolia-backed adapter
 - Richland Library LibCal-backed adapter
+- Mid-Columbia Libraries saved-HTML adapter
+- Tri-City Vibe WordPress-rendered saved-HTML adapter
 - Recurrence classification and publisher safety split
 - Legacy CSV importer for old `unified_events.csv`
 - Unified pipeline spine accepting multiple normalized source batches
 - Generic N-source pipeline runner
 - Adapter registry for supported source metadata
+- Shared adapter contract in `adapters/contract.py`
 - Conservative exact-key deduplication with source attribution preservation
-- Regression suite with 8 passing tests
+- Regression suite
 - Pipeline status command
 
 ## Status Command
@@ -37,32 +40,19 @@ Run:
 python -m tools.status
 ```
 
-Current verified output shape:
+Expected adapter set after Attempt_21:
 
 ```text
 Adapters
 --------
 LegacyUnifiedCSV       MIGRATION_BRIDGE
-RichlandLibrary        ACTIVE
-VisitTriCities         ACTIVE
 MidColumbiaLibraries   ACTIVE
-
-Fixtures
---------
-LegacyUnifiedCSV         87 events
-MidColumbiaLibraries     37 events
-RichlandLibrary          12 events
-VisitTriCities           24 events
-
-Latest Pipeline
----------------
-Input                   160
-Publisher               151
-Deduplicated            150
-Series Review             9
-Duplicate Groups          1
-Low Quality Skips        30
+RichlandLibrary        ACTIVE
+TriCityVibe            ACTIVE
+VisitTriCities         ACTIVE
 ```
+
+Fixture counts depend on whether the local Tri-City Vibe fixture is still representative or has been replaced by a harvested full-page fixture.
 
 ## Verified Smoke Tests
 
@@ -93,6 +83,25 @@ recurrence_review_events: 9
 skipped_low_quality_dedupe: 30
 ```
 
+Mid-Columbia Libraries alone through unified pipeline:
+
+```text
+all_events: 6
+publisher_ready_events: 6
+deduplicated_publisher_ready_events: 6
+duplicate_groups: 0
+recurrence_review_events: 0
+skipped_low_quality_dedupe: 0
+```
+
+Tri-City Vibe representative fixture:
+
+```text
+raw fixture events: 4
+normalized fixture events: 4
+past events cutoff: enabled
+```
+
 ## Regression Tests
 
 Run:
@@ -105,12 +114,6 @@ or on Windows:
 
 ```powershell
 .\run_tests.bat
-```
-
-Current verified test suite:
-
-```text
-8 passed
 ```
 
 ## Project Roadmap
@@ -130,29 +133,37 @@ See:
 - [`docs/Attempt_14_RegistryOptimizerVerification.md`](docs/Attempt_14_RegistryOptimizerVerification.md) — local verification checklist before Attempt_15
 - [`docs/Attempt_15_VisitTriCities_SourceStrategy.md`](docs/Attempt_15_VisitTriCities_SourceStrategy.md) — Visit Tri-Cities source strategy
 - [`docs/Attempt_18_RichlandLibrary_SourceStrategy.md`](docs/Attempt_18_RichlandLibrary_SourceStrategy.md) — Richland Library source strategy
+- [`docs/Attempt_20_AdapterFramework.md`](docs/Attempt_20_AdapterFramework.md) — shared adapter framework contract
+- [`docs/Attempt_21_TriCityVibe.md`](docs/Attempt_21_TriCityVibe.md) — Tri-City Vibe adapter strategy
 
 ## GitHub Roadmap Issues
 
-Current execution chain:
+Current execution chain has moved beyond the original issue numbering. `docs/ROADMAP.md` is the canonical milestone source.
+
+Current local milestone chain:
 
 ```text
-#6   Attempt_14_Lock_Registry_Optimizer
+Attempt_14_Registry_Optimizer
   ↓
-#7   Attempt_15_Visit_Tri-Cities
+Attempt_15_Visit_Tri-Cities
   ↓
-#15  Attempt_16_Unified_Pipeline
+Attempt_16_Unified_Pipeline
   ↓
-#16  Attempt_17_Multi-Source_Deduplication
+Attempt_17_Multi-Source_Deduplication
   ↓
-#17  Attempt_18_Richland_Library
+Attempt_18_Richland_Library
   ↓
-#10  Attempt_19_Mid-Columbia_Libraries
+Attempt_19_Mid-Columbia_Libraries
   ↓
-#11  Attempt_20_Notion_Export
+Attempt_20_AdapterFramework
   ↓
-#13  Attempt_21_Regression_Test_Suite
+Attempt_21_TriCityVibe
   ↓
-#12  Attempt_22_Production_Release
+Attempt_22_Notion_Export
+  ↓
+Attempt_23_Regression_Test_Suite
+  ↓
+Attempt_24_Production_Release
 ```
 
 ## Development Rule
@@ -168,9 +179,7 @@ The event schema should remain backwards compatible whenever possible.
 ## Next Planned Milestone
 
 ```text
-Attempt_19_Mid-Columbia_Libraries
+Attempt_22_Notion_Export
 ```
 
 Before starting broad source expansion, keep the unified pipeline source-agnostic and preserve review queues separately from deduplicated publisher-ready output.
-
-Production release is gated by the regression test suite.

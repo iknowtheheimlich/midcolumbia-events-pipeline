@@ -24,6 +24,41 @@ Validation
 Publish
 ```
 
+## Attempt_20 Framework Contract
+
+The shared adapter protocol lives in:
+
+```text
+adapters/contract.py
+```
+
+The expected parser shape is:
+
+```python
+parse(content: str) -> list[dict]
+```
+
+The expected registry manifest shape is:
+
+```python
+AdapterManifest(
+    source_name="StableSourceName",
+    adapter_package="adapters.source_package",
+    status="active",
+    fixture_path=Path("fixtures/source/normalized_events.json"),
+    raw_fixture_path=Path("fixtures/source/raw_events.html"),
+    notes="Optional implementation notes.",
+)
+```
+
+The adapter registry lives in:
+
+```text
+adapters/registry.py
+```
+
+The registry tracks metadata only. Parsing and normalization remain inside the adapter package.
+
 ## Adapter Responsibilities
 
 Each adapter must:
@@ -68,13 +103,18 @@ Optional fields should be populated when available, but missing optional data sh
 
 Use stable source identifiers.
 
-Examples:
+Current registered source identifiers:
 
-- `AllEvents`
+- `LegacyUnifiedCSV`
 - `VisitTriCities`
-- `TriCityVibe`
 - `RichlandLibrary`
 - `MidColumbiaLibraries`
+
+Target source identifiers:
+
+- `TriCityVibe`
+- `CityOfRichland`
+- additional local civic/community sources as needed
 
 Source names should not change once events are being emitted unless a migration note is added.
 
@@ -114,10 +154,10 @@ Unknown venues must not be guessed into existence by a source adapter.
 
 Adapters do not perform cross-source deduplication.
 
-Cross-source deduplication belongs to a shared deduplication stage planned for:
+Cross-source deduplication belongs to the shared deduplication stage added in:
 
 ```text
-Attempt_16_Multi-Source_Deduplication
+Attempt_17_Multi-Source_Deduplication
 ```
 
 Adapters may remove exact duplicates within a single source response when the duplicate is clearly caused by source markup repetition.
@@ -141,8 +181,8 @@ Errors should produce reviewable logs or queues rather than quiet failures.
 
 Each adapter should include test fixtures where practical:
 
-- Saved HTML or source sample
-- Parsed intermediate output
+- Saved HTML, JSON, CSV, or source sample
+- Parsed intermediate output when useful
 - Final normalized event objects
 - Validation pass/fail expectations
 
@@ -154,13 +194,22 @@ Tests should confirm:
 - Source name is stable
 - Unknown venues are routed correctly
 - Publisher output remains chronological after adapter integration
+- Pipeline counts remain stable when fixtures are loaded through `tools.status`
 
-## Attempt_15 Adapter Target
+## Current Adapter Status
 
-The next planned adapter is:
+The current active adapter set is maintained by `adapters/registry.py` and displayed by:
 
-```text
-Attempt_15_Visit_Tri-Cities
+```powershell
+python -m tools.status
 ```
 
-Attempt_15 should add Visit Tri-Cities as a source adapter without changing the canonical event schema unless a backwards-compatible optional field is required.
+## Next Adapter Target
+
+The next likely adapter is:
+
+```text
+TriCityVibe
+```
+
+Tri-City Vibe should be treated as a saved-HTML/DOM parser unless future fixtures expose stable structured event data.

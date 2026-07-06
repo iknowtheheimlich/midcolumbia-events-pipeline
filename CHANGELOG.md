@@ -30,13 +30,13 @@ Attempt_##_<Description>
 - Visit Tri-Cities proved the adapter architecture can support an API-backed source without changing the publisher or resolver.
 - Production release requires regression coverage before tagging/release.
 
-## Attempt_22_Production_Release
+## Attempt_24_Production_Release
 
 ### Planned
 
 - First production release after regression suite passes.
 
-## Attempt_21_Regression_Test_Suite
+## Attempt_23_Regression_Test_Suite
 
 ### Planned
 
@@ -48,29 +48,70 @@ Attempt_##_<Description>
 - Unknown venue queue coverage.
 - Deduplication coverage.
 
-## Attempt_20_Notion_Export
+## Attempt_22_Notion_Export
 
 ### Planned
 
 - Notion export target using the canonical event schema.
 
+## Attempt_21_TriCityVibe
+
+### Added
+
+- Added `adapters/tricity_vibe` package.
+- Added Tri-City Vibe adapter config.
+- Added WordPress-rendered saved HTML parser using ordered visible text/link token extraction.
+- Added date/time parsing for listing lines like `07/10/2026 Friday 6 - 9pm`.
+- Added source typo tolerance for known live-site defects such as `Thursady` and `6pjm`.
+- Added city parsing from `City, ST` source location lines.
+- Added source event slug extraction from `/event/<slug>/` URLs.
+- Added raw and normalized Tri-City Vibe fixtures.
+- Registered `TriCityVibe` in `adapters/registry.py`.
+- Added Tri-City Vibe regression tests for registry wiring, fixture parsing, past-event cutoff, time parsing, city parsing, and normalized fixture shape.
+
+### Notes
+
+- Parser intentionally stops at `Past Events` to avoid routing stale live music entries into publisher-ready output.
+- Attempt_21 does not change the canonical event schema, publisher, resolver, or pipeline spine.
+
+## Attempt_20_AdapterFramework
+
+### Added
+
+- Added `adapters/contract.py` with the shared `SourceAdapter` protocol and `AdapterManifest` metadata contract.
+- Updated `adapters/registry.py` to use the shared manifest shape while preserving the existing `AdapterInfo` name for backward compatibility.
+- Added raw fixture path and notes metadata to registered adapters.
+- Added `list_active_adapters()` helper for source-agnostic runner/status use.
+- Added `docs/Attempt_20_AdapterFramework.md`.
+- Updated `docs/SourceAdapters.md` with the Attempt_20 contract.
+- Updated `docs/ROADMAP.md` so completed/planned milestones match the actual pipeline state.
+
+### Notes
+
+- Attempt_20 does not change the event schema, publisher, resolver, or pipeline spine.
+- Tri-City Vibe inspection indicates a WordPress-rendered HTML parser is the appropriate next adapter strategy.
+
 ## Attempt_19_Mid-Columbia_Libraries
+
+### Added
+
+- Added Mid-Columbia Libraries source strategy documentation.
+- Added Mid-Columbia Libraries adapter package scaffold.
+- Added events listing request builder.
+- Added text-oriented listing parser for date, title, time range, description, branch, event type, and audience.
+- Added Mid-Columbia Libraries normalized fixture with 6 representative events.
+- Registered `MidColumbiaLibraries` in `adapters/registry.py`.
+- Added regression tests for fixture shape, parser behavior, time parsing, metadata parsing, and pipeline counts.
 
 ### Verified
 
-- Mid-Columbia Libraries real fixture normalized 37 events.
-- Four-source status run:
-  - Input: 160
-  - Publisher: 151
-  - Deduplicated: 150
-  - Series Review: 9
-  - Duplicate Groups: 1
-  - Low Quality Skips: 30
-- Regression suite passes.
-
-### Planned
-
-- Mid-Columbia Libraries source adapter.
+- Mid-Columbia Libraries fixture alone through the pipeline:
+  - `all_events`: 6
+  - `publisher_ready_events`: 6
+  - `recurrence_review_events`: 0
+  - `deduplicated_publisher_ready_events`: 6
+  - `duplicate_groups`: 0
+  - `skipped_low_quality_dedupe`: 0
 
 ## Attempt_19_Status_Command
 
