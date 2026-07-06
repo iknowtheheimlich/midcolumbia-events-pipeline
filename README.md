@@ -7,7 +7,7 @@ A local event harvesting, normalization, venue-resolution, deduplication, and pu
 The current foundation is stable through:
 
 ```text
-Attempt_20_AdapterFramework
+Attempt_21_TriCityVibe
 ```
 
 Core capabilities documented so far:
@@ -21,6 +21,7 @@ Core capabilities documented so far:
 - Visit Tri-Cities Algolia-backed adapter
 - Richland Library LibCal-backed adapter
 - Mid-Columbia Libraries saved-HTML adapter
+- Tri-City Vibe WordPress-rendered saved-HTML adapter
 - Recurrence classification and publisher safety split
 - Legacy CSV importer for old `unified_events.csv`
 - Unified pipeline spine accepting multiple normalized source batches
@@ -28,7 +29,7 @@ Core capabilities documented so far:
 - Adapter registry for supported source metadata
 - Shared adapter contract in `adapters/contract.py`
 - Conservative exact-key deduplication with source attribution preservation
-- Regression suite with 8 passing tests
+- Regression suite
 - Pipeline status command
 
 ## Status Command
@@ -39,7 +40,7 @@ Run:
 python -m tools.status
 ```
 
-Current verified output shape:
+Expected adapter set after Attempt_21:
 
 ```text
 Adapters
@@ -47,24 +48,11 @@ Adapters
 LegacyUnifiedCSV       MIGRATION_BRIDGE
 MidColumbiaLibraries   ACTIVE
 RichlandLibrary        ACTIVE
+TriCityVibe            ACTIVE
 VisitTriCities         ACTIVE
-
-Fixtures
---------
-LegacyUnifiedCSV         87 events
-MidColumbiaLibraries      6 events
-RichlandLibrary          12 events
-VisitTriCities           24 events
-
-Latest Pipeline
----------------
-Input                   129
-Publisher               120
-Deduplicated            119
-Series Review             9
-Duplicate Groups          1
-Low Quality Skips        30
 ```
+
+Fixture counts depend on whether the local Tri-City Vibe fixture is still representative or has been replaced by a harvested full-page fixture.
 
 ## Verified Smoke Tests
 
@@ -106,6 +94,14 @@ recurrence_review_events: 0
 skipped_low_quality_dedupe: 0
 ```
 
+Tri-City Vibe representative fixture:
+
+```text
+raw fixture events: 4
+normalized fixture events: 4
+past events cutoff: enabled
+```
+
 ## Regression Tests
 
 Run:
@@ -118,12 +114,6 @@ or on Windows:
 
 ```powershell
 .\run_tests.bat
-```
-
-Current verified test suite:
-
-```text
-8 passed
 ```
 
 ## Project Roadmap
@@ -144,6 +134,7 @@ See:
 - [`docs/Attempt_15_VisitTriCities_SourceStrategy.md`](docs/Attempt_15_VisitTriCities_SourceStrategy.md) — Visit Tri-Cities source strategy
 - [`docs/Attempt_18_RichlandLibrary_SourceStrategy.md`](docs/Attempt_18_RichlandLibrary_SourceStrategy.md) — Richland Library source strategy
 - [`docs/Attempt_20_AdapterFramework.md`](docs/Attempt_20_AdapterFramework.md) — shared adapter framework contract
+- [`docs/Attempt_21_TriCityVibe.md`](docs/Attempt_21_TriCityVibe.md) — Tri-City Vibe adapter strategy
 
 ## GitHub Roadmap Issues
 
@@ -188,7 +179,7 @@ The event schema should remain backwards compatible whenever possible.
 ## Next Planned Milestone
 
 ```text
-Attempt_21_TriCityVibe
+Attempt_22_Notion_Export
 ```
 
 Before starting broad source expansion, keep the unified pipeline source-agnostic and preserve review queues separately from deduplicated publisher-ready output.
