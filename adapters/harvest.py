@@ -41,6 +41,7 @@ class HarvestResult:
     normalized_fixture_path: Path
     raw_count: int | None
     normalized_count: int
+    reused_normalized: bool = False
 
 
 @dataclass(frozen=True)
@@ -53,6 +54,17 @@ class Harvester:
 
     def harvest(self, adapter: AdapterInfo, options: HarvestOptions) -> HarvestResult:
         """Fetch/read raw fixture, regenerate normalized fixture, and report counts."""
+        if should_reuse_normalized(adapter, options):
+            normalized_events = load_normalized_fixture(adapter.fixture_path)
+            return HarvestResult(
+                source_name=adapter.source_name,
+                raw_fixture_path=adapter.raw_fixture_path,
+                normalized_fixture_path=adapter.fixture_path,
+                raw_count=None,
+                normalized_count=len(normalized_events),
+                reused_normalized=True,
+            )
+
         raw_payload = self._load_or_fetch_raw(adapter, options)
         normalized_events = self.normalize(raw_payload)
 
@@ -92,6 +104,17 @@ def get_harvester(source_name: str) -> Harvester:
     except KeyError as exc:
         known = ", ".join(sorted(HARVESTERS))
         raise KeyError(f"No harvester registered for {source_name}. Known harvesters: {known}") from exc
+
+
+def should_reuse_normalized(adapter: AdapterInfo, options: HarvestOptions) -> bool:
+    """Return whether offline mode should preserve an existing normalized fixture."""
+    if options.fetch_raw:
+        return False
+    if adapter.raw_fixture_path is None:
+        return False
+    if adapter.raw_fixture_path.exists():
+        return False
+    return adapter.fixture_path.exists()
 
 
 def fetch_visit_tricities_raw(adapter: AdapterInfo, options: HarvestOptions) -> Any:
@@ -192,10 +215,7 @@ def normalize_tricity_vibe(raw_payload: Any) -> list[CanonicalEvent]:
 def fetch_legacy_unified_csv_raw(adapter: AdapterInfo, options: HarvestOptions) -> list[CanonicalEvent]:
     """Read legacy CSV when supplied, otherwise reuse the existing normalized bridge fixture."""
     if options.legacy_input is None:
-        events = load_json_fixture(adapter.fixture_path)
-        if not isinstance(events, list):
-            raise TypeError(f"legacy normalized fixture must be a list: {adapter.fixture_path}")
-        return events
+        return load_normalized_fixture(adapter.fixture_path)
 
     from tools.import_legacy_unified_events import read_legacy_csv
 
@@ -265,6 +285,14 @@ def load_raw_fixture(path: Path) -> Any:
     if path.suffix.lower() == ".json":
         return load_json_fixture(path)
     return path.read_text(encoding="utf-8")
+
+
+def load_normalized_fixture(path: Path) -> list[CanonicalEvent]:
+    """Load an existing normalized fixture as canonical event dictionaries."""
+    events = load_json_fixture(path)
+    if not isinstance(events, list):
+        raise TypeError(f"normalized fixture must be a list: {path}")
+    return [dict(event) for event in events if isinstance(event, dict)]
 
 
 def require_text(value: Any, label: str) -> str:
