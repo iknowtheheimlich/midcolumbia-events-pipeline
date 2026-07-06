@@ -42,6 +42,7 @@ class HarvestResult:
     raw_count: int | None
     normalized_count: int
     reused_normalized: bool = False
+    error: str | None = None
 
 
 @dataclass(frozen=True)
@@ -55,18 +56,15 @@ class Harvester:
     def harvest(self, adapter: AdapterInfo, options: HarvestOptions) -> HarvestResult:
         """Fetch/read raw fixture, regenerate normalized fixture, and report counts."""
         if should_reuse_normalized(adapter, options):
-            normalized_events = load_normalized_fixture(adapter.fixture_path)
-            return HarvestResult(
-                source_name=adapter.source_name,
-                raw_fixture_path=adapter.raw_fixture_path,
-                normalized_fixture_path=adapter.fixture_path,
-                raw_count=None,
-                normalized_count=len(normalized_events),
-                reused_normalized=True,
-            )
+            return reuse_normalized_result(adapter)
 
-        raw_payload = self._load_or_fetch_raw(adapter, options)
-        normalized_events = self.normalize(raw_payload)
+        try:
+            raw_payload = self._load_or_fetch_raw(adapter, options)
+            normalized_events = self.normalize(raw_payload)
+        except Exception as exc:
+            if adapter.fixture_path.exists():
+                return reuse_normalized_result(adapter, error=f"{type(exc).__name__}: {exc}")
+            raise
 
         if options.regenerate_normalized:
             save_json_fixture(adapter.fixture_path, normalized_events)
@@ -117,6 +115,20 @@ def should_reuse_normalized(adapter: AdapterInfo, options: HarvestOptions) -> bo
     return adapter.fixture_path.exists()
 
 
+def reuse_normalized_result(adapter: AdapterInfo, *, error: str | None = None) -> HarvestResult:
+    """Return a harvest result that preserves the current normalized fixture."""
+    normalized_events = load_normalized_fixture(adapter.fixture_path)
+    return HarvestResult(
+        source_name=adapter.source_name,
+        raw_fixture_path=adapter.raw_fixture_path,
+        normalized_fixture_path=adapter.fixture_path,
+        raw_count=None,
+        normalized_count=len(normalized_events),
+        reused_normalized=True,
+        error=error,
+    )
+
+
 def fetch_visit_tricities_raw(adapter: AdapterInfo, options: HarvestOptions) -> Any:
     """Fetch Visit Tri-Cities Algolia payload."""
     from adapters.visit_tricities.config import (
@@ -164,13 +176,10 @@ def fetch_richland_library_raw(adapter: AdapterInfo, options: HarvestOptions) ->
     for target_month in month_starts(options.months):
         params = urllib.parse.urlencode(
             {
-                "cid": CALENDAR_ID,
                 "cal_id": CALENDAR_ID,
                 "ct": CALENDAR_CONTEXT,
                 "m": target_month.month,
                 "y": target_month.year,
-                "month": target_month.month,
-                "year": target_month.year,
             }
         )
         fragments.append(request_text(f"{MONTHLY_ENDPOINT}?{params}"))
