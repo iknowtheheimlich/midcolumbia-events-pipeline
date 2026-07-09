@@ -1,11 +1,11 @@
-"""One-command raw harvest, normalized fixture regeneration, and pipeline smoke.
+"""One-command raw harvest, normalized output generation, and pipeline smoke.
 
 Attempt_22_Harvest_Infrastructure
 
 Usage:
     python -m tools.harvest_all
     python -m tools.harvest_all --skip-fetch
-    python -m tools.harvest_all --source VisitTriCities --source TriCityVibe
+    python -m tools.harvest_all --write-normalized-fixtures
 """
 
 from __future__ import annotations
@@ -13,13 +13,14 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from adapters.algolia.fixtures import save_json_fixture
 from adapters.harvest import HarvestOptions, HarvestResult, harvest_adapter
 from adapters.registry import AVAILABLE_ADAPTERS, AdapterInfo
-from tools.status import load_registered_batches
-from src.pipeline import run_pipeline
+from src.pipeline import SourceBatch, run_pipeline
 
 
 LINE = "=" * 64
+GENERATED_ROOT = Path("generated/harvest")
 
 
 def main() -> None:
@@ -28,7 +29,7 @@ def main() -> None:
     adapters = selected_adapters(args.source)
     options = HarvestOptions(
         fetch_raw=not args.skip_fetch,
-        regenerate_normalized=not args.skip_normalized,
+        regenerate_normalized=False,
         months=args.months,
         legacy_input=args.legacy_input,
     )
@@ -42,10 +43,13 @@ def main() -> None:
     for adapter in adapters:
         result = harvest_adapter(adapter, options)
         results.append(result)
-        print_harvest_result(result)
+        save_generated_normalized(result)
+        if args.write_normalized_fixtures:
+            save_json_fixture(result.normalized_fixture_path, result.events)
+        print_harvest_result(result, wrote_fixture=args.write_normalized_fixtures)
 
     if not args.skip_pipeline_smoke:
-        print_pipeline_smoke()
+        print_pipeline_smoke(results)
 
     warned = [result for result in results if result.error]
     if warned:
@@ -70,12 +74,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--skip-fetch",
         action="store_true",
-        help="Do not use the network; regenerate normalized fixtures from saved raw fixtures.",
+        help="Do not use the network; regenerate from saved raw fixtures when available.",
     )
     parser.add_argument(
-        "--skip-normalized",
+        "--write-normalized-fixtures",
         action="store_true",
-        help="Fetch raw fixtures only; do not rewrite normalized fixtures.",
+        help="Rewrite tracked normalized fixtures. Use only when intentionally refreshing golden fixtures.",
     )
     parser.add_argument(
         "--skip-pipeline-smoke",
@@ -102,23 +106,30 @@ def selected_adapters(source_names: list[str] | None) -> list[AdapterInfo]:
     return [AVAILABLE_ADAPTERS[name] for name in sorted(selected)]
 
 
-def print_harvest_result(result: HarvestResult) -> None:
+def save_generated_normalized(result: HarvestResult) -> None:
+    """Write generated live normalized output outside tracked fixture paths."""
+    output_path = GENERATED_ROOT / result.source_name / "normalized_events.json"
+    save_json_fixture(output_path, result.events)
+
+
+def print_harvest_result(result: HarvestResult, *, wrote_fixture: bool) -> None:
     """Print one compact source harvest summary."""
     raw_count = "n/a" if result.raw_count is None else str(result.raw_count)
     raw_path = "existing normalized bridge" if result.raw_fixture_path is None else str(result.raw_fixture_path)
-    mode = "reused existing normalized fixture" if result.reused_normalized else "regenerated normalized fixture"
+    mode = "reused existing normalized fixture" if result.reused_normalized else "generated normalized output"
     print(f"{result.source_name}")
     print(f"  raw        {raw_count:>5}  {raw_path}")
-    print(f"  normalized {result.normalized_count:>5}  {result.normalized_fixture_path}")
+    print(f"  normalized {result.normalized_count:>5}  {GENERATED_ROOT / result.source_name / 'normalized_events.json'}")
+    print(f"  fixture           {'updated' if wrote_fixture else 'preserved'}  {result.normalized_fixture_path}")
     print(f"  mode              {mode}")
     if result.error:
         print("  warning           preserved normalized fixture after harvest error")
     print()
 
 
-def print_pipeline_smoke() -> None:
-    """Run existing pipeline spine against registered normalized fixtures."""
-    batches = load_registered_batches()
+def print_pipeline_smoke(results: list[HarvestResult]) -> None:
+    """Run existing pipeline spine against in-memory harvest results."""
+    batches = [SourceBatch(source_name=result.source_name, events=result.events) for result in results]
     result = run_pipeline(batches, deduplicate=True)
 
     print("Pipeline smoke")
