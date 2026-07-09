@@ -29,7 +29,7 @@ def main() -> None:
     adapters = selected_adapters(args.source)
     options = HarvestOptions(
         fetch_raw=not args.skip_fetch,
-        regenerate_normalized=False,
+        write_normalized=args.write_normalized_fixtures,
         months=args.months,
         legacy_input=args.legacy_input,
     )
@@ -44,8 +44,6 @@ def main() -> None:
         result = harvest_adapter(adapter, options)
         results.append(result)
         save_generated_normalized(result)
-        if args.write_normalized_fixtures:
-            save_json_fixture(result.normalized_fixture_path, result.events)
         print_harvest_result(result, wrote_fixture=args.write_normalized_fixtures)
 
     if not args.skip_pipeline_smoke:
@@ -106,10 +104,14 @@ def selected_adapters(source_names: list[str] | None) -> list[AdapterInfo]:
     return [AVAILABLE_ADAPTERS[name] for name in sorted(selected)]
 
 
+def generated_output_path(result: HarvestResult) -> Path:
+    """Return generated normalized output path for one source."""
+    return GENERATED_ROOT / result.source_name / "normalized_events.json"
+
+
 def save_generated_normalized(result: HarvestResult) -> None:
     """Write generated live normalized output outside tracked fixture paths."""
-    output_path = GENERATED_ROOT / result.source_name / "normalized_events.json"
-    save_json_fixture(output_path, result.events)
+    save_json_fixture(generated_output_path(result), result.normalized_events)
 
 
 def print_harvest_result(result: HarvestResult, *, wrote_fixture: bool) -> None:
@@ -119,7 +121,7 @@ def print_harvest_result(result: HarvestResult, *, wrote_fixture: bool) -> None:
     mode = "reused existing normalized fixture" if result.reused_normalized else "generated normalized output"
     print(f"{result.source_name}")
     print(f"  raw        {raw_count:>5}  {raw_path}")
-    print(f"  normalized {result.normalized_count:>5}  {GENERATED_ROOT / result.source_name / 'normalized_events.json'}")
+    print(f"  normalized {result.normalized_count:>5}  {generated_output_path(result)}")
     print(f"  fixture           {'updated' if wrote_fixture else 'preserved'}  {result.normalized_fixture_path}")
     print(f"  mode              {mode}")
     if result.error:
@@ -129,7 +131,7 @@ def print_harvest_result(result: HarvestResult, *, wrote_fixture: bool) -> None:
 
 def print_pipeline_smoke(results: list[HarvestResult]) -> None:
     """Run existing pipeline spine against in-memory harvest results."""
-    batches = [SourceBatch(source_name=result.source_name, events=result.events) for result in results]
+    batches = [SourceBatch(source_name=result.source_name, events=result.normalized_events) for result in results]
     result = run_pipeline(batches, deduplicate=True)
 
     print("Pipeline smoke")
