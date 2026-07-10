@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
@@ -15,6 +16,7 @@ from adapters.contract import CanonicalEvent
 from adapters.registry import AdapterInfo
 
 GENERATED_ROOT = Path("generated/harvest")
+RICHlAND_COMPONENT_RE = re.compile(r's-lc-hp-calendar-content-(?P<id>\d+)')
 
 
 @dataclass(frozen=True)
@@ -160,48 +162,43 @@ def normalize_visit_tricities(raw_payload: Any) -> list[CanonicalEvent]:
 
 
 def fetch_richland_library_raw(adapter: AdapterInfo, options: HarvestOptions) -> str:
-    from adapters.richland_library.config import BASE_URL, CALENDAR_CONTEXT, CALENDAR_ID, MONTHLY_ENDPOINT
+    from adapters.richland_library.config import BASE_URL, CALENDAR_ID, MONTHLY_ENDPOINT
 
+    root_html = request_text(BASE_URL, headers=default_headers())
+    component_ids = sorted(set(RICHlAND_COMPONENT_RE.findall(root_html)))
+    if not component_ids:
+        raise RuntimeError("Richland homepage calendar component ID was not found")
+
+    component_id = component_ids[0]
     fragments: list[str] = []
     failures: list[str] = []
+    headers = {
+        **default_headers(),
+        "Referer": BASE_URL,
+        "X-Requested-With": "XMLHttpRequest",
+    }
+
     for target_month in month_starts(options.months):
-        form = {
-            "cal_id": CALENDAR_ID,
-            "ct": CALENDAR_CONTEXT,
-            "m": str(target_month.month),
-            "y": str(target_month.year),
-        }
-        headers = {
-            **default_headers(),
-            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-            "Referer": f"{BASE_URL}/calendar",
-            "X-Requested-With": "XMLHttpRequest",
-        }
+        params = urllib.parse.urlencode(
+            {
+                "id": component_id,
+                "c": CALENDAR_ID,
+                "date": target_month.isoformat(),
+                "monthly": "true",
+                "audience": "",
+                "cats": "",
+                "camps": "",
+            }
+        )
+        url = f"{MONTHLY_ENDPOINT}?{params}"
         try:
-            fragment = request_text(
-                MONTHLY_ENDPOINT,
-                body=urllib.parse.urlencode(form).encode("utf-8"),
-                headers=headers,
-            )
-            if "s-lc-mc-evt" in fragment:
+            fragment = request_text(url, headers=headers)
+            if fragment.strip():
                 fragments.append(fragment)
-                continue
-            failures.append(f"{target_month:%Y-%m}: AJAX response contained no event blocks")
+            else:
+                failures.append(f"{target_month:%Y-%m}: empty monthly response")
         except Exception as exc:
             failures.append(f"{target_month:%Y-%m}: {type(exc).__name__}: {exc}")
-
-        fallback_url = (
-            f"{BASE_URL}/calendar?cid={urllib.parse.quote(CALENDAR_ID)}"
-            f"&t=m&d={target_month.isoformat()}&cal={urllib.parse.quote(CALENDAR_ID)}&inc=0"
-        )
-        try:
-            page = request_text(fallback_url, headers=default_headers())
-            if "s-lc-mc-evt" in page:
-                fragments.append(page)
-                continue
-            failures.append(f"{target_month:%Y-%m}: calendar page contained no event blocks")
-        except Exception as exc:
-            failures.append(f"{target_month:%Y-%m}: fallback {type(exc).__name__}: {exc}")
 
     if fragments:
         return "\n".join(fragments)
