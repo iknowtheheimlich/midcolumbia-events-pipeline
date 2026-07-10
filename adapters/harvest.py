@@ -14,12 +14,15 @@ from adapters.algolia.fixtures import load_json_fixture, save_json_fixture
 from adapters.contract import CanonicalEvent
 from adapters.registry import AdapterInfo
 
+GENERATED_ROOT = Path("generated/harvest")
+
 
 @dataclass(frozen=True)
 class HarvestOptions:
     """Runtime controls for one harvest run."""
 
     fetch_raw: bool = True
+    write_raw: bool = False
     write_normalized: bool = False
     months: int = 2
     legacy_input: Path | None = None
@@ -31,6 +34,7 @@ class HarvestResult:
 
     source_name: str
     raw_fixture_path: Path | None
+    raw_output_path: Path | None
     normalized_fixture_path: Path
     raw_count: int | None
     normalized_events: list[CanonicalEvent] = field(repr=False)
@@ -55,8 +59,9 @@ class Harvester:
         if should_reuse_normalized(adapter, options):
             return reuse_normalized_result(adapter)
 
+        raw_output_path: Path | None = None
         try:
-            raw_payload = self._load_or_fetch_raw(adapter, options)
+            raw_payload, raw_output_path = self._load_or_fetch_raw(adapter, options)
             normalized_events = self.normalize(raw_payload)
         except Exception as exc:
             if adapter.fixture_path.exists():
@@ -69,19 +74,23 @@ class Harvester:
         return HarvestResult(
             source_name=adapter.source_name,
             raw_fixture_path=adapter.raw_fixture_path,
+            raw_output_path=raw_output_path,
             normalized_fixture_path=adapter.fixture_path,
             raw_count=count_raw(raw_payload),
             normalized_events=normalized_events,
         )
 
-    def _load_or_fetch_raw(self, adapter: AdapterInfo, options: HarvestOptions) -> Any:
+    def _load_or_fetch_raw(self, adapter: AdapterInfo, options: HarvestOptions) -> tuple[Any, Path | None]:
         if adapter.raw_fixture_path is None:
-            return self.fetch_raw(adapter, options)
+            return self.fetch_raw(adapter, options), None
+
         if options.fetch_raw:
             raw_payload = self.fetch_raw(adapter, options)
-            save_raw_fixture(adapter.raw_fixture_path, raw_payload)
-            return raw_payload
-        return load_raw_fixture(adapter.raw_fixture_path)
+            output_path = adapter.raw_fixture_path if options.write_raw else generated_raw_path(adapter)
+            save_raw_fixture(output_path, raw_payload)
+            return raw_payload, output_path
+
+        return load_raw_fixture(adapter.raw_fixture_path), adapter.raw_fixture_path
 
 
 def harvest_adapter(adapter: AdapterInfo, options: HarvestOptions) -> HarvestResult:
@@ -94,6 +103,13 @@ def get_harvester(source_name: str) -> Harvester:
     except KeyError as exc:
         known = ", ".join(sorted(HARVESTERS))
         raise KeyError(f"No harvester registered for {source_name}. Known harvesters: {known}") from exc
+
+
+def generated_raw_path(adapter: AdapterInfo) -> Path:
+    """Return safe generated raw output path for one adapter."""
+    if adapter.raw_fixture_path is None:
+        raise ValueError(f"{adapter.source_name} has no raw fixture path")
+    return GENERATED_ROOT / adapter.source_name / adapter.raw_fixture_path.name
 
 
 def should_reuse_normalized(adapter: AdapterInfo, options: HarvestOptions) -> bool:
@@ -111,6 +127,7 @@ def reuse_normalized_result(adapter: AdapterInfo, *, error: str | None = None) -
     return HarvestResult(
         source_name=adapter.source_name,
         raw_fixture_path=adapter.raw_fixture_path,
+        raw_output_path=None,
         normalized_fixture_path=adapter.fixture_path,
         raw_count=None,
         normalized_events=events,
