@@ -48,8 +48,8 @@ def main() -> None:
         save_generated_normalized(result)
         print_harvest_result(
             result,
-            wrote_normalized_fixture=args.write_normalized_fixtures,
-            wrote_raw_fixture=args.write_raw_fixtures,
+            requested_normalized_write=args.write_normalized_fixtures,
+            requested_raw_write=args.write_raw_fixtures,
         )
 
     if not args.skip_pipeline_smoke:
@@ -128,18 +128,21 @@ def save_generated_normalized(result: HarvestResult) -> None:
 def print_harvest_result(
     result: HarvestResult,
     *,
-    wrote_normalized_fixture: bool,
-    wrote_raw_fixture: bool,
+    requested_normalized_write: bool,
+    requested_raw_write: bool,
 ) -> None:
     """Print one compact source harvest summary."""
     raw_count = "n/a" if result.raw_count is None else str(result.raw_count)
-    raw_path = "existing normalized bridge" if result.raw_output_path is None else str(result.raw_output_path)
+    raw_path = "not applicable" if result.raw_output_path is None else str(result.raw_output_path)
+    raw_updated = requested_raw_write and result.raw_output_path is not None and result.error is None
+    normalized_updated = requested_normalized_write and not result.reused_normalized and result.error is None
     mode = "reused existing normalized fixture" if result.reused_normalized else "generated normalized output"
+
     print(f"{result.source_name}")
     print(f"  raw        {raw_count:>5}  {raw_path}")
-    print(f"  raw fixture       {'updated' if wrote_raw_fixture else 'preserved'}")
+    print(f"  raw fixture       {'updated' if raw_updated else 'preserved'}")
     print(f"  normalized {result.normalized_count:>5}  {generated_output_path(result)}")
-    print(f"  fixture           {'updated' if wrote_normalized_fixture else 'preserved'}  {result.normalized_fixture_path}")
+    print(f"  fixture           {'updated' if normalized_updated else 'preserved'}  {result.normalized_fixture_path}")
     print(f"  mode              {mode}")
     if result.error:
         print("  warning           preserved normalized fixture after harvest error")
