@@ -19,8 +19,6 @@ GENERATED_ROOT = Path("generated/harvest")
 
 @dataclass(frozen=True)
 class HarvestOptions:
-    """Runtime controls for one harvest run."""
-
     fetch_raw: bool = True
     write_raw: bool = False
     write_normalized: bool = False
@@ -30,8 +28,6 @@ class HarvestOptions:
 
 @dataclass(frozen=True)
 class HarvestResult:
-    """Summary for one harvested source."""
-
     source_name: str
     raw_fixture_path: Path | None
     raw_output_path: Path | None
@@ -48,14 +44,11 @@ class HarvestResult:
 
 @dataclass(frozen=True)
 class Harvester:
-    """Fetcher/normalizer pair for one adapter."""
-
     source_name: str
     fetch_raw: Callable[[AdapterInfo, HarvestOptions], Any]
     normalize: Callable[[Any], list[CanonicalEvent]]
 
     def harvest(self, adapter: AdapterInfo, options: HarvestOptions) -> HarvestResult:
-        """Fetch/read raw fixture and normalize in memory."""
         if should_reuse_normalized(adapter, options):
             return reuse_normalized_result(adapter)
 
@@ -83,13 +76,11 @@ class Harvester:
     def _load_or_fetch_raw(self, adapter: AdapterInfo, options: HarvestOptions) -> tuple[Any, Path | None]:
         if adapter.raw_fixture_path is None:
             return self.fetch_raw(adapter, options), None
-
         if options.fetch_raw:
             raw_payload = self.fetch_raw(adapter, options)
             output_path = adapter.raw_fixture_path if options.write_raw else generated_raw_path(adapter)
             save_raw_fixture(output_path, raw_payload)
             return raw_payload, output_path
-
         return load_raw_fixture(adapter.raw_fixture_path), adapter.raw_fixture_path
 
 
@@ -106,7 +97,6 @@ def get_harvester(source_name: str) -> Harvester:
 
 
 def generated_raw_path(adapter: AdapterInfo) -> Path:
-    """Return safe generated raw output path for one adapter."""
     if adapter.raw_fixture_path is None:
         raise ValueError(f"{adapter.source_name} has no raw fixture path")
     return GENERATED_ROOT / adapter.source_name / adapter.raw_fixture_path.name
@@ -170,15 +160,52 @@ def normalize_visit_tricities(raw_payload: Any) -> list[CanonicalEvent]:
 
 
 def fetch_richland_library_raw(adapter: AdapterInfo, options: HarvestOptions) -> str:
-    from adapters.richland_library.config import CALENDAR_CONTEXT, CALENDAR_ID, MONTHLY_ENDPOINT
+    from adapters.richland_library.config import BASE_URL, CALENDAR_CONTEXT, CALENDAR_ID, MONTHLY_ENDPOINT
 
     fragments: list[str] = []
+    failures: list[str] = []
     for target_month in month_starts(options.months):
-        params = urllib.parse.urlencode(
-            {"cal_id": CALENDAR_ID, "ct": CALENDAR_CONTEXT, "m": target_month.month, "y": target_month.year}
+        form = {
+            "cal_id": CALENDAR_ID,
+            "ct": CALENDAR_CONTEXT,
+            "m": str(target_month.month),
+            "y": str(target_month.year),
+        }
+        headers = {
+            **default_headers(),
+            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+            "Referer": f"{BASE_URL}/calendar",
+            "X-Requested-With": "XMLHttpRequest",
+        }
+        try:
+            fragment = request_text(
+                MONTHLY_ENDPOINT,
+                body=urllib.parse.urlencode(form).encode("utf-8"),
+                headers=headers,
+            )
+            if "s-lc-mc-evt" in fragment:
+                fragments.append(fragment)
+                continue
+            failures.append(f"{target_month:%Y-%m}: AJAX response contained no event blocks")
+        except Exception as exc:
+            failures.append(f"{target_month:%Y-%m}: {type(exc).__name__}: {exc}")
+
+        fallback_url = (
+            f"{BASE_URL}/calendar?cid={urllib.parse.quote(CALENDAR_ID)}"
+            f"&t=m&d={target_month.isoformat()}&cal={urllib.parse.quote(CALENDAR_ID)}&inc=0"
         )
-        fragments.append(request_text(f"{MONTHLY_ENDPOINT}?{params}"))
-    return "\n".join(fragments)
+        try:
+            page = request_text(fallback_url, headers=default_headers())
+            if "s-lc-mc-evt" in page:
+                fragments.append(page)
+                continue
+            failures.append(f"{target_month:%Y-%m}: calendar page contained no event blocks")
+        except Exception as exc:
+            failures.append(f"{target_month:%Y-%m}: fallback {type(exc).__name__}: {exc}")
+
+    if fragments:
+        return "\n".join(fragments)
+    raise RuntimeError("Richland LibCal fetch failed: " + " | ".join(failures))
 
 
 def normalize_richland_library(raw_payload: Any) -> list[CanonicalEvent]:
@@ -252,15 +279,23 @@ def request_json(url: str, *, body: bytes | None = None, headers: dict[str, str]
         return json.loads(response.read().decode(charset))
 
 
-def request_text(url: str, *, headers: dict[str, str] | None = None) -> str:
-    request = urllib.request.Request(url, headers=headers or default_headers())
+def request_text(
+    url: str,
+    *,
+    body: bytes | None = None,
+    headers: dict[str, str] | None = None,
+) -> str:
+    request = urllib.request.Request(url, data=body, headers=headers or default_headers())
     with urllib.request.urlopen(request, timeout=30) as response:
         charset = response.headers.get_content_charset() or "utf-8"
         return response.read().decode(charset, errors="replace")
 
 
 def default_headers() -> dict[str, str]:
-    return {"User-Agent": "midcolumbia-events-pipeline/Attempt_22"}
+    return {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/142.0 Safari/537.36"
+    }
 
 
 def save_raw_fixture(path: Path, payload: Any) -> None:
