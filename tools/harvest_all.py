@@ -12,7 +12,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-from dataclasses import replace
 from pathlib import Path
 
 from adapters.algolia.fixtures import save_json_fixture
@@ -31,6 +30,7 @@ def main() -> None:
     adapters = selected_adapters(args.source)
     options = HarvestOptions(
         fetch_raw=not args.skip_fetch,
+        write_raw=args.write_raw_fixtures,
         write_normalized=args.write_normalized_fixtures,
         months=args.months,
         legacy_input=args.legacy_input,
@@ -43,9 +43,7 @@ def main() -> None:
 
     results: list[HarvestResult] = []
     for adapter in adapters:
-        runtime_adapter = adapter_for_run(adapter, write_raw_fixtures=args.write_raw_fixtures)
-        result = harvest_adapter(runtime_adapter, options)
-        result = replace(result, normalized_fixture_path=adapter.fixture_path)
+        result = harvest_adapter(adapter, options)
         results.append(result)
         save_generated_normalized(result)
         print_harvest_result(
@@ -117,14 +115,6 @@ def selected_adapters(source_names: list[str] | None) -> list[AdapterInfo]:
     return [AVAILABLE_ADAPTERS[name] for name in sorted(selected)]
 
 
-def adapter_for_run(adapter: AdapterInfo, *, write_raw_fixtures: bool) -> AdapterInfo:
-    """Route live raw output away from tracked golden fixtures by default."""
-    if write_raw_fixtures or adapter.raw_fixture_path is None:
-        return adapter
-    generated_raw = GENERATED_ROOT / adapter.source_name / adapter.raw_fixture_path.name
-    return replace(adapter, raw_fixture_path=generated_raw)
-
-
 def generated_output_path(result: HarvestResult) -> Path:
     """Return generated normalized output path for one source."""
     return GENERATED_ROOT / result.source_name / "normalized_events.json"
@@ -143,7 +133,7 @@ def print_harvest_result(
 ) -> None:
     """Print one compact source harvest summary."""
     raw_count = "n/a" if result.raw_count is None else str(result.raw_count)
-    raw_path = "existing normalized bridge" if result.raw_fixture_path is None else str(result.raw_fixture_path)
+    raw_path = "existing normalized bridge" if result.raw_output_path is None else str(result.raw_output_path)
     mode = "reused existing normalized fixture" if result.reused_normalized else "generated normalized output"
     print(f"{result.source_name}")
     print(f"  raw        {raw_count:>5}  {raw_path}")
