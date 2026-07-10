@@ -6,11 +6,13 @@ Usage:
     python -m tools.harvest_all
     python -m tools.harvest_all --skip-fetch
     python -m tools.harvest_all --write-normalized-fixtures
+    python -m tools.harvest_all --write-raw-fixtures
 """
 
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 from pathlib import Path
 
 from adapters.algolia.fixtures import save_json_fixture
@@ -41,10 +43,16 @@ def main() -> None:
 
     results: list[HarvestResult] = []
     for adapter in adapters:
-        result = harvest_adapter(adapter, options)
+        runtime_adapter = adapter_for_run(adapter, write_raw_fixtures=args.write_raw_fixtures)
+        result = harvest_adapter(runtime_adapter, options)
+        result = replace(result, normalized_fixture_path=adapter.fixture_path)
         results.append(result)
         save_generated_normalized(result)
-        print_harvest_result(result, wrote_fixture=args.write_normalized_fixtures)
+        print_harvest_result(
+            result,
+            wrote_normalized_fixture=args.write_normalized_fixtures,
+            wrote_raw_fixture=args.write_raw_fixtures,
+        )
 
     if not args.skip_pipeline_smoke:
         print_pipeline_smoke(results)
@@ -80,6 +88,11 @@ def parse_args() -> argparse.Namespace:
         help="Rewrite tracked normalized fixtures. Use only when intentionally refreshing golden fixtures.",
     )
     parser.add_argument(
+        "--write-raw-fixtures",
+        action="store_true",
+        help="Rewrite tracked raw fixtures. Use only when intentionally refreshing golden fixtures.",
+    )
+    parser.add_argument(
         "--skip-pipeline-smoke",
         action="store_true",
         help="Skip final pipeline smoke check.",
@@ -104,6 +117,14 @@ def selected_adapters(source_names: list[str] | None) -> list[AdapterInfo]:
     return [AVAILABLE_ADAPTERS[name] for name in sorted(selected)]
 
 
+def adapter_for_run(adapter: AdapterInfo, *, write_raw_fixtures: bool) -> AdapterInfo:
+    """Route live raw output away from tracked golden fixtures by default."""
+    if write_raw_fixtures or adapter.raw_fixture_path is None:
+        return adapter
+    generated_raw = GENERATED_ROOT / adapter.source_name / adapter.raw_fixture_path.name
+    return replace(adapter, raw_fixture_path=generated_raw)
+
+
 def generated_output_path(result: HarvestResult) -> Path:
     """Return generated normalized output path for one source."""
     return GENERATED_ROOT / result.source_name / "normalized_events.json"
@@ -114,15 +135,21 @@ def save_generated_normalized(result: HarvestResult) -> None:
     save_json_fixture(generated_output_path(result), result.normalized_events)
 
 
-def print_harvest_result(result: HarvestResult, *, wrote_fixture: bool) -> None:
+def print_harvest_result(
+    result: HarvestResult,
+    *,
+    wrote_normalized_fixture: bool,
+    wrote_raw_fixture: bool,
+) -> None:
     """Print one compact source harvest summary."""
     raw_count = "n/a" if result.raw_count is None else str(result.raw_count)
     raw_path = "existing normalized bridge" if result.raw_fixture_path is None else str(result.raw_fixture_path)
     mode = "reused existing normalized fixture" if result.reused_normalized else "generated normalized output"
     print(f"{result.source_name}")
     print(f"  raw        {raw_count:>5}  {raw_path}")
+    print(f"  raw fixture       {'updated' if wrote_raw_fixture else 'preserved'}")
     print(f"  normalized {result.normalized_count:>5}  {generated_output_path(result)}")
-    print(f"  fixture           {'updated' if wrote_fixture else 'preserved'}  {result.normalized_fixture_path}")
+    print(f"  fixture           {'updated' if wrote_normalized_fixture else 'preserved'}  {result.normalized_fixture_path}")
     print(f"  mode              {mode}")
     if result.error:
         print("  warning           preserved normalized fixture after harvest error")
