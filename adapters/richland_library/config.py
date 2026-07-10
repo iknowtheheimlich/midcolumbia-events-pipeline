@@ -6,5 +6,5 @@ DEFAULT_CITY = "Richland"
 
 BASE_URL = "https://myrichlandlibrary.libcal.com"
 MONTHLY_ENDPOINT = f"{BASE_URL}/ajax/calendar/monthly"
-CALENDAR_ID = "87462"
+CALENDAR_ID = "19280"
 CALENDAR_CONTEXT = "19280"
