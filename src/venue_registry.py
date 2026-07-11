@@ -85,8 +85,52 @@ class VenueRegistry:
         self._street_map = {key: tuple(values) for key, values in street_map.items()}
 
     @staticmethod
-    def _resolve_candidates(candidates: tuple[VenueRecord, ...], *, method: str, detail: str | None = None) -> VenueMatch:
-        unique = tuple(dict.fromkeys(candidates))
+    def _record_identity(record: VenueRecord) -> tuple[str, ...]:
+        if record.place_id:
+            return ("place_id", record.place_id)
+        if record.address:
+            return (
+                "address_name",
+                normalize_address_key(record.address),
+                normalize_venue_key(record.canonical_name),
+            )
+        return (
+            "record",
+            normalize_venue_key(record.venue_name),
+            normalize_venue_key(record.canonical_name),
+        )
+
+    @staticmethod
+    def _record_quality(record: VenueRecord) -> tuple[int, int, int, int, int]:
+        return (
+            int(bool(record.official_name)),
+            int(bool(record.place_id)),
+            int(bool(record.address)),
+            int(bool(record.website)),
+            len(record.canonical_name),
+        )
+
+    @classmethod
+    def _collapse_equivalent(cls, candidates: tuple[VenueRecord, ...]) -> tuple[VenueRecord, ...]:
+        grouped: dict[tuple[str, ...], list[VenueRecord]] = {}
+        for record in candidates:
+            grouped.setdefault(cls._record_identity(record), []).append(record)
+
+        representatives = [
+            max(group, key=cls._record_quality)
+            for group in grouped.values()
+        ]
+        return tuple(representatives)
+
+    @classmethod
+    def _resolve_candidates(
+        cls,
+        candidates: tuple[VenueRecord, ...],
+        *,
+        method: str,
+        detail: str | None = None,
+    ) -> VenueMatch:
+        unique = cls._collapse_equivalent(candidates)
         if not unique:
             return VenueMatch(status="unknown")
         if len(unique) > 1:
