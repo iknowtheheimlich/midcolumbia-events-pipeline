@@ -6,6 +6,7 @@ from collections import Counter
 import json
 from pathlib import Path
 
+from src.text_normalization import normalize_event
 from src.venue_registry import VenueRegistry
 
 
@@ -26,7 +27,7 @@ def main() -> None:
     registry = VenueRegistry.from_json(REGISTRY_PATH)
     events: list[dict] = []
     for path in sorted(HARVEST_ROOT.glob("*/normalized_events.json")):
-        events.extend(json.loads(path.read_text(encoding="utf-8")))
+        events.extend(normalize_event(event) for event in json.loads(path.read_text(encoding="utf-8")))
 
     if not events:
         raise SystemExit("No generated harvest events found.\nRun:\n  python -m tools.harvest_all")
