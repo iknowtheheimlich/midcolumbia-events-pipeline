@@ -29,20 +29,20 @@ def main() -> None:
         events.extend(json.loads(path.read_text(encoding="utf-8")))
 
     if not events:
-        raise SystemExit(
-            "No generated harvest events found.\n"
-            "Run:\n  python -m tools.harvest_all"
-        )
+        raise SystemExit("No generated harvest events found.\nRun:\n  python -m tools.harvest_all")
 
     counts: Counter[str] = Counter()
+    methods: Counter[str] = Counter()
     unknown: Counter[str] = Counter()
     ambiguous: Counter[str] = Counter()
 
     for event in events:
         venue = str(event.get("venue") or "").strip()
-        match = registry.match(venue)
+        match = registry.match_event(event)
         counts[match.status] += 1
-        if match.status == "unknown" and venue:
+        if match.status == "matched":
+            methods[match.method or "unspecified"] += 1
+        elif match.status == "unknown" and venue:
             unknown[venue] += 1
         elif match.status == "ambiguous" and venue:
             ambiguous[venue] += 1
@@ -58,8 +58,14 @@ def main() -> None:
         f"Ambiguous: {counts['ambiguous']}",
         f"Missing venue: {counts['missing']}",
         "",
-        "Unknown venues:",
+        "Match methods:",
     ]
+    if methods:
+        lines.extend(f"  {count:>3}  {name}" for name, count in methods.most_common())
+    else:
+        lines.append("  none")
+
+    lines.extend(["", "Unknown venues:"])
     if unknown:
         lines.extend(f"  {count:>3}  {name}" for name, count in unknown.most_common())
     else:
@@ -78,6 +84,8 @@ def main() -> None:
     print(f"Matched: {counts['matched']}")
     print(f"Unknown: {counts['unknown']}")
     print(f"Ambiguous: {counts['ambiguous']}")
+    if methods:
+        print("Match methods: " + ", ".join(f"{name}={count}" for name, count in methods.most_common()))
     print(f"Saved report: {REPORT_PATH}")
 
 
