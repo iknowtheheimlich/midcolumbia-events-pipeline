@@ -5,6 +5,7 @@ from src.geography import (
     classify_region,
     enrich_event_geography,
     haversine_miles,
+    looks_like_street_location,
     normalize_city,
 )
 from src.pipeline import SourceBatch, run_pipeline
@@ -12,6 +13,10 @@ from src.pipeline import SourceBatch, run_pipeline
 
 def test_normalize_city_repairs_known_misspelling():
     assert normalize_city("Herminston") == "Hermiston"
+
+
+def test_unknown_city_normalizes_to_missing():
+    assert normalize_city("Unknown") is None
 
 
 def test_city_state_is_extracted_from_address():
@@ -34,6 +39,12 @@ def test_tri_cities_city_is_local():
     assert result.scope == "LOCAL"
 
 
+def test_tri_cities_label_is_local_without_inventing_one_city():
+    result = classify_event({"city": "Tri-Cities", "state": "WA"})
+    assert result.region == "TRI_CITIES"
+    assert result.scope == "LOCAL"
+
+
 def test_regional_and_out_of_area_regions_are_distinct():
     assert classify_region("Prosser", "WA") == "LOWER_VALLEY"
     assert classify_region("Yakima", "WA") == "YAKIMA"
@@ -45,6 +56,42 @@ def test_unknown_location_is_review_not_rejected():
     result = classify_event({"venue": "Mystery Hall"})
     assert result.region == "UNKNOWN"
     assert result.scope == "REVIEW"
+
+
+def test_numbered_venue_is_preserved_as_private_address():
+    event = {
+        "venue": "430 George Washington Way",
+        "city": "430 George",
+        "address": "430 George Washington Way, Richland, WA 99352",
+    }
+    enriched = enrich_event_geography(event)
+    assert enriched["venue"] == "430 George Washington Way"
+    assert enriched["city"] == "Richland"
+    assert enriched["geo_scope"] == "LOCAL"
+    assert enriched["location_type"] == "PRIVATE_ADDRESS"
+
+
+def test_truncated_street_city_without_full_address_stays_review():
+    enriched = enrich_event_geography({"venue": "812 W.", "city": "812 W."})
+    assert "city" not in enriched
+    assert enriched["geo_scope"] == "REVIEW"
+    assert enriched["location_type"] == "PRIVATE_ADDRESS"
+
+
+def test_named_venue_with_address_is_not_labeled_private():
+    result = classify_event(
+        {
+            "venue": "Benton County Fairgrounds",
+            "address": "812 W Washington St, Pasco, WA 99301",
+        }
+    )
+    assert result.location_type == "VENUE"
+    assert result.city == "Pasco"
+
+
+def test_street_location_detection_requires_numbered_prefix():
+    assert looks_like_street_location("430 George Washington Way")
+    assert not looks_like_street_location("George Washington Way")
 
 
 def test_haversine_returns_reasonable_tri_cities_distance():
