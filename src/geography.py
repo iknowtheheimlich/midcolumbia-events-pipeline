@@ -16,7 +16,8 @@ from typing import Any
 
 _SPACE_RE = re.compile(r"\s+")
 _ADDRESS_CITY_STATE_RE = re.compile(
-    r",\s*([^,]+?),\s*(WA|OR|ID|BC)(?:\s+\d{5}(?:-\d{4})?)?(?:,\s*(?:USA|United States|Canada))?\s*$",
+    r",\s*([^,]+?),\s*(WA|Washington|OR|Oregon|ID|Idaho|BC|British Columbia)"
+    r"(?:\s+\d{5}(?:-\d{4})?)?(?:,\s*(?:USA|United States|Canada))?\s*$",
     re.IGNORECASE,
 )
 
@@ -34,8 +35,8 @@ LOWER_VALLEY = {"prosser", "grandview", "sunnyside", "mabton", "zillah", "toppen
 WALLA_WALLA = {"walla walla", "college place", "waitsburg", "dayton", "prescott"}
 YAKIMA = {"yakima", "selah", "naches", "union gap", "ellensburg", "cle elum"}
 MOSES_LAKE = {"moses lake", "othello", "quincy", "ephrata", "soap lake"}
-COLUMBIA_GORGE = {"the dalles", "dufur", "hood river", "boardman", "sumpter"}
-PENDLETON = {"pendleton", "hermiston", "umatilla", "stanfield", "echo"}
+COLUMBIA_GORGE = {"the dalles", "dufur", "hood river", "boardman"}
+PENDLETON = {"pendleton", "hermiston", "umatilla", "stanfield", "echo", "sumpter"}
 SPOKANE = {"spokane", "spokane valley", "cheney", "liberty lake"}
 
 REGION_BY_CITY = {
