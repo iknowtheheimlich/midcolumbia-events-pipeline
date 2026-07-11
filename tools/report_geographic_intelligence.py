@@ -26,21 +26,27 @@ def main() -> None:
     region_counts: Counter[str] = Counter()
     scope_counts: Counter[str] = Counter()
     city_counts: Counter[str] = Counter()
+    location_type_counts: Counter[str] = Counter()
     out_of_area: list[tuple[str, str, str, str]] = []
     review: list[tuple[str, str, str]] = []
+    private_locations: list[tuple[str, str, str, str]] = []
 
     for event in events:
         result = classify_event(event)
         region_counts[result.region] += 1
         scope_counts[result.scope] += 1
         city_counts[result.city or "(unknown)"] += 1
+        location_type_counts[result.location_type] += 1
 
         title = str(event.get("title") or "(untitled)")
         venue = str(event.get("venue") or "(no venue)")
+        address = str(event.get("address") or "")
+        if result.location_type == "PRIVATE_ADDRESS":
+            private_locations.append((result.city or "(unknown)", result.scope, title, venue))
         if result.scope == "OUT_OF_AREA":
             out_of_area.append((result.city or "(unknown)", result.region, title, venue))
         elif result.scope == "REVIEW":
-            review.append((title, venue, str(event.get("address") or "")))
+            review.append((title, venue, address))
 
     lines = [
         "Attempt_27 Geographic Intelligence",
@@ -55,8 +61,18 @@ def main() -> None:
     lines.extend(["", "Region counts:"])
     lines.extend(f"  {count:>3}  {name}" for name, count in region_counts.most_common())
 
+    lines.extend(["", "Location type counts:"])
+    lines.extend(f"  {count:>3}  {name}" for name, count in location_type_counts.most_common())
+
     lines.extend(["", "Top normalized cities:"])
     lines.extend(f"  {count:>3}  {name}" for name, count in city_counts.most_common(30))
+
+    lines.extend(["", "Private-address events:"])
+    if private_locations:
+        for city, scope, title, venue in sorted(private_locations):
+            lines.append(f"  [{scope}] {city} | {title} | {venue}")
+    else:
+        lines.append("  none")
 
     lines.extend(["", "Out-of-area review queue:"])
     if out_of_area:
@@ -79,6 +95,7 @@ def main() -> None:
     print(f"Events scanned: {len(events)}")
     print("Scopes: " + ", ".join(f"{name}={count}" for name, count in scope_counts.most_common()))
     print("Regions: " + ", ".join(f"{name}={count}" for name, count in region_counts.most_common()))
+    print("Location types: " + ", ".join(f"{name}={count}" for name, count in location_type_counts.most_common()))
     print(f"Saved report: {REPORT_PATH}")
 
 
