@@ -7,6 +7,7 @@ from typing import Any
 
 from src.deduplicate import DeduplicationResult, deduplicate_events
 from src.recurrence_classifier import split_publisher_ready
+from src.text_normalization import normalize_event
 
 
 @dataclass(frozen=True)
@@ -62,12 +63,12 @@ def run_pipeline(source_batches: list[SourceBatch], *, deduplicate: bool = False
 
 
 def combine_source_batches(source_batches: list[SourceBatch]) -> list[dict[str, Any]]:
-    """Combine source batches and preserve source identity on each event."""
+    """Combine source batches, repair text, and preserve source identity."""
     combined: list[dict[str, Any]] = []
 
     for batch in source_batches:
         for event in batch.events:
-            copied = dict(event)
+            copied = normalize_event(event)
             copied.setdefault("source", batch.source_name)
             combined.append(copied)
 
