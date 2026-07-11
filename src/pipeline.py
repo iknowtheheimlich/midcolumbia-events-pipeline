@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from src.deduplicate import DeduplicationResult, deduplicate_events
+from src.geography import enrich_event_geography
 from src.recurrence_classifier import split_publisher_ready
 from src.text_normalization import normalize_event
 from src.venue_registry import VenueRegistry
@@ -48,9 +49,14 @@ def run_pipeline(
     *,
     deduplicate: bool = False,
     venue_registry: VenueRegistry | None = None,
+    enrich_geography: bool = False,
 ) -> PipelineResult:
     """Run normalized source batches through shared pre-publisher stages."""
-    all_events = combine_source_batches(source_batches, venue_registry=venue_registry)
+    all_events = combine_source_batches(
+        source_batches,
+        venue_registry=venue_registry,
+        enrich_geography=enrich_geography,
+    )
     publisher_ready, recurrence_review = split_publisher_ready(all_events)
 
     if deduplicate:
@@ -72,8 +78,9 @@ def combine_source_batches(
     source_batches: list[SourceBatch],
     *,
     venue_registry: VenueRegistry | None = None,
+    enrich_geography: bool = False,
 ) -> list[dict[str, Any]]:
-    """Combine source batches, repair text, optionally enrich venues, and preserve source identity."""
+    """Combine batches and optionally enrich venue and geographic intelligence."""
     combined: list[dict[str, Any]] = []
 
     for batch in source_batches:
@@ -82,6 +89,8 @@ def combine_source_batches(
             copied.setdefault("source", batch.source_name)
             if venue_registry is not None:
                 copied, _ = venue_registry.enrich_event(copied)
+            if enrich_geography:
+                copied = enrich_event_geography(copied)
             combined.append(copied)
 
     return combined
