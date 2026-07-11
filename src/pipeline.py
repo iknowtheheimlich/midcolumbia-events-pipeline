@@ -8,6 +8,7 @@ from typing import Any
 from src.deduplicate import DeduplicationResult, deduplicate_events
 from src.recurrence_classifier import split_publisher_ready
 from src.text_normalization import normalize_event
+from src.venue_registry import VenueRegistry
 
 
 @dataclass(frozen=True)
@@ -42,9 +43,14 @@ class PipelineResult:
         }
 
 
-def run_pipeline(source_batches: list[SourceBatch], *, deduplicate: bool = False) -> PipelineResult:
+def run_pipeline(
+    source_batches: list[SourceBatch],
+    *,
+    deduplicate: bool = False,
+    venue_registry: VenueRegistry | None = None,
+) -> PipelineResult:
     """Run normalized source batches through shared pre-publisher stages."""
-    all_events = combine_source_batches(source_batches)
+    all_events = combine_source_batches(source_batches, venue_registry=venue_registry)
     publisher_ready, recurrence_review = split_publisher_ready(all_events)
 
     if deduplicate:
@@ -62,14 +68,20 @@ def run_pipeline(source_batches: list[SourceBatch], *, deduplicate: bool = False
     )
 
 
-def combine_source_batches(source_batches: list[SourceBatch]) -> list[dict[str, Any]]:
-    """Combine source batches, repair text, and preserve source identity."""
+def combine_source_batches(
+    source_batches: list[SourceBatch],
+    *,
+    venue_registry: VenueRegistry | None = None,
+) -> list[dict[str, Any]]:
+    """Combine source batches, repair text, optionally enrich venues, and preserve source identity."""
     combined: list[dict[str, Any]] = []
 
     for batch in source_batches:
         for event in batch.events:
             copied = normalize_event(event)
             copied.setdefault("source", batch.source_name)
+            if venue_registry is not None:
+                copied, _ = venue_registry.enrich_event(copied)
             combined.append(copied)
 
     return combined
