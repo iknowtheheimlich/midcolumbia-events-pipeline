@@ -20,6 +20,7 @@ _ADDRESS_CITY_STATE_RE = re.compile(
     r"(?:\s+\d{5}(?:-\d{4})?)?(?:,\s*(?:USA|United States|Canada))?\s*$",
     re.IGNORECASE,
 )
+_STREET_LOCATION_RE = re.compile(r"^\s*\d+[A-Za-z]?\s+\S+")
 
 
 TRI_CITIES = {
@@ -82,6 +83,7 @@ class GeographicResult:
     state: str | None
     region: str
     scope: str
+    location_type: str
     point: GeoPoint | None = None
     distance_to_kennewick_miles: float | None = None
     distance_to_richland_miles: float | None = None
@@ -92,7 +94,7 @@ def normalize_city(value: str | None) -> str | None:
     if not value:
         return None
     cleaned = _SPACE_RE.sub(" ", value.strip()).strip(" ,")
-    if not cleaned:
+    if not cleaned or cleaned.casefold() == "unknown":
         return None
     replacements = {
         "hermiston": "Hermiston",
@@ -101,6 +103,8 @@ def normalize_city(value: str | None) -> str | None:
         "walla walla": "Walla Walla",
         "the dalles": "The Dalles",
         "moses lake": "Moses Lake",
+        "tri cities": "Tri-Cities",
+        "tri-cities": "Tri-Cities",
     }
     key = cleaned.casefold()
     return replacements.get(key, cleaned.title())
@@ -123,6 +127,11 @@ def normalize_state(value: str | None) -> str | None:
     return aliases.get(key, value.strip().upper())
 
 
+def looks_like_street_location(value: str | None) -> bool:
+    """Return True when a value begins like a numbered street location."""
+    return bool(value and _STREET_LOCATION_RE.match(value))
+
+
 def city_state_from_address(address: str | None) -> tuple[str | None, str | None]:
     if not address:
         return None, None
@@ -138,6 +147,8 @@ def classify_region(city: str | None, state: str | None = None) -> str:
     if not normalized_city:
         return "UNKNOWN"
     key = normalized_city.casefold()
+    if key == "tri-cities":
+        return "TRI_CITIES"
     region = REGION_BY_CITY.get(key)
     if region:
         return region
@@ -167,12 +178,26 @@ def _event_point(event: dict[str, Any]) -> GeoPoint | None:
         return None
 
 
+def _location_type(event: dict[str, Any]) -> str:
+    venue = str(event.get("venue") or "").strip()
+    if looks_like_street_location(venue) and not event.get("venue_id"):
+        return "PRIVATE_ADDRESS"
+    return "VENUE"
+
+
 def classify_event(event: dict[str, Any]) -> GeographicResult:
-    city = normalize_city(str(event.get("city") or ""))
+    raw_city = str(event.get("city") or "").strip()
+    city = normalize_city(raw_city)
     state = normalize_state(str(event.get("state") or ""))
 
     address_city, address_state = city_state_from_address(str(event.get("address") or ""))
-    city = city or address_city
+
+    # Some marketplace sources put a truncated street fragment in the city field.
+    # Prefer a city parsed from the full address; otherwise leave it unresolved.
+    if looks_like_street_location(raw_city):
+        city = address_city
+    else:
+        city = city or address_city
     state = state or address_state
 
     region = classify_region(city, state)
@@ -189,6 +214,7 @@ def classify_event(event: dict[str, Any]) -> GeographicResult:
         state=state,
         region=region,
         scope=scope,
+        location_type=_location_type(event),
         point=point,
         distance_to_kennewick_miles=distances["kennewick"],
         distance_to_richland_miles=distances["richland"],
@@ -201,10 +227,13 @@ def enrich_event_geography(event: dict[str, Any]) -> dict[str, Any]:
     result = classify_event(copied)
     if result.city:
         copied["city"] = result.city
+    elif looks_like_street_location(str(copied.get("city") or "")):
+        copied.pop("city", None)
     if result.state:
         copied["state"] = result.state
     copied["geo_region"] = result.region
     copied["geo_scope"] = result.scope
+    copied["location_type"] = result.location_type
     if result.distance_to_kennewick_miles is not None:
         copied["distance_to_kennewick_miles"] = result.distance_to_kennewick_miles
         copied["distance_to_richland_miles"] = result.distance_to_richland_miles
