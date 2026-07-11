@@ -145,3 +145,38 @@ def test_ambiguous_street_address_remains_ambiguous():
     enriched, match = registry.enrich_event({"venue": "100 Main St"})
     assert match.status == "ambiguous"
     assert enriched["venue"] == "100 Main St"
+
+
+def test_duplicate_alias_rows_with_same_place_id_collapse_to_one_venue():
+    registry = VenueRegistry(
+        [
+            VenueRecord(
+                venue_name="Toyota Center",
+                official_name="Toyota Center",
+                address="7000 W Grandridge Blvd, Kennewick, WA 99336, USA",
+                place_id="same-place",
+            ),
+            VenueRecord(
+                venue_name="Toyota Center",
+                official_name="Toyota Center Arena",
+                address="7000 W Grandridge Blvd, Kennewick, WA 99336, USA",
+                place_id="same-place",
+                website="https://example.com",
+            ),
+        ]
+    )
+    enriched, match = registry.enrich_event({"venue": "Toyota Center"})
+    assert match.status == "matched"
+    assert enriched["venue_id"] == "same-place"
+
+
+def test_same_street_with_different_place_ids_remains_ambiguous():
+    registry = VenueRegistry(
+        [
+            VenueRecord(venue_name="The Hub", address="6481 W Skagit Ave, Kennewick, WA", place_id="hub"),
+            VenueRecord(venue_name="Building B", address="6481 W Skagit Ave, Kennewick, WA", place_id="building-b"),
+        ]
+    )
+    enriched, match = registry.enrich_event({"venue": "6481 W Skagit Ave"})
+    assert match.status == "ambiguous"
+    assert enriched["venue"] == "6481 W Skagit Ave"
