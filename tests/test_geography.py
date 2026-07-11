@@ -20,6 +20,14 @@ def test_city_state_is_extracted_from_address():
     assert state == "WA"
 
 
+def test_full_state_name_is_extracted_from_address():
+    city, state = city_state_from_address(
+        "2525 N 20th Ave, Pasco, Washington 99301, United States"
+    )
+    assert city == "Pasco"
+    assert state == "WA"
+
+
 def test_tri_cities_city_is_local():
     result = classify_event({"city": "Kennewick", "state": "Washington"})
     assert result.region == "TRI_CITIES"
