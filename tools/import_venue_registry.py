@@ -9,7 +9,7 @@ from pathlib import Path
 from src.venue_registry import VenueRecord, VenueRegistry
 
 
-INPUT_ROOT = Path("input")
+INPUT_ROOT = Path(r"D:\Carls_Instructions\Mission_Control\Reddit\Instructions\input")
 DEFAULT_INPUT = INPUT_ROOT / "Ultimate Venues.csv"
 DEFAULT_OUTPUT = Path("generated/venue_registry/registry.json")
 DEFAULT_SUMMARY = Path("generated/venue_registry/import_summary.txt")
@@ -27,7 +27,8 @@ def resolve_input_path(requested: Path) -> Path:
     if requested.exists():
         return requested
 
-    candidates = sorted(INPUT_ROOT.glob("*.csv"))
+    search_root = requested.parent if requested.parent != Path(".") else INPUT_ROOT
+    candidates = sorted(search_root.glob("*.csv")) if search_root.exists() else []
     venue_named = [path for path in candidates if "venue" in path.stem.casefold()]
 
     if len(venue_named) == 1:
@@ -35,10 +36,10 @@ def resolve_input_path(requested: Path) -> Path:
     if not venue_named and len(candidates) == 1:
         return candidates[0]
 
-    INPUT_ROOT.mkdir(parents=True, exist_ok=True)
+    search_root.mkdir(parents=True, exist_ok=True)
     details = ""
     if candidates:
-        details = "\nCSV files currently in input/:\n  " + "\n  ".join(str(path) for path in candidates)
+        details = f"\nCSV files currently in {search_root}:\n  " + "\n  ".join(str(path) for path in candidates)
     raise SystemExit(
         "Venue registry CSV not found.\n"
         "Export the Notion 'Ultimate Venues' database as CSV and place it at:\n"
