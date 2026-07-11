@@ -15,10 +15,24 @@ REPORT_PATH = Path("generated/venue_registry/coverage_report.txt")
 
 
 def main() -> None:
+    if not REGISTRY_PATH.exists():
+        raise SystemExit(
+            "Venue registry artifact not found.\n"
+            "Run the importer first after exporting Notion's Ultimate Venues database:\n"
+            "  python -m tools.import_venue_registry\n"
+            f"Expected artifact:\n  {REGISTRY_PATH}"
+        )
+
     registry = VenueRegistry.from_json(REGISTRY_PATH)
     events: list[dict] = []
     for path in sorted(HARVEST_ROOT.glob("*/normalized_events.json")):
         events.extend(json.loads(path.read_text(encoding="utf-8")))
+
+    if not events:
+        raise SystemExit(
+            "No generated harvest events found.\n"
+            "Run:\n  python -m tools.harvest_all"
+        )
 
     counts: Counter[str] = Counter()
     unknown: Counter[str] = Counter()
