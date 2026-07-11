@@ -9,7 +9,8 @@ from pathlib import Path
 from src.venue_registry import VenueRecord, VenueRegistry
 
 
-DEFAULT_INPUT = Path("input/Ultimate Venues.csv")
+INPUT_ROOT = Path("input")
+DEFAULT_INPUT = INPUT_ROOT / "Ultimate Venues.csv"
 DEFAULT_OUTPUT = Path("generated/venue_registry/registry.json")
 DEFAULT_SUMMARY = Path("generated/venue_registry/import_summary.txt")
 
@@ -19,6 +20,33 @@ def _clean(value: str | None) -> str | None:
         return None
     cleaned = value.strip()
     return cleaned or None
+
+
+def resolve_input_path(requested: Path) -> Path:
+    """Resolve the requested CSV, with conservative auto-detection for Notion exports."""
+    if requested.exists():
+        return requested
+
+    candidates = sorted(INPUT_ROOT.glob("*.csv"))
+    venue_named = [path for path in candidates if "venue" in path.stem.casefold()]
+
+    if len(venue_named) == 1:
+        return venue_named[0]
+    if not venue_named and len(candidates) == 1:
+        return candidates[0]
+
+    INPUT_ROOT.mkdir(parents=True, exist_ok=True)
+    details = ""
+    if candidates:
+        details = "\nCSV files currently in input/:\n  " + "\n  ".join(str(path) for path in candidates)
+    raise SystemExit(
+        "Venue registry CSV not found.\n"
+        "Export the Notion 'Ultimate Venues' database as CSV and place it at:\n"
+        f"  {DEFAULT_INPUT}\n"
+        "Or pass the exported file explicitly:\n"
+        "  python -m tools.import_venue_registry \"C:\\path\\to\\export.csv\""
+        f"{details}"
+    )
 
 
 def load_notion_csv(path: Path) -> VenueRegistry:
@@ -55,7 +83,8 @@ def main() -> None:
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     args = parser.parse_args()
 
-    registry = load_notion_csv(args.csv_path)
+    csv_path = resolve_input_path(args.csv_path)
+    registry = load_notion_csv(csv_path)
     registry.to_json(args.output)
 
     with_place_id = sum(bool(record.place_id) for record in registry.records)
@@ -64,7 +93,7 @@ def main() -> None:
     summary = (
         "Attempt_26 Venue Registry Import\n"
         "================================\n\n"
-        f"Source CSV: {args.csv_path}\n"
+        f"Source CSV: {csv_path}\n"
         f"Records: {len(registry.records)}\n"
         f"With Place ID: {with_place_id}\n"
         f"With address: {with_address}\n"
