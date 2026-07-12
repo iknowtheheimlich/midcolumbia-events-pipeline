@@ -7,7 +7,40 @@ from src.publisher_audit import (
     render_publisher_audit,
     write_publisher_audit,
 )
-from tests.test_reddit_renderer import editorial_event
+from src.publisher_editorial import EditorialEvent
+
+
+def editorial_event(**overrides: object) -> EditorialEvent:
+    values = {
+        "title": "Event",
+        "start_date": "2026-07-12",
+        "end_date": None,
+        "display_start_time": "18:00",
+        "display_end_time": None,
+        "display_time": "6p",
+        "display_venue": "Venue",
+        "display_city": "Richland",
+        "display_organization": None,
+        "publication_url": "https://example.com/event",
+        "publication_disposition": "AUTO_PUBLISH",
+        "editorial_reason": None,
+        "publication_target": "MAIN",
+        "semantic_category": "Events/Hangouts",
+        "source": "TestSource",
+        "source_event_id": "event-1",
+        "venue_id": "place-1",
+        "venue_type": "Venue",
+        "geographic_scope": "LOCAL",
+        "region": "TRI_CITIES",
+        "location_type": "VENUE",
+        "category": "Events/Hangouts",
+        "description": None,
+        "eventbrite_event_id": None,
+        "duplicate_sources": (),
+        "duplicate_count": 1,
+    }
+    values.update(overrides)
+    return EditorialEvent(**values)
 
 
 def test_audit_reports_targets_categories_and_review_reasons() -> None:
