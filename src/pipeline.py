@@ -74,28 +74,28 @@ class PipelineResult:
 
     @property
     def auto_publish_editorial_events(self) -> list[EditorialEvent]:
-        """Return all events cleared for automatic rendering."""
+        """Return local events cleared for automatic rendering."""
         return auto_publish_events(self.editorial_projection)
 
     @property
-    def main_publisher_events(self) -> list[EditorialEvent]:
-        """Return events cleared for the main Reddit post."""
-        return main_events(self.editorial_projection)
-
-    @property
-    def community_publisher_events(self) -> list[EditorialEvent]:
-        """Return events cleared for the community Reddit post."""
-        return community_events(self.editorial_projection)
-
-    @property
     def editorial_review_events(self) -> list[EditorialEvent]:
-        """Return projected events requiring geographic, category, or data review."""
+        """Return projected events requiring geographic or data review."""
         return review_events(self.editorial_projection)
 
     @property
     def editorial_rejected_events(self) -> list[EditorialEvent]:
         """Return projected events excluded by deterministic editorial policy."""
         return rejected_events(self.editorial_projection)
+
+    @property
+    def main_publisher_events(self) -> list[EditorialEvent]:
+        """Return automatically publishable events routed to the main post."""
+        return main_events(self.editorial_projection)
+
+    @property
+    def community_publisher_events(self) -> list[EditorialEvent]:
+        """Return automatically publishable events routed to the community post."""
+        return community_events(self.editorial_projection)
 
 
 def run_pipeline(
@@ -150,7 +150,14 @@ def combine_source_batches(
             copied = normalize_event(event)
             copied.setdefault("source", batch.source_name)
             if venue_registry is not None:
-                copied, _ = venue_registry.enrich_event(copied)
+                copied, match = venue_registry.enrich_event(copied)
+                if match.status == "matched" and match.record is not None:
+                    record = match.record
+                    if record.reddit_combo:
+                        copied["venue_reddit_combo"] = record.reddit_combo
+                    if record.website:
+                        copied["venue_website"] = record.website
+                    copied["venue_registry_name"] = record.venue_name
             if enrich_geography:
                 copied = enrich_event_geography(copied)
             combined.append(copied)
