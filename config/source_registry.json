@@ -42,6 +42,16 @@
       "notes": "Mid-Columbia Libraries listing parser."
     },
     {
+      "source_name": "AllEvents",
+      "enabled": true,
+      "priority": 70,
+      "status": "active",
+      "adapter_package": "adapters.allevents",
+      "fixture_path": "fixtures/allevents/normalized_events.json",
+      "raw_fixture_path": "fixtures/allevents/raw_pages.json",
+      "notes": "Multi-city JSON-LD collector for AllEvents listings."
+    },
+    {
       "source_name": "LegacyUnifiedCSV",
       "enabled": true,
       "priority": 10,
@@ -50,16 +60,6 @@
       "fixture_path": "fixtures/legacy/normalized_events.json",
       "raw_fixture_path": null,
       "notes": "Bridge for historic unified_events.csv output."
-    },
-    {
-      "source_name": "AllEvents",
-      "enabled": false,
-      "priority": 70,
-      "status": "planned",
-      "adapter_package": "adapters.allevents",
-      "fixture_path": "fixtures/allevents/normalized_events.json",
-      "raw_fixture_path": "fixtures/allevents/raw_events.html",
-      "notes": "Reserved for Attempt_37."
     },
     {
       "source_name": "RichlandActiveCommunities",
