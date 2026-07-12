@@ -1,10 +1,11 @@
 """Deterministic editorial policy for publisher-facing events.
 
 Attempt_30_PublisherEditorialRules
+Attempt_33_PublishingContract
 
 This layer converts stable PublisherEvent projections into display-ready records.
-Renderers should not contain venue aliases, URL selection, time formatting, or
-geographic publication policy.
+Renderers should not contain venue aliases, URL selection, time formatting,
+geographic policy, category policy, or publication-target routing.
 """
 
 from __future__ import annotations
@@ -14,10 +15,10 @@ import re
 from typing import Any, Iterable
 
 from src.publisher_projection import PublisherEvent
+from src.publishing_contract import PublishingProfile, format_compact_range
 
 
 _SPACE_RE = re.compile(r"\s+")
-_TIME_RE = re.compile(r"^(?P<hour>\d{1,2}):(?P<minute>\d{2})(?::\d{2})?$")
 
 VENUE_ALIASES = {
     "mid-columbia libraries": "Mid-Columbia Library",
@@ -33,19 +34,22 @@ REJECT_SCOPES = {"OUT_OF_AREA"}
 
 @dataclass(frozen=True)
 class EditorialEvent:
-    """Display-ready event plus a deterministic publication disposition."""
+    """Display-ready event plus deterministic publication decisions."""
 
     title: str
     start_date: str
     end_date: str | None
     display_start_time: str | None
     display_end_time: str | None
+    display_time: str | None
     display_venue: str
     display_city: str
     display_organization: str | None
     publication_url: str
     publication_disposition: str
     editorial_reason: str | None
+    publication_target: str
+    semantic_category: str | None
     source: str
     source_event_id: str | None
     venue_id: str | None
@@ -65,25 +69,35 @@ class EditorialEvent:
         return payload
 
 
-def apply_editorial_rules(event: PublisherEvent) -> EditorialEvent:
+def apply_editorial_rules(
+    event: PublisherEvent,
+    profile: PublishingProfile | None = None,
+) -> EditorialEvent:
     """Apply display cleanup and publication policy to one projected event."""
+    active_profile = profile or PublishingProfile.load()
     display_city = _clean_optional(event.city) or ""
     display_venue = _display_venue(event, display_city)
     display_organization = _display_organization(event, display_venue)
-    disposition, reason = _publication_disposition(event)
+    semantic_category = active_profile.normalize_category(event.category)
+    explicit_target = getattr(event, "publication_target", None)
+    publication_target = active_profile.publication_target(semantic_category, explicit_target)
+    disposition, reason = _publication_disposition(event, publication_target)
 
     return EditorialEvent(
         title=_clean_text(event.title),
         start_date=event.start_date,
         end_date=event.end_date,
-        display_start_time=format_time(event.start_time),
-        display_end_time=format_time(event.end_time),
+        display_start_time=event.start_time,
+        display_end_time=event.end_time,
+        display_time=format_compact_range(event.start_time, event.end_time),
         display_venue=display_venue,
         display_city=display_city,
         display_organization=display_organization,
         publication_url=_publication_url(event),
         publication_disposition=disposition,
         editorial_reason=reason,
+        publication_target=publication_target,
+        semantic_category=semantic_category,
         source=event.source,
         source_event_id=event.source_event_id,
         venue_id=event.venue_id,
@@ -99,9 +113,13 @@ def apply_editorial_rules(event: PublisherEvent) -> EditorialEvent:
     )
 
 
-def prepare_editorial_events(events: Iterable[PublisherEvent]) -> list[EditorialEvent]:
+def prepare_editorial_events(
+    events: Iterable[PublisherEvent],
+    profile: PublishingProfile | None = None,
+) -> list[EditorialEvent]:
     """Apply editorial rules without changing event order."""
-    return [apply_editorial_rules(event) for event in events]
+    active_profile = profile or PublishingProfile.load()
+    return [apply_editorial_rules(event, active_profile) for event in events]
 
 
 def auto_publish_events(events: Iterable[EditorialEvent]) -> list[EditorialEvent]:
@@ -110,7 +128,7 @@ def auto_publish_events(events: Iterable[EditorialEvent]) -> list[EditorialEvent
 
 
 def review_events(events: Iterable[EditorialEvent]) -> list[EditorialEvent]:
-    """Return events requiring human geographic or data review."""
+    """Return events requiring human geographic, category, or data review."""
     return [event for event in events if event.publication_disposition == "REVIEW"]
 
 
@@ -119,29 +137,39 @@ def rejected_events(events: Iterable[EditorialEvent]) -> list[EditorialEvent]:
     return [event for event in events if event.publication_disposition == "REJECT"]
 
 
-def format_time(value: str | None) -> str | None:
-    """Format canonical 24-hour time as compact Reddit display time."""
-    if not value:
-        return None
-    text = value.strip()
-    match = _TIME_RE.fullmatch(text)
-    if not match:
-        return text
-    hour = int(match.group("hour"))
-    minute = int(match.group("minute"))
-    if hour > 23 or minute > 59:
-        return text
-    suffix = "AM" if hour < 12 else "PM"
-    display_hour = hour % 12 or 12
-    return f"{display_hour}:{minute:02d} {suffix}"
+def main_events(events: Iterable[EditorialEvent]) -> list[EditorialEvent]:
+    """Return automatically publishable events routed to the main post."""
+    return [
+        event
+        for event in events
+        if event.publication_disposition == "AUTO_PUBLISH"
+        and event.publication_target in {"MAIN", "BOTH"}
+    ]
 
 
-def _publication_disposition(event: PublisherEvent) -> tuple[str, str | None]:
+def community_events(events: Iterable[EditorialEvent]) -> list[EditorialEvent]:
+    """Return automatically publishable events routed to the community post."""
+    return [
+        event
+        for event in events
+        if event.publication_disposition == "AUTO_PUBLISH"
+        and event.publication_target in {"COMMUNITY", "BOTH"}
+    ]
+
+
+def _publication_disposition(
+    event: PublisherEvent,
+    publication_target: str,
+) -> tuple[str, str | None]:
     classification = (event.content_classification or "EVENT").upper()
     if event.content_rejection_reason or classification != "EVENT":
         return "REJECT", event.content_rejection_reason or f"content_{classification.casefold()}"
 
-    if not event.city:
+    if publication_target == "SUPPRESS":
+        return "REJECT", "publication_suppressed"
+    if publication_target == "REVIEW":
+        return "REVIEW", "missing_or_unknown_category"
+    if not event.city or not event.city.strip():
         return "REVIEW", "missing_city"
 
     scope = event.geographic_scope
@@ -167,9 +195,11 @@ def _display_venue(event: PublisherEvent, city: str) -> str:
     parent = _normalize_venue(event.parent_venue) if event.parent_venue else None
     detail = _clean_optional(event.venue_detail)
 
-    venue = _remove_duplicate_city(venue, city)
+    if city:
+        venue = _remove_duplicate_city(venue, city)
+        if parent:
+            parent = _remove_duplicate_city(parent, city)
     if parent:
-        parent = _remove_duplicate_city(parent, city)
         if detail and detail.casefold() not in {venue.casefold(), parent.casefold()}:
             return f"{detail}, {parent}"
         if venue.casefold() != parent.casefold():
@@ -192,8 +222,6 @@ def _display_organization(event: PublisherEvent, display_venue: str) -> str | No
 
 
 def _remove_duplicate_city(venue: str, city: str) -> str:
-    if not city:
-        return venue
     escaped = re.escape(city)
     cleaned = re.sub(rf"\s*(?:,|\s+-\s+)\s*{escaped}\s*$", "", venue, flags=re.IGNORECASE)
     return cleaned.strip()
