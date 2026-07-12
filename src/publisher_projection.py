@@ -39,16 +39,19 @@ class PublisherEvent:
     source: str
     source_event_id: str | None
     source_url: str
+    source_urls: tuple[str, ...]
     external_url: str | None
     eventbrite_url: str | None
     eventbrite_event_id: str | None
     category: str | None
     description: str | None
     duplicate_sources: tuple[str, ...]
+    duplicate_count: int
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable projection."""
         payload = asdict(self)
+        payload["source_urls"] = list(self.source_urls)
         payload["duplicate_sources"] = list(self.duplicate_sources)
         return payload
 
@@ -65,6 +68,10 @@ def project_event(event: dict[str, Any]) -> PublisherEvent:
         or event.get("sources")
         or event.get("source_names")
     )
+    source_urls = _string_tuple(event.get("source_urls"))
+    source_url = _required_text(event, "url")
+    if not source_urls:
+        source_urls = (source_url,)
 
     return PublisherEvent(
         title=_required_text(event, "title"),
@@ -85,6 +92,7 @@ def project_event(event: dict[str, Any]) -> PublisherEvent:
         location_type=_optional_text(event.get("location_type")),
         content_classification=_first_text(
             event,
+            "content_kind",
             "content_classification",
             "content_type",
             "classification",
@@ -96,13 +104,15 @@ def project_event(event: dict[str, Any]) -> PublisherEvent:
         ),
         source=_required_text(event, "source"),
         source_event_id=_optional_text(event.get("source_event_id")),
-        source_url=_required_text(event, "url"),
+        source_url=source_url,
+        source_urls=source_urls,
         external_url=_optional_text(event.get("external_url")),
         eventbrite_url=eventbrite_url,
         eventbrite_event_id=extract_event_id(eventbrite_url) if eventbrite_url else None,
         category=_optional_text(event.get("category")),
         description=_optional_text(event.get("description")),
         duplicate_sources=duplicate_sources,
+        duplicate_count=_positive_int(event.get("duplicate_count"), default=max(1, len(duplicate_sources))),
     )
 
 
@@ -150,3 +160,11 @@ def _string_tuple(value: Any) -> tuple[str, ...]:
         if text and text not in result:
             result.append(text)
     return tuple(result)
+
+
+def _positive_int(value: Any, *, default: int) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return parsed if parsed > 0 else default
