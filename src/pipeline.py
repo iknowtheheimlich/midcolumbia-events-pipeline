@@ -35,16 +35,18 @@ class PipelineResult:
 
     @property
     def counts(self) -> dict[str, int]:
-        """Return simple event counts for smoke tests and logs."""
-        return {
+        """Return stable pipeline counts, adding screening data only when used."""
+        counts = {
             "all_events": len(self.all_events),
-            "content_rejected_events": len(self.content_rejected_events),
             "publisher_ready_events": len(self.publisher_ready_events),
             "recurrence_review_events": len(self.recurrence_review_events),
             "deduplicated_publisher_ready_events": len(self.deduplicated_publisher_ready_events),
             "duplicate_groups": len(self.duplicate_groups),
             "skipped_low_quality_dedupe": self.skipped_low_quality_dedupe,
         }
+        if self.content_rejected_events:
+            counts["content_rejected_events"] = len(self.content_rejected_events)
+        return counts
 
 
 def run_pipeline(
