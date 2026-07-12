@@ -1,8 +1,9 @@
 from adapters.registry import get_adapter, list_source_names
 
 
-def test_adapter_registry_contains_active_sources() -> None:
+def test_adapter_registry_contains_implemented_sources() -> None:
     assert list_source_names() == [
+        "AllEvents",
         "LegacyUnifiedCSV",
         "MidColumbiaLibraries",
         "RichlandLibrary",
