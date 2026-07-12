@@ -11,19 +11,20 @@ def test_registry_loads_enabled_sources_in_priority_order() -> None:
     names = registry.names(enabled_only=True)
 
     assert names[:2] == ["VisitTriCities", "TriCityVibe"]
-    assert "AllEvents" not in names
+    assert "AllEvents" in names
+    assert names.index("AllEvents") < names.index("LegacyUnifiedCSV")
     assert "RichlandActiveCommunities" not in names
-    assert "LegacyUnifiedCSV" in names
 
 
-def test_planned_sources_are_discoverable_but_disabled() -> None:
+def test_allevents_is_active_and_active_communities_remains_planned() -> None:
     registry = SourceRegistry.load()
 
     allevents = registry.get("AllEvents")
     active_communities = registry.get("RichlandActiveCommunities")
 
-    assert allevents.status == "planned"
-    assert not allevents.enabled
+    assert allevents.status == "active"
+    assert allevents.enabled
+    assert allevents.raw_fixture_path == Path("fixtures/allevents/raw_pages.json")
     assert active_communities.status == "planned"
     assert not active_communities.enabled
 
