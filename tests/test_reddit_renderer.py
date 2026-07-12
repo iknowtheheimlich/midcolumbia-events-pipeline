@@ -18,14 +18,17 @@ def editorial_event(**overrides: object) -> EditorialEvent:
         "title": "Science Night",
         "start_date": "2026-07-12",
         "end_date": None,
-        "display_start_time": "6:00 PM",
+        "display_start_time": "18:00",
         "display_end_time": None,
+        "display_time": "6p",
         "display_venue": "Richland Library",
         "display_city": "Richland",
         "display_organization": None,
         "publication_url": "https://example.com/science-night",
         "publication_disposition": "AUTO_PUBLISH",
         "editorial_reason": None,
+        "publication_target": "MAIN",
+        "semantic_category": "Events/Hangouts",
         "source": "RichlandLibrary",
         "source_event_id": "science-1",
         "venue_id": "place-1",
@@ -33,7 +36,7 @@ def editorial_event(**overrides: object) -> EditorialEvent:
         "geographic_scope": "LOCAL",
         "region": "TRI_CITIES",
         "location_type": "VENUE",
-        "category": None,
+        "category": "Events/Hangouts",
         "description": None,
         "eventbrite_event_id": None,
         "duplicate_sources": (),
@@ -48,25 +51,26 @@ def test_render_event_line_preserves_reddit_contract() -> None:
 
     assert line == (
         "Science Night | [Richland Library](https://example.com/science-night), "
-        "Richland | 6:00 PM"
+        "Richland | 6p"
     )
 
 
-def test_render_event_line_supports_time_range() -> None:
-    line = render_event_line(editorial_event(display_end_time="8:00 PM"))
+def test_render_event_line_supports_compact_time_range() -> None:
+    line = render_event_line(editorial_event(display_end_time="20:00", display_time="6-8p"))
 
-    assert line.endswith("6:00 PM–8:00 PM")
+    assert line.endswith("6-8p")
 
 
 def test_render_post_groups_by_date_and_sorts_time() -> None:
     post = render_reddit_post(
         [
-            editorial_event(title="Ten", display_start_time="10:00 AM"),
-            editorial_event(title="Nine", display_start_time="9:00 AM"),
+            editorial_event(title="Ten", display_start_time="10:00", display_time="10a"),
+            editorial_event(title="Nine", display_start_time="09:00", display_time="9a"),
             editorial_event(
                 title="Tomorrow",
                 start_date="2026-07-13",
-                display_start_time="1:00 PM",
+                display_start_time="13:00",
+                display_time="1p",
             ),
         ],
         footnote="",
