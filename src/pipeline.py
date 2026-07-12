@@ -8,6 +8,7 @@ from typing import Any
 from src.content_classifier import screen_events
 from src.deduplicate import DeduplicationResult, deduplicate_events
 from src.geography import enrich_event_geography
+from src.publisher_projection import PublisherEvent, project_events
 from src.recurrence_classifier import split_publisher_ready
 from src.text_normalization import normalize_event
 from src.venue_registry import VenueRegistry
@@ -47,6 +48,15 @@ class PipelineResult:
         if self.content_rejected_events:
             counts["content_rejected_events"] = len(self.content_rejected_events)
         return counts
+
+    @property
+    def publisher_projection(self) -> list[PublisherEvent]:
+        """Return the canonical deduplicated feed consumed by publishers.
+
+        This is additive for backwards compatibility: existing raw queue fields
+        remain available while publishers migrate to the projection contract.
+        """
+        return project_events(self.deduplicated_publisher_ready_events)
 
 
 def run_pipeline(
