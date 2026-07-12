@@ -13,8 +13,8 @@ from pathlib import Path
 
 from adapters.harvest import HarvestOptions, harvest_adapter
 from adapters.registry import AVAILABLE_ADAPTERS
-from src.pipeline import SourceBatch, run_pipeline
-from src.publisher_editorial import auto_publish_events, rejected_events, review_events
+from src.pipeline import PipelineResult, SourceBatch, run_pipeline
+from src.publisher_editorial import EditorialEvent, auto_publish_events, rejected_events, review_events
 from src.reddit_renderer import default_artifact_path, write_reddit_artifact
 from src.venue_registry import VenueRegistry
 
@@ -74,11 +74,7 @@ def main() -> int:
         for event in pipeline.publisher_projection
         if _in_week(event.start_date, args.week_start, args.days)
     ]
-    editorial = [
-        event
-        for event in pipeline.editorial_events
-        if _in_week(event.start_date, args.week_start, args.days)
-    ]
+    editorial = _weekly_editorial_events(pipeline, args.week_start, args.days)
     publishable = auto_publish_events(editorial)
     review = review_events(editorial)
     rejected = rejected_events(editorial)
@@ -101,6 +97,19 @@ def main() -> int:
         print(f"Warning: {result.source_name}: {result.error}")
 
     return 0
+
+
+def _weekly_editorial_events(
+    pipeline: PipelineResult,
+    week_start: date,
+    days: int,
+) -> list[EditorialEvent]:
+    """Return weekly editorial records from the pipeline's valid aggregate property."""
+    return [
+        event
+        for event in pipeline.editorial_projection
+        if _in_week(event.start_date, week_start, days)
+    ]
 
 
 def _in_week(value: str, week_start: date, days: int) -> bool:
