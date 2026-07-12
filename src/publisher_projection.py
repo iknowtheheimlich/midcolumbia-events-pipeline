@@ -1,9 +1,7 @@
 """Projection layer between enriched pipeline events and publishers.
 
 Attempt_29_PublisherModelAdapter
-
-Publishers consume this stable, presentation-facing model rather than reaching
-back into source-specific or enrichment-specific event dictionaries.
+Attempt_34_NotionPresentationLayer
 """
 
 from __future__ import annotations
@@ -48,9 +46,11 @@ class PublisherEvent:
     duplicate_sources: tuple[str, ...]
     duplicate_count: int
     publication_target: str | None = None
+    venue_reddit_combo: str | None = None
+    venue_website: str | None = None
+    venue_registry_name: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        """Return a JSON-serializable projection."""
         payload = asdict(self)
         payload["source_urls"] = list(self.source_urls)
         payload["duplicate_sources"] = list(self.duplicate_sources)
@@ -58,16 +58,9 @@ class PublisherEvent:
 
 
 def project_event(event: dict[str, Any]) -> PublisherEvent:
-    """Project one fully processed canonical event into the publisher contract.
-
-    Optional enrichment fields remain optional so legacy normalized events can
-    still be projected during migration. Required canonical fields fail loudly.
-    """
     eventbrite_url = first_eventbrite_url(event)
     duplicate_sources = _string_tuple(
-        event.get("duplicate_sources")
-        or event.get("sources")
-        or event.get("source_names")
+        event.get("duplicate_sources") or event.get("sources") or event.get("source_names")
     )
     source_urls = _string_tuple(event.get("source_urls"))
     source_url = _required_text(event, "url")
@@ -92,16 +85,10 @@ def project_event(event: dict[str, Any]) -> PublisherEvent:
         region=_optional_text(event.get("geo_region")),
         location_type=_optional_text(event.get("location_type")),
         content_classification=_first_text(
-            event,
-            "content_kind",
-            "content_classification",
-            "content_type",
-            "classification",
+            event, "content_kind", "content_classification", "content_type", "classification"
         ),
         content_rejection_reason=_first_text(
-            event,
-            "content_rejection_reason",
-            "rejection_reason",
+            event, "content_rejection_reason", "rejection_reason"
         ),
         source=_required_text(event, "source"),
         source_event_id=_optional_text(event.get("source_event_id")),
@@ -115,11 +102,13 @@ def project_event(event: dict[str, Any]) -> PublisherEvent:
         duplicate_sources=duplicate_sources,
         duplicate_count=_positive_int(event.get("duplicate_count"), default=max(1, len(duplicate_sources))),
         publication_target=_first_text(event, "publication_target", "publisher_target"),
+        venue_reddit_combo=_optional_text(event.get("venue_reddit_combo")),
+        venue_website=_optional_text(event.get("venue_website")),
+        venue_registry_name=_optional_text(event.get("venue_registry_name")),
     )
 
 
 def project_events(events: Iterable[dict[str, Any]]) -> list[PublisherEvent]:
-    """Project events without changing pipeline order."""
     return [project_event(event) for event in events]
 
 
@@ -155,7 +144,6 @@ def _string_tuple(value: Any) -> tuple[str, ...]:
             candidates = list(value)
         except TypeError:
             candidates = [value]
-
     result: list[str] = []
     for candidate in candidates:
         text = _optional_text(candidate)
