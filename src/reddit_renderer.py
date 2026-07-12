@@ -122,7 +122,7 @@ def _render_category_sections(
         category_events = grouped.get(category, [])
         if not category_events:
             continue
-        lines.append(f"##{category}")
+        lines.append(f"## {category}")
         lines.extend(render_event_line(event) for event in category_events)
         lines.append("")
     if lines and not lines[-1]:
