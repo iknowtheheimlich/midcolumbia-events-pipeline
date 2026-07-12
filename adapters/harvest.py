@@ -105,9 +105,7 @@ def generated_raw_path(adapter: AdapterInfo) -> Path:
 
 
 def should_reuse_normalized(adapter: AdapterInfo, options: HarvestOptions) -> bool:
-    if options.fetch_raw:
-        return False
-    if adapter.raw_fixture_path is None:
+    if options.fetch_raw or adapter.raw_fixture_path is None:
         return False
     if adapter.raw_fixture_path.exists():
         return False
@@ -157,7 +155,6 @@ def fetch_visit_tricities_raw(adapter: AdapterInfo, options: HarvestOptions) -> 
 
 def normalize_visit_tricities(raw_payload: Any) -> list[CanonicalEvent]:
     from adapters.visit_tricities.adapter import parse_visit_tricities_payload
-
     return parse_visit_tricities_payload(raw_payload)
 
 
@@ -168,15 +165,10 @@ def fetch_richland_library_raw(adapter: AdapterInfo, options: HarvestOptions) ->
     component_ids = sorted(set(RICHlAND_COMPONENT_RE.findall(root_html)))
     if not component_ids:
         raise RuntimeError("Richland homepage calendar component ID was not found")
-
     component_id = component_ids[0]
     fragments: list[str] = []
     failures: list[str] = []
-    headers = {
-        **default_headers(),
-        "Referer": BASE_URL,
-        "X-Requested-With": "XMLHttpRequest",
-    }
+    headers = {**default_headers(), "Referer": BASE_URL, "X-Requested-With": "XMLHttpRequest"}
 
     for target_month in month_starts(options.months):
         params = urllib.parse.urlencode(
@@ -190,9 +182,8 @@ def fetch_richland_library_raw(adapter: AdapterInfo, options: HarvestOptions) ->
                 "camps": "",
             }
         )
-        url = f"{MONTHLY_ENDPOINT}?{params}"
         try:
-            fragment = request_text(url, headers=headers)
+            fragment = request_text(f"{MONTHLY_ENDPOINT}?{params}", headers=headers)
             if fragment.strip():
                 fragments.append(fragment)
             else:
@@ -207,39 +198,60 @@ def fetch_richland_library_raw(adapter: AdapterInfo, options: HarvestOptions) ->
 
 def normalize_richland_library(raw_payload: Any) -> list[CanonicalEvent]:
     from adapters.richland_library.parser import parse_monthly_html
-
     return parse_monthly_html(require_text(raw_payload, "RichlandLibrary raw fixture"))
 
 
 def fetch_mid_columbia_libraries_raw(adapter: AdapterInfo, options: HarvestOptions) -> str:
     from adapters.mid_columbia_libraries.config import EVENTS_URL
-
     return request_text(EVENTS_URL)
 
 
 def normalize_mid_columbia_libraries(raw_payload: Any) -> list[CanonicalEvent]:
     from adapters.mid_columbia_libraries.parser import parse_listing_html
-
     return parse_listing_html(require_text(raw_payload, "MidColumbiaLibraries raw fixture"))
 
 
 def fetch_tricity_vibe_raw(adapter: AdapterInfo, options: HarvestOptions) -> str:
     from adapters.tricity_vibe.config import EVENTS_URL
-
     return request_text(EVENTS_URL)
 
 
 def normalize_tricity_vibe(raw_payload: Any) -> list[CanonicalEvent]:
     from adapters.tricity_vibe.parser import parse_events_html
-
     return parse_events_html(require_text(raw_payload, "TriCityVibe raw fixture"))
+
+
+def fetch_allevents_raw(adapter: AdapterInfo, options: HarvestOptions) -> dict[str, str]:
+    from adapters.allevents.config import CITY_PAGES
+
+    pages: dict[str, str] = {}
+    failures: list[str] = []
+    for city, url in CITY_PAGES.items():
+        try:
+            html = request_text(url, headers=default_headers())
+            if html.strip():
+                pages[city] = html
+            else:
+                failures.append(f"{city}: empty response")
+        except Exception as exc:
+            failures.append(f"{city}: {type(exc).__name__}: {exc}")
+
+    if pages:
+        return pages
+    raise RuntimeError("AllEvents fetch failed: " + " | ".join(failures))
+
+
+def normalize_allevents(raw_payload: Any) -> list[CanonicalEvent]:
+    from adapters.allevents.parser import parse_pages
+    if not isinstance(raw_payload, dict) or not all(isinstance(value, str) for value in raw_payload.values()):
+        raise TypeError("AllEvents raw payload must be a mapping of city names to HTML")
+    return parse_pages(raw_payload)
 
 
 def fetch_legacy_unified_csv_raw(adapter: AdapterInfo, options: HarvestOptions) -> list[CanonicalEvent]:
     if options.legacy_input is None:
         return load_normalized_fixture(adapter.fixture_path)
     from tools.import_legacy_unified_events import read_legacy_csv
-
     return read_legacy_csv(options.legacy_input)
 
 
@@ -256,6 +268,7 @@ HARVESTERS: dict[str, Harvester] = {
         "MidColumbiaLibraries", fetch_mid_columbia_libraries_raw, normalize_mid_columbia_libraries
     ),
     "TriCityVibe": Harvester("TriCityVibe", fetch_tricity_vibe_raw, normalize_tricity_vibe),
+    "AllEvents": Harvester("AllEvents", fetch_allevents_raw, normalize_allevents),
     "LegacyUnifiedCSV": Harvester("LegacyUnifiedCSV", fetch_legacy_unified_csv_raw, normalize_legacy_unified_csv),
 }
 
@@ -332,4 +345,6 @@ def count_raw(payload: Any) -> int | None:
         results = payload.get("results")
         if isinstance(results, list):
             return sum(len(item.get("hits", [])) for item in results if isinstance(item, dict))
+        if payload and all(isinstance(value, str) for value in payload.values()):
+            return len(payload)
     return None
