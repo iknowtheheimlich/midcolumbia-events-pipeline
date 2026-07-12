@@ -1,84 +1,131 @@
-"""Known source adapter registry.
+"""Configuration-backed source adapter registry.
 
-Attempt_20 formalizes this module as the stable adapter manifest used by
-status tooling and source-agnostic pipeline runners.
-
-The registry tracks source identity, implementation package, status, and
-fixture locations only. Parsing and normalization remain inside each source
-adapter package.
+Attempt_20 established the adapter manifest. Attempt_36 moves source enablement,
+priority, status, and paths into one declarative registry while preserving the
+legacy ``AVAILABLE_ADAPTERS`` mapping for existing callers.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 from pathlib import Path
+from typing import Any
 
 from adapters.contract import AdapterManifest
 
 
+DEFAULT_SOURCE_REGISTRY = Path("config/source_registry.json")
+
+
 @dataclass(frozen=True)
 class AdapterInfo(AdapterManifest):
-    """Backward-compatible alias for one supported source adapter."""
+    """Metadata and operating policy for one supported source adapter."""
+
+    enabled: bool = True
+    priority: int = 0
 
 
-AVAILABLE_ADAPTERS: dict[str, AdapterInfo] = {
-    "VisitTriCities": AdapterInfo(
-        source_name="VisitTriCities",
-        fixture_path=Path("fixtures/visit_tricities/normalized_events.json"),
-        raw_fixture_path=Path("fixtures/visit_tricities/raw_response.json"),
-        adapter_package="adapters.visit_tricities",
-        status="active",
-        notes="Algolia-backed event source.",
-    ),
-    "LegacyUnifiedCSV": AdapterInfo(
-        source_name="LegacyUnifiedCSV",
-        fixture_path=Path("fixtures/legacy/normalized_events.json"),
-        raw_fixture_path=None,
-        adapter_package="tools.import_legacy_unified_events",
-        status="migration_bridge",
-        notes="Bridge for historic unified_events.csv output.",
-    ),
-    "RichlandLibrary": AdapterInfo(
-        source_name="RichlandLibrary",
-        fixture_path=Path("fixtures/richland_library/normalized_events.json"),
-        raw_fixture_path=Path("fixtures/richland_library/raw_events.html"),
-        adapter_package="adapters.richland_library",
-        status="active",
-        notes="LibCal/Springshare-backed HTML fragment source.",
-    ),
-    "MidColumbiaLibraries": AdapterInfo(
-        source_name="MidColumbiaLibraries",
-        fixture_path=Path("fixtures/mid_columbia_libraries/normalized_events.json"),
-        raw_fixture_path=Path("fixtures/mid_columbia_libraries/raw_events.html"),
-        adapter_package="adapters.mid_columbia_libraries",
-        status="active",
-        notes="Saved HTML listing parser.",
-    ),
-    "TriCityVibe": AdapterInfo(
-        source_name="TriCityVibe",
-        fixture_path=Path("fixtures/tricity_vibe/normalized_events.json"),
-        raw_fixture_path=Path("fixtures/tricity_vibe/raw_events.html"),
-        adapter_package="adapters.tricity_vibe",
-        status="active",
-        notes="WordPress-rendered saved HTML event listing parser.",
-    ),
-}
+@dataclass(frozen=True)
+class SourceRegistry:
+    """Stable source inventory loaded from configuration."""
+
+    adapters: dict[str, AdapterInfo]
+    registry_version: int = 1
+
+    @classmethod
+    def load(cls, path: Path = DEFAULT_SOURCE_REGISTRY) -> "SourceRegistry":
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        rows = payload.get("sources")
+        if not isinstance(rows, list) or not rows:
+            raise ValueError("source registry requires a non-empty sources list")
+
+        adapters: dict[str, AdapterInfo] = {}
+        for row in rows:
+            adapter = _adapter_from_row(row)
+            if adapter.source_name in adapters:
+                raise ValueError(f"duplicate source registry entry: {adapter.source_name}")
+            adapters[adapter.source_name] = adapter
+
+        return cls(
+            adapters=adapters,
+            registry_version=int(payload.get("registry_version", 1)),
+        )
+
+    def get(self, source_name: str) -> AdapterInfo:
+        try:
+            return self.adapters[source_name]
+        except KeyError as exc:
+            known = ", ".join(sorted(self.adapters))
+            raise KeyError(
+                f"Unknown source adapter: {source_name}. Known adapters: {known}"
+            ) from exc
+
+    def names(self, *, enabled_only: bool = False) -> list[str]:
+        adapters = self.enabled() if enabled_only else list(self.adapters.values())
+        return [adapter.source_name for adapter in _ordered(adapters)]
+
+    def enabled(self) -> list[AdapterInfo]:
+        return _ordered(adapter for adapter in self.adapters.values() if adapter.enabled)
+
+
+
+def _adapter_from_row(row: Any) -> AdapterInfo:
+    if not isinstance(row, dict):
+        raise ValueError("source registry entries must be objects")
+
+    required = ("source_name", "adapter_package", "status", "fixture_path")
+    missing = [field for field in required if not str(row.get(field) or "").strip()]
+    if missing:
+        raise ValueError(f"source registry entry missing fields: {missing}")
+
+    raw_fixture = row.get("raw_fixture_path")
+    return AdapterInfo(
+        source_name=str(row["source_name"]).strip(),
+        adapter_package=str(row["adapter_package"]).strip(),
+        status=str(row["status"]).strip(),
+        fixture_path=Path(str(row["fixture_path"]).strip()),
+        raw_fixture_path=Path(str(raw_fixture).strip()) if raw_fixture else None,
+        notes=str(row.get("notes") or "").strip() or None,
+        enabled=bool(row.get("enabled", True)),
+        priority=int(row.get("priority", 0)),
+    )
+
+
+
+def _ordered(adapters) -> list[AdapterInfo]:
+    return sorted(adapters, key=lambda item: (-item.priority, item.source_name.casefold()))
+
+
+SOURCE_REGISTRY = SourceRegistry.load()
+
+# Backwards-compatible facade. Existing imports keep working while new code uses
+# SOURCE_REGISTRY for enablement and priority-aware ordering.
+AVAILABLE_ADAPTERS: dict[str, AdapterInfo] = dict(SOURCE_REGISTRY.adapters)
+
 
 
 def get_adapter(source_name: str) -> AdapterInfo:
-    """Return adapter metadata for a known source."""
-    try:
-        return AVAILABLE_ADAPTERS[source_name]
-    except KeyError as exc:
-        known = ", ".join(sorted(AVAILABLE_ADAPTERS))
-        raise KeyError(f"Unknown source adapter: {source_name}. Known adapters: {known}") from exc
+    return SOURCE_REGISTRY.get(source_name)
+
 
 
 def list_source_names() -> list[str]:
-    """Return known source names in stable sorted order."""
-    return sorted(AVAILABLE_ADAPTERS)
+    """Return all configured source names in priority order."""
+    return SOURCE_REGISTRY.names()
+
+
+
+def list_enabled_source_names() -> list[str]:
+    """Return enabled production source names in priority order."""
+    return SOURCE_REGISTRY.names(enabled_only=True)
+
 
 
 def list_active_adapters() -> list[AdapterInfo]:
-    """Return adapters that should participate in normal fixture-backed runs."""
-    return [adapter for adapter in AVAILABLE_ADAPTERS.values() if adapter.status == "active"]
+    """Return enabled active adapters for normal fixture-backed runs."""
+    return [
+        adapter
+        for adapter in SOURCE_REGISTRY.enabled()
+        if adapter.status == "active"
+    ]
