@@ -1,0 +1,75 @@
+{
+  "registry_version": 1,
+  "sources": [
+    {
+      "source_name": "VisitTriCities",
+      "enabled": true,
+      "priority": 100,
+      "status": "active",
+      "adapter_package": "adapters.visit_tricities",
+      "fixture_path": "fixtures/visit_tricities/normalized_events.json",
+      "raw_fixture_path": "fixtures/visit_tricities/raw_response.json",
+      "notes": "Algolia-backed event source."
+    },
+    {
+      "source_name": "TriCityVibe",
+      "enabled": true,
+      "priority": 90,
+      "status": "active",
+      "adapter_package": "adapters.tricity_vibe",
+      "fixture_path": "fixtures/tricity_vibe/normalized_events.json",
+      "raw_fixture_path": "fixtures/tricity_vibe/raw_events.html",
+      "notes": "WordPress-rendered event listing parser."
+    },
+    {
+      "source_name": "RichlandLibrary",
+      "enabled": true,
+      "priority": 80,
+      "status": "active",
+      "adapter_package": "adapters.richland_library",
+      "fixture_path": "fixtures/richland_library/normalized_events.json",
+      "raw_fixture_path": "fixtures/richland_library/raw_events.html",
+      "notes": "LibCal/Springshare-backed source."
+    },
+    {
+      "source_name": "MidColumbiaLibraries",
+      "enabled": true,
+      "priority": 80,
+      "status": "active",
+      "adapter_package": "adapters.mid_columbia_libraries",
+      "fixture_path": "fixtures/mid_columbia_libraries/normalized_events.json",
+      "raw_fixture_path": "fixtures/mid_columbia_libraries/raw_events.html",
+      "notes": "Mid-Columbia Libraries listing parser."
+    },
+    {
+      "source_name": "LegacyUnifiedCSV",
+      "enabled": true,
+      "priority": 10,
+      "status": "migration_bridge",
+      "adapter_package": "tools.import_legacy_unified_events",
+      "fixture_path": "fixtures/legacy/normalized_events.json",
+      "raw_fixture_path": null,
+      "notes": "Bridge for historic unified_events.csv output."
+    },
+    {
+      "source_name": "AllEvents",
+      "enabled": false,
+      "priority": 70,
+      "status": "planned",
+      "adapter_package": "adapters.allevents",
+      "fixture_path": "fixtures/allevents/normalized_events.json",
+      "raw_fixture_path": "fixtures/allevents/raw_events.html",
+      "notes": "Reserved for Attempt_37."
+    },
+    {
+      "source_name": "RichlandActiveCommunities",
+      "enabled": false,
+      "priority": 60,
+      "status": "planned",
+      "adapter_package": "adapters.richland_active_communities",
+      "fixture_path": "fixtures/richland_active_communities/normalized_events.json",
+      "raw_fixture_path": "fixtures/richland_active_communities/raw_events.json",
+      "notes": "Reserved for Attempt_38."
+    }
+  ]
+}
