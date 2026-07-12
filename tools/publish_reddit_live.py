@@ -1,6 +1,7 @@
-"""Harvest live sources and generate the weekly Reddit artifact.
+"""Harvest live sources and generate dual weekly Reddit artifacts.
 
 Attempt_32_LiveProductionPublisher
+Attempt_35_DualPublisher
 
 This command is the production path. It does not read tracked event fixtures.
 """
@@ -14,8 +15,20 @@ from pathlib import Path
 from adapters.harvest import HarvestOptions, harvest_adapter
 from adapters.registry import AVAILABLE_ADAPTERS
 from src.pipeline import PipelineResult, SourceBatch, run_pipeline
-from src.publisher_editorial import EditorialEvent, auto_publish_events, rejected_events, review_events
-from src.reddit_renderer import default_artifact_path, write_reddit_artifact
+from src.publisher_audit import default_audit_path, write_publisher_audit
+from src.publisher_editorial import (
+    EditorialEvent,
+    community_events,
+    main_events,
+    rejected_events,
+    review_events,
+)
+from src.publishing_contract import PublishingProfile
+from src.reddit_renderer import (
+    default_community_artifact_path,
+    default_main_artifact_path,
+    write_reddit_artifact,
+)
 from src.venue_registry import VenueRegistry
 
 DEFAULT_REGISTRY = Path("generated/venue_registry/registry.json")
@@ -32,7 +45,14 @@ def main() -> int:
     parser.add_argument("--days", type=int, default=7)
     parser.add_argument("--months", type=int, default=2)
     parser.add_argument("--registry", type=Path, default=DEFAULT_REGISTRY)
-    parser.add_argument("--output", type=Path)
+    parser.add_argument(
+        "--output",
+        type=Path,
+        help="Legacy alias for --output-main",
+    )
+    parser.add_argument("--output-main", type=Path)
+    parser.add_argument("--output-community", type=Path)
+    parser.add_argument("--output-audit", type=Path)
     parser.add_argument(
         "--source",
         action="append",
@@ -43,6 +63,8 @@ def main() -> int:
 
     if args.days < 1:
         parser.error("--days must be at least 1")
+    if args.output and args.output_main:
+        parser.error("use either --output or --output-main, not both")
     if not args.registry.exists():
         parser.error(
             f"venue registry not found: {args.registry}. "
@@ -75,22 +97,44 @@ def main() -> int:
         if _in_week(event.start_date, args.week_start, args.days)
     ]
     editorial = _weekly_editorial_events(pipeline, args.week_start, args.days)
-    publishable = auto_publish_events(editorial)
+    main_publishable = main_events(editorial)
+    community_publishable = community_events(editorial)
     review = review_events(editorial)
     rejected = rejected_events(editorial)
+    profile = PublishingProfile.load()
 
-    output = args.output or default_artifact_path(args.week_start)
-    write_reddit_artifact(publishable, output)
+    main_output = args.output_main or args.output or default_main_artifact_path()
+    community_output = args.output_community or default_community_artifact_path()
+    audit_output = args.output_audit or default_audit_path()
+
+    write_reddit_artifact(
+        main_publishable,
+        main_output,
+        category_order=profile.category_order,
+    )
+    write_reddit_artifact(
+        community_publishable,
+        community_output,
+        category_order=profile.category_order,
+    )
+    write_publisher_audit(
+        editorial,
+        audit_output,
+        category_order=profile.category_order,
+    )
 
     print(f"Sources: {len(harvest_results)}")
     print(f"Harvested events: {len(pipeline.all_events)}")
     print(f"Content rejected: {len(pipeline.content_rejected_events)}")
     print(f"Deduplicated publisher events: {len(pipeline.deduplicated_publisher_ready_events)}")
     print(f"Weekly events: {len(weekly_projection)}")
-    print(f"Auto-published: {len(publishable)}")
+    print(f"Main events: {len(main_publishable)}")
+    print(f"Community events: {len(community_publishable)}")
     print(f"Review queue: {len(review)}")
     print(f"Rejected: {len(rejected)}")
-    print(f"Artifact: {output}")
+    print(f"Main artifact: {main_output}")
+    print(f"Community artifact: {community_output}")
+    print(f"Audit artifact: {audit_output}")
 
     warnings = [result for result in harvest_results if result.error]
     for result in warnings:
