@@ -89,13 +89,25 @@ def default_artifact_path(week_start: date) -> Path:
     return Path("artifacts") / "reddit" / f"reddit_post_{week_start.isoformat()}.txt"
 
 
-def _sort_key(event: EditorialEvent) -> tuple[str, str, str, str]:
+def _sort_key(event: EditorialEvent) -> tuple[str, int, str, str]:
     return (
         event.start_date,
-        event.display_start_time or "99:99",
+        _sort_minutes(event.display_start_time),
         event.title.casefold(),
         event.display_venue.casefold(),
     )
+
+
+def _sort_minutes(value: str | None) -> int:
+    if not value:
+        return 24 * 60 + 1
+    for format_string in ("%I:%M %p", "%H:%M"):
+        try:
+            parsed = datetime.strptime(value.strip(), format_string)
+            return parsed.hour * 60 + parsed.minute
+        except ValueError:
+            continue
+    return 24 * 60
 
 
 def _date_heading(value: str) -> str:
