@@ -97,9 +97,13 @@ def _ordered(adapters) -> list[AdapterInfo]:
 
 SOURCE_REGISTRY = SourceRegistry.load()
 
-# Backwards-compatible facade. Existing imports keep working while new code uses
-# SOURCE_REGISTRY for enablement and priority-aware ordering.
-AVAILABLE_ADAPTERS: dict[str, AdapterInfo] = dict(SOURCE_REGISTRY.adapters)
+# Backwards-compatible executable manifest. Planned sources remain visible through
+# SOURCE_REGISTRY but do not appear here until a harvester implementation exists.
+AVAILABLE_ADAPTERS: dict[str, AdapterInfo] = {
+    name: adapter
+    for name, adapter in SOURCE_REGISTRY.adapters.items()
+    if adapter.status != "planned"
+}
 
 
 def get_adapter(source_name: str) -> AdapterInfo:
@@ -107,7 +111,7 @@ def get_adapter(source_name: str) -> AdapterInfo:
 
 
 def list_source_names() -> list[str]:
-    """Return all configured source names in the legacy alphabetical order."""
+    """Return implemented source names in the legacy alphabetical order."""
     return sorted(AVAILABLE_ADAPTERS)
 
 
