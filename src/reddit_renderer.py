@@ -3,6 +3,7 @@
 Attempt_31_RedditRendererCutover
 Attempt_33_PublishingContract
 Attempt_34_NotionPresentationLayer
+Attempt_35_DualPublisher
 
 The renderer contains presentation only. Venue cleanup, time grammar, URL choice,
 geographic policy, content screening, category routing, and deduplication belong
@@ -14,7 +15,7 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import date, datetime
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Sequence
 
 from src.publisher_editorial import EditorialEvent
 
@@ -29,8 +30,14 @@ def render_reddit_post(
     events: Iterable[EditorialEvent],
     *,
     footnote: str = DEFAULT_FOOTNOTE,
+    category_order: Sequence[str] | None = None,
 ) -> str:
-    """Return old-editor Reddit markdown for auto-publish editorial events."""
+    """Return old-editor Reddit markdown for auto-publish editorial events.
+
+    ``category_order`` is additive. When omitted, the legacy date-only layout is
+    preserved. Dual production publishers pass the publishing profile order and
+    receive category sections within each date.
+    """
     publishable = [
         event for event in events if event.publication_disposition == "AUTO_PUBLISH"
     ]
@@ -44,7 +51,10 @@ def render_reddit_post(
     for start_date, day_events in grouped.items():
         lines.append(_date_heading(start_date))
         lines.append("")
-        lines.extend(render_event_line(event) for event in day_events)
+        if category_order is None:
+            lines.extend(render_event_line(event) for event in day_events)
+        else:
+            lines.extend(_render_category_sections(day_events, category_order))
         lines.append("")
 
     if footnote.strip():
@@ -67,13 +77,18 @@ def write_reddit_artifact(
     output_path: Path,
     *,
     footnote: str = DEFAULT_FOOTNOTE,
+    category_order: Sequence[str] | None = None,
 ) -> Path:
     """Write a generated Reddit post outside fixture directories."""
     if "fixtures" in {part.casefold() for part in output_path.parts}:
         raise ValueError("generated Reddit artifacts must remain separate from fixtures")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
-        render_reddit_post(events, footnote=footnote),
+        render_reddit_post(
+            events,
+            footnote=footnote,
+            category_order=category_order,
+        ),
         encoding="utf-8",
         newline="\n",
     )
@@ -81,8 +96,38 @@ def write_reddit_artifact(
 
 
 def default_artifact_path(week_start: date) -> Path:
-    """Return the repository-relative production artifact path for one week."""
+    """Return the legacy repository-relative production artifact path."""
     return Path("artifacts") / "reddit" / f"reddit_post_{week_start.isoformat()}.txt"
+
+
+def default_main_artifact_path() -> Path:
+    return Path("artifacts") / "reddit" / "Main_Events_Post.txt"
+
+
+def default_community_artifact_path() -> Path:
+    return Path("artifacts") / "reddit" / "Community_Events_Post.txt"
+
+
+def _render_category_sections(
+    events: Sequence[EditorialEvent],
+    category_order: Sequence[str],
+) -> list[str]:
+    grouped: dict[str, list[EditorialEvent]] = defaultdict(list)
+    for event in events:
+        if event.semantic_category:
+            grouped[event.semantic_category].append(event)
+
+    lines: list[str] = []
+    for category in category_order:
+        category_events = grouped.get(category, [])
+        if not category_events:
+            continue
+        lines.append(f"##{category}")
+        lines.extend(render_event_line(event) for event in category_events)
+        lines.append("")
+    if lines and not lines[-1]:
+        lines.pop()
+    return lines
 
 
 def _sort_key(event: EditorialEvent) -> tuple[str, int, str, str]:
