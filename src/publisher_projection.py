@@ -47,6 +47,7 @@ class PublisherEvent:
     description: str | None
     duplicate_sources: tuple[str, ...]
     duplicate_count: int
+    publication_target: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable projection."""
@@ -113,6 +114,7 @@ def project_event(event: dict[str, Any]) -> PublisherEvent:
         description=_optional_text(event.get("description")),
         duplicate_sources=duplicate_sources,
         duplicate_count=_positive_int(event.get("duplicate_count"), default=max(1, len(duplicate_sources))),
+        publication_target=_first_text(event, "publication_target", "publisher_target"),
     )
 
 
