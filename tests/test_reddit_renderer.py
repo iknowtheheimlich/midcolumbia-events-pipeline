@@ -7,6 +7,8 @@ import pytest
 from src.publisher_editorial import EditorialEvent
 from src.reddit_renderer import (
     default_artifact_path,
+    default_community_artifact_path,
+    default_main_artifact_path,
     render_event_line,
     render_reddit_post,
     write_reddit_artifact,
@@ -80,6 +82,20 @@ def test_render_post_groups_by_date_and_sorts_time() -> None:
     assert post.index("Nine") < post.index("Ten") < post.index("#13 July")
 
 
+def test_render_post_uses_profile_category_order_within_date() -> None:
+    post = render_reddit_post(
+        [
+            editorial_event(title="Concert", semantic_category="Music/Comedy"),
+            editorial_event(title="Market", semantic_category="Markets"),
+        ],
+        category_order=("Markets", "Music/Comedy"),
+        footnote="",
+    )
+
+    assert post.index("## Markets") < post.index("Market") < post.index("## Music/Comedy")
+    assert post.index("## Music/Comedy") < post.index("Concert")
+
+
 def test_render_post_excludes_review_and_rejected_events() -> None:
     post = render_reddit_post(
         [
@@ -125,3 +141,8 @@ def test_default_artifact_path_is_outside_fixtures() -> None:
 
     assert path == Path("artifacts/reddit/reddit_post_2026-07-12.txt")
     assert "fixtures" not in path.parts
+
+
+def test_dual_default_artifact_paths_use_stable_names() -> None:
+    assert default_main_artifact_path() == Path("artifacts/reddit/Main_Events_Post.txt")
+    assert default_community_artifact_path() == Path("artifacts/reddit/Community_Events_Post.txt")
