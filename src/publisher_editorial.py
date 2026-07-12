@@ -67,7 +67,7 @@ class EditorialEvent:
 
 def apply_editorial_rules(event: PublisherEvent) -> EditorialEvent:
     """Apply display cleanup and publication policy to one projected event."""
-    display_city = _clean_text(event.city)
+    display_city = _clean_optional(event.city) or ""
     display_venue = _display_venue(event, display_city)
     display_organization = _display_organization(event, display_venue)
     disposition, reason = _publication_disposition(event)
@@ -141,6 +141,9 @@ def _publication_disposition(event: PublisherEvent) -> tuple[str, str | None]:
     if event.content_rejection_reason or classification != "EVENT":
         return "REJECT", event.content_rejection_reason or f"content_{classification.casefold()}"
 
+    if not event.city:
+        return "REVIEW", "missing_city"
+
     scope = event.geographic_scope
     if scope in REJECT_SCOPES:
         return "REJECT", "out_of_area"
@@ -189,6 +192,8 @@ def _display_organization(event: PublisherEvent, display_venue: str) -> str | No
 
 
 def _remove_duplicate_city(venue: str, city: str) -> str:
+    if not city:
+        return venue
     escaped = re.escape(city)
     cleaned = re.sub(rf"\s*(?:,|\s+-\s+)\s*{escaped}\s*$", "", venue, flags=re.IGNORECASE)
     return cleaned.strip()
