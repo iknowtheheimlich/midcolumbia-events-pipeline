@@ -2,6 +2,7 @@
 
 Attempt_31_RedditRendererCutover
 Attempt_33_PublishingContract
+Attempt_34_NotionPresentationLayer
 
 The renderer contains presentation only. Venue cleanup, time grammar, URL choice,
 geographic policy, content screening, category routing, and deduplication belong
@@ -54,8 +55,7 @@ def render_reddit_post(
 
 def render_event_line(event: EditorialEvent) -> str:
     """Render one event using the established Reddit markdown line contract."""
-    venue = _markdown_link(event.display_venue, event.publication_url)
-    location = f"{venue}, {event.display_city}" if event.display_city else venue
+    location = _render_location(event)
     parts = [event.title, location]
     if event.display_time:
         parts.append(event.display_time)
@@ -97,7 +97,7 @@ def _sort_key(event: EditorialEvent) -> tuple[str, int, str, str]:
 def _sort_minutes(value: str | None) -> int:
     if not value:
         return 24 * 60 + 1
-    for format_string in ("%H:%M", "%I:%M %p"):
+    for format_string in ("%H:%M", "%H:%M:%S", "%I:%M %p"):
         try:
             parsed = datetime.strptime(value.strip(), format_string)
             return parsed.hour * 60 + parsed.minute
@@ -109,6 +109,14 @@ def _sort_minutes(value: str | None) -> int:
 def _date_heading(value: str) -> str:
     parsed = datetime.strptime(value, "%Y-%m-%d")
     return f"#{parsed.day:02d} {parsed.strftime('%B')}"
+
+
+def _render_location(event: EditorialEvent) -> str:
+    value = event.display_venue.strip()
+    if value.startswith("[") and "](" in value:
+        return value
+    venue = _markdown_link(value, event.publication_url)
+    return f"{venue}, {event.display_city}" if event.display_city else venue
 
 
 def _markdown_link(label: str, url: str) -> str:
