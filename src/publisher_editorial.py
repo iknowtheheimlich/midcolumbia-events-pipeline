@@ -2,6 +2,7 @@
 
 Attempt_30_PublisherEditorialRules
 Attempt_33_PublishingContract
+Attempt_34_NotionPresentationLayer
 
 This layer converts stable PublisherEvent projections into display-ready records.
 Renderers should not contain venue aliases, URL selection, time formatting,
@@ -123,22 +124,18 @@ def prepare_editorial_events(
 
 
 def auto_publish_events(events: Iterable[EditorialEvent]) -> list[EditorialEvent]:
-    """Return only events cleared for automatic rendering."""
     return [event for event in events if event.publication_disposition == "AUTO_PUBLISH"]
 
 
 def review_events(events: Iterable[EditorialEvent]) -> list[EditorialEvent]:
-    """Return events requiring human geographic, category, or data review."""
     return [event for event in events if event.publication_disposition == "REVIEW"]
 
 
 def rejected_events(events: Iterable[EditorialEvent]) -> list[EditorialEvent]:
-    """Return events deterministically excluded from publication."""
     return [event for event in events if event.publication_disposition == "REJECT"]
 
 
 def main_events(events: Iterable[EditorialEvent]) -> list[EditorialEvent]:
-    """Return automatically publishable events routed to the main post."""
     return [
         event
         for event in events
@@ -148,7 +145,6 @@ def main_events(events: Iterable[EditorialEvent]) -> list[EditorialEvent]:
 
 
 def community_events(events: Iterable[EditorialEvent]) -> list[EditorialEvent]:
-    """Return automatically publishable events routed to the community post."""
     return [
         event
         for event in events
@@ -164,14 +160,12 @@ def _publication_disposition(
     classification = (event.content_classification or "EVENT").upper()
     if event.content_rejection_reason or classification != "EVENT":
         return "REJECT", event.content_rejection_reason or f"content_{classification.casefold()}"
-
     if publication_target == "SUPPRESS":
         return "REJECT", "publication_suppressed"
     if publication_target == "REVIEW":
         return "REVIEW", "missing_or_unknown_category"
     if not event.city or not event.city.strip():
         return "REVIEW", "missing_city"
-
     scope = event.geographic_scope
     if scope in REJECT_SCOPES:
         return "REJECT", "out_of_area"
@@ -183,7 +177,6 @@ def _publication_disposition(
 
 
 def _publication_url(event: PublisherEvent) -> str:
-    """Prefer the most direct event or registration URL available."""
     for value in (event.external_url, event.eventbrite_url, event.source_url):
         if value and value.strip():
             return value.strip()
@@ -191,6 +184,9 @@ def _publication_url(event: PublisherEvent) -> str:
 
 
 def _display_venue(event: PublisherEvent, city: str) -> str:
+    if event.venue_reddit_combo:
+        return _clean_text(event.venue_reddit_combo)
+
     venue = _normalize_venue(event.venue)
     parent = _normalize_venue(event.parent_venue) if event.parent_venue else None
     detail = _clean_optional(event.venue_detail)
