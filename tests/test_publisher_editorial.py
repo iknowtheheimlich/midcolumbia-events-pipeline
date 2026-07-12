@@ -3,7 +3,8 @@ from dataclasses import replace
 from src.publisher_editorial import (
     apply_editorial_rules,
     auto_publish_events,
-    format_time,
+    community_events,
+    main_events,
     rejected_events,
     review_events,
 )
@@ -37,7 +38,7 @@ def make_event(**overrides):
         external_url=None,
         eventbrite_url=None,
         eventbrite_event_id=None,
-        category=None,
+        category="Community Programs",
         description=None,
         duplicate_sources=(),
         duplicate_count=1,
@@ -86,16 +87,31 @@ def test_external_url_is_preferred_over_listing_url():
     assert result.publication_url == "https://tickets.example/register"
 
 
-def test_time_is_formatted_for_reddit():
-    assert format_time("00:05") == "12:05 AM"
-    assert format_time("13:30") == "1:30 PM"
-    assert format_time(None) is None
+def test_time_is_formatted_using_compact_contract():
+    result = apply_editorial_rules(make_event(start_time="09:30", end_time="11:00"))
+    assert result.display_time == "9:30-11a"
+    assert result.display_start_time == "09:30"
 
 
-def test_local_event_auto_publishes():
+def test_local_community_event_auto_publishes_to_community():
     result = apply_editorial_rules(make_event())
     assert result.publication_disposition == "AUTO_PUBLISH"
+    assert result.publication_target == "COMMUNITY"
     assert auto_publish_events([result]) == [result]
+    assert community_events([result]) == [result]
+    assert main_events([result]) == []
+
+
+def test_music_event_routes_to_main():
+    result = apply_editorial_rules(make_event(category="Music/Comedy"))
+    assert result.publication_target == "MAIN"
+    assert main_events([result]) == [result]
+
+
+def test_missing_category_routes_to_review():
+    result = apply_editorial_rules(make_event(category=None))
+    assert result.publication_disposition == "REVIEW"
+    assert result.editorial_reason == "missing_or_unknown_category"
 
 
 def test_regional_event_routes_to_review():
