@@ -1,0 +1,44 @@
+{
+  "profile_version": 1,
+  "time_style": "compact",
+  "category_order": [
+    "Events/Hangouts",
+    "Classes/Workshops",
+    "Music/Comedy",
+    "Sports",
+    "Restaurants/Bars/Wineries",
+    "Art/Theater",
+    "Trivia/Game Night",
+    "Karaoke/Open Mic",
+    "Fundraisers",
+    "Markets",
+    "Community Programs",
+    "School District Event",
+    "Tours",
+    "Festivals/Fair",
+    "Estate/Yard/Garage Sales",
+    "Faith Based"
+  ],
+  "publication_targets": {
+    "MAIN": [
+      "Events/Hangouts",
+      "Music/Comedy",
+      "Sports",
+      "Restaurants/Bars/Wineries",
+      "Art/Theater",
+      "Trivia/Game Night",
+      "Karaoke/Open Mic",
+      "Fundraisers",
+      "Markets",
+      "Tours",
+      "Festivals/Fair",
+      "Estate/Yard/Garage Sales"
+    ],
+    "COMMUNITY": [
+      "Classes/Workshops",
+      "Community Programs",
+      "School District Event",
+      "Faith Based"
+    ]
+  }
+}
