@@ -71,6 +71,15 @@ def test_project_event_accepts_legacy_event_without_enrichment() -> None:
     assert projected.duplicate_sources == ()
 
 
+def test_project_event_preserves_missing_city_for_editorial_review() -> None:
+    event = enriched_event()
+    event["city"] = ""
+
+    projected = project_event(event)
+
+    assert projected.city is None
+
+
 def test_project_events_preserves_input_order() -> None:
     first = enriched_event()
     second = {**enriched_event(), "title": "Second Event"}
@@ -87,7 +96,7 @@ def test_projection_dict_is_json_serializable_shape() -> None:
     assert payload["eventbrite_event_id"] == "123456789012"
 
 
-@pytest.mark.parametrize("field", ["title", "venue", "city", "start_date", "url", "source"])
+@pytest.mark.parametrize("field", ["title", "venue", "start_date", "url", "source"])
 def test_missing_required_field_fails_loudly(field: str) -> None:
     event = enriched_event()
     event[field] = ""
