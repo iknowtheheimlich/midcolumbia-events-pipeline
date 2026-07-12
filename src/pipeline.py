@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from src.content_classifier import screen_events
 from src.deduplicate import DeduplicationResult, deduplicate_events
 from src.geography import enrich_event_geography
 from src.recurrence_classifier import split_publisher_ready
@@ -25,6 +26,7 @@ class PipelineResult:
     """Pipeline output queues."""
 
     all_events: list[dict[str, Any]] = field(default_factory=list)
+    content_rejected_events: list[dict[str, Any]] = field(default_factory=list)
     publisher_ready_events: list[dict[str, Any]] = field(default_factory=list)
     recurrence_review_events: list[dict[str, Any]] = field(default_factory=list)
     deduplicated_publisher_ready_events: list[dict[str, Any]] = field(default_factory=list)
@@ -36,6 +38,7 @@ class PipelineResult:
         """Return simple event counts for smoke tests and logs."""
         return {
             "all_events": len(self.all_events),
+            "content_rejected_events": len(self.content_rejected_events),
             "publisher_ready_events": len(self.publisher_ready_events),
             "recurrence_review_events": len(self.recurrence_review_events),
             "deduplicated_publisher_ready_events": len(self.deduplicated_publisher_ready_events),
@@ -50,6 +53,7 @@ def run_pipeline(
     deduplicate: bool = False,
     venue_registry: VenueRegistry | None = None,
     enrich_geography: bool = False,
+    screen_content: bool = False,
 ) -> PipelineResult:
     """Run normalized source batches through shared pre-publisher stages."""
     all_events = combine_source_batches(
@@ -57,7 +61,13 @@ def run_pipeline(
         venue_registry=venue_registry,
         enrich_geography=enrich_geography,
     )
-    publisher_ready, recurrence_review = split_publisher_ready(all_events)
+
+    content_rejected: list[dict[str, Any]] = []
+    publisher_candidates = all_events
+    if screen_content:
+        publisher_candidates, content_rejected = screen_events(all_events)
+
+    publisher_ready, recurrence_review = split_publisher_ready(publisher_candidates)
 
     if deduplicate:
         dedupe_result = deduplicate_events(publisher_ready)
@@ -66,6 +76,7 @@ def run_pipeline(
 
     return PipelineResult(
         all_events=all_events,
+        content_rejected_events=content_rejected,
         publisher_ready_events=publisher_ready,
         recurrence_review_events=recurrence_review,
         deduplicated_publisher_ready_events=dedupe_result.events,
