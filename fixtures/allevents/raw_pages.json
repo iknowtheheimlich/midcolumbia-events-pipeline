@@ -1,0 +1,3 @@
+{
+  "Kennewick": "<html><head><script type=\"application/ld+json\">{\"@context\":\"https://schema.org\",\"@type\":\"MusicEvent\",\"name\":\"Fixture Concert\",\"startDate\":\"2026-07-18T19:00:00-07:00\",\"endDate\":\"2026-07-18T21:00:00-07:00\",\"url\":\"https://allevents.in/kennewick/fixture-concert/2400000000000001\",\"location\":{\"@type\":\"Place\",\"name\":\"Columbia Park\",\"address\":{\"@type\":\"PostalAddress\",\"addressLocality\":\"Kennewick\",\"addressRegion\":\"WA\"}}}</script></head></html>"
+}
