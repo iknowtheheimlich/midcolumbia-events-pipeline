@@ -29,7 +29,7 @@ class PublisherEvent:
     venue_id: str | None
     venue_type: str | None
     organization: str | None
-    city: str
+    city: str | None
     state: str | None
     geographic_scope: str | None
     region: str | None
@@ -85,7 +85,7 @@ def project_event(event: dict[str, Any]) -> PublisherEvent:
         venue_id=_optional_text(event.get("venue_id")),
         venue_type=_first_text(event, "venue_type", "registry_venue_type"),
         organization=_first_text(event, "organization", "organizer", "host"),
-        city=_required_text(event, "city"),
+        city=_optional_text(event.get("city")),
         state=_optional_text(event.get("state")),
         geographic_scope=_optional_text(event.get("geo_scope")),
         region=_optional_text(event.get("geo_region")),
