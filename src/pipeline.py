@@ -11,6 +11,8 @@ from src.geography import enrich_event_geography
 from src.publisher_editorial import (
     EditorialEvent,
     auto_publish_events,
+    community_events,
+    main_events,
     prepare_editorial_events,
     rejected_events,
     review_events,
@@ -72,12 +74,22 @@ class PipelineResult:
 
     @property
     def auto_publish_editorial_events(self) -> list[EditorialEvent]:
-        """Return local events cleared for automatic rendering."""
+        """Return all events cleared for automatic rendering."""
         return auto_publish_events(self.editorial_projection)
 
     @property
+    def main_publisher_events(self) -> list[EditorialEvent]:
+        """Return events cleared for the main Reddit post."""
+        return main_events(self.editorial_projection)
+
+    @property
+    def community_publisher_events(self) -> list[EditorialEvent]:
+        """Return events cleared for the community Reddit post."""
+        return community_events(self.editorial_projection)
+
+    @property
     def editorial_review_events(self) -> list[EditorialEvent]:
-        """Return projected events requiring geographic or data review."""
+        """Return projected events requiring geographic, category, or data review."""
         return review_events(self.editorial_projection)
 
     @property
