@@ -1,9 +1,11 @@
-"""Harvest live sources and generate dual weekly Reddit artifacts.
+"""Harvest enabled sources and generate dual weekly Reddit artifacts.
 
 Attempt_32_LiveProductionPublisher
 Attempt_35_DualPublisher
+Attempt_36_SourceRegistry
 
-This command is the production path. It does not read tracked event fixtures.
+This command is the production path. It does not read tracked event fixtures
+except where an enabled migration bridge explicitly defines that behavior.
 """
 
 from __future__ import annotations
@@ -13,7 +15,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from adapters.harvest import HarvestOptions, harvest_adapter
-from adapters.registry import AVAILABLE_ADAPTERS
+from adapters.registry import SOURCE_REGISTRY
 from src.pipeline import PipelineResult, SourceBatch, run_pipeline
 from src.publisher_audit import default_audit_path, write_publisher_audit
 from src.publisher_editorial import (
@@ -28,6 +30,11 @@ from src.reddit_renderer import (
     default_community_artifact_path,
     default_main_artifact_path,
     write_reddit_artifact,
+)
+from src.source_metrics import (
+    DEFAULT_SOURCE_METRICS_PATH,
+    build_source_metrics,
+    write_source_metrics,
 )
 from src.venue_registry import VenueRegistry
 
@@ -45,19 +52,16 @@ def main() -> int:
     parser.add_argument("--days", type=int, default=7)
     parser.add_argument("--months", type=int, default=2)
     parser.add_argument("--registry", type=Path, default=DEFAULT_REGISTRY)
-    parser.add_argument(
-        "--output",
-        type=Path,
-        help="Legacy alias for --output-main",
-    )
+    parser.add_argument("--output", type=Path, help="Legacy alias for --output-main")
     parser.add_argument("--output-main", type=Path)
     parser.add_argument("--output-community", type=Path)
     parser.add_argument("--output-audit", type=Path)
+    parser.add_argument("--output-source-metrics", type=Path)
     parser.add_argument(
         "--source",
         action="append",
-        choices=sorted(AVAILABLE_ADAPTERS),
-        help="Limit harvesting to one or more named sources",
+        choices=SOURCE_REGISTRY.names(),
+        help="Limit harvesting to configured source names, including disabled sources",
     )
     args = parser.parse_args()
 
@@ -71,22 +75,24 @@ def main() -> int:
             "Run python -m tools.import_venue_registry first."
         )
 
-    source_names = sorted(args.source or AVAILABLE_ADAPTERS)
+    selected_adapters = (
+        [SOURCE_REGISTRY.get(name) for name in args.source]
+        if args.source
+        else SOURCE_REGISTRY.enabled()
+    )
+    source_names = [adapter.source_name for adapter in selected_adapters]
     options = HarvestOptions(fetch_raw=True, months=args.months)
-    harvest_results = [
-        harvest_adapter(AVAILABLE_ADAPTERS[source_name], options)
-        for source_name in source_names
-    ]
+    harvest_results = [harvest_adapter(adapter, options) for adapter in selected_adapters]
 
     batches = [
         SourceBatch(source_name=result.source_name, events=result.normalized_events)
         for result in harvest_results
     ]
-    registry = VenueRegistry.from_json(args.registry)
+    venue_registry = VenueRegistry.from_json(args.registry)
     pipeline = run_pipeline(
         batches,
         deduplicate=True,
-        venue_registry=registry,
+        venue_registry=venue_registry,
         enrich_geography=True,
         screen_content=True,
     )
@@ -106,6 +112,7 @@ def main() -> int:
     main_output = args.output_main or args.output or default_main_artifact_path()
     community_output = args.output_community or default_community_artifact_path()
     audit_output = args.output_audit or default_audit_path()
+    metrics_output = args.output_source_metrics or DEFAULT_SOURCE_METRICS_PATH
 
     write_reddit_artifact(
         main_publishable,
@@ -123,7 +130,16 @@ def main() -> int:
         category_order=profile.category_order,
     )
 
-    print(f"Sources: {len(harvest_results)}")
+    source_metrics = build_source_metrics(
+        selected_adapters,
+        harvest_results,
+        content_rejected_events=pipeline.content_rejected_events,
+        duplicate_groups=pipeline.duplicate_groups,
+        editorial_events=editorial,
+    )
+    write_source_metrics(source_metrics, metrics_output)
+
+    print(f"Sources: {len(harvest_results)} ({', '.join(source_names)})")
     print(f"Harvested events: {len(pipeline.all_events)}")
     print(f"Content rejected: {len(pipeline.content_rejected_events)}")
     print(f"Deduplicated publisher events: {len(pipeline.deduplicated_publisher_ready_events)}")
@@ -135,10 +151,11 @@ def main() -> int:
     print(f"Main artifact: {main_output}")
     print(f"Community artifact: {community_output}")
     print(f"Audit artifact: {audit_output}")
+    print(f"Source metrics: {metrics_output}")
 
-    warnings = [result for result in harvest_results if result.error]
-    for result in warnings:
-        print(f"Warning: {result.source_name}: {result.error}")
+    for result in harvest_results:
+        if result.error:
+            print(f"Warning: {result.source_name}: {result.error}")
 
     return 0
 
@@ -148,7 +165,7 @@ def _weekly_editorial_events(
     week_start: date,
     days: int,
 ) -> list[EditorialEvent]:
-    """Return weekly editorial records from the pipeline's valid aggregate property."""
+    """Return weekly editorial records from the pipeline aggregate property."""
     return [
         event
         for event in pipeline.editorial_projection
