@@ -8,6 +8,13 @@ from typing import Any
 from src.content_classifier import screen_events
 from src.deduplicate import DeduplicationResult, deduplicate_events
 from src.geography import enrich_event_geography
+from src.publisher_editorial import (
+    EditorialEvent,
+    auto_publish_events,
+    prepare_editorial_events,
+    rejected_events,
+    review_events,
+)
 from src.publisher_projection import PublisherEvent, project_events
 from src.recurrence_classifier import split_publisher_ready
 from src.text_normalization import normalize_event
@@ -57,6 +64,26 @@ class PipelineResult:
         remain available while publishers migrate to the projection contract.
         """
         return project_events(self.deduplicated_publisher_ready_events)
+
+    @property
+    def editorial_projection(self) -> list[EditorialEvent]:
+        """Return display-ready events with deterministic editorial dispositions."""
+        return prepare_editorial_events(self.publisher_projection)
+
+    @property
+    def auto_publish_editorial_events(self) -> list[EditorialEvent]:
+        """Return local events cleared for automatic rendering."""
+        return auto_publish_events(self.editorial_projection)
+
+    @property
+    def editorial_review_events(self) -> list[EditorialEvent]:
+        """Return projected events requiring geographic or data review."""
+        return review_events(self.editorial_projection)
+
+    @property
+    def editorial_rejected_events(self) -> list[EditorialEvent]:
+        """Return projected events excluded by deterministic editorial policy."""
+        return rejected_events(self.editorial_projection)
 
 
 def run_pipeline(
