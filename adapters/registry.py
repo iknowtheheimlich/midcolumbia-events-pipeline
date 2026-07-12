@@ -69,7 +69,6 @@ class SourceRegistry:
         return _ordered(adapter for adapter in self.adapters.values() if adapter.enabled)
 
 
-
 def _adapter_from_row(row: Any) -> AdapterInfo:
     if not isinstance(row, dict):
         raise ValueError("source registry entries must be objects")
@@ -92,7 +91,6 @@ def _adapter_from_row(row: Any) -> AdapterInfo:
     )
 
 
-
 def _ordered(adapters) -> list[AdapterInfo]:
     return sorted(adapters, key=lambda item: (-item.priority, item.source_name.casefold()))
 
@@ -104,22 +102,18 @@ SOURCE_REGISTRY = SourceRegistry.load()
 AVAILABLE_ADAPTERS: dict[str, AdapterInfo] = dict(SOURCE_REGISTRY.adapters)
 
 
-
 def get_adapter(source_name: str) -> AdapterInfo:
     return SOURCE_REGISTRY.get(source_name)
 
 
-
 def list_source_names() -> list[str]:
-    """Return all configured source names in priority order."""
-    return SOURCE_REGISTRY.names()
-
+    """Return all configured source names in the legacy alphabetical order."""
+    return sorted(AVAILABLE_ADAPTERS)
 
 
 def list_enabled_source_names() -> list[str]:
     """Return enabled production source names in priority order."""
     return SOURCE_REGISTRY.names(enabled_only=True)
-
 
 
 def list_active_adapters() -> list[AdapterInfo]:
