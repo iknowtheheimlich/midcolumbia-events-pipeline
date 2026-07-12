@@ -1,9 +1,11 @@
 """Render Reddit markdown from display-ready editorial events.
 
 Attempt_31_RedditRendererCutover
+Attempt_33_PublishingContract
 
-The renderer contains presentation only. Venue cleanup, time formatting, URL choice,
-geographic policy, content screening, and deduplication belong to upstream layers.
+The renderer contains presentation only. Venue cleanup, time grammar, URL choice,
+geographic policy, content screening, category routing, and deduplication belong
+upstream.
 """
 
 from __future__ import annotations
@@ -27,12 +29,7 @@ def render_reddit_post(
     *,
     footnote: str = DEFAULT_FOOTNOTE,
 ) -> str:
-    """Return old-editor Reddit markdown for auto-publish editorial events.
-
-    Events are grouped under ``#DD Month`` headings and sorted chronologically.
-    Non-auto-publish records are rejected rather than leaking review items into the
-    production post.
-    """
+    """Return old-editor Reddit markdown for auto-publish editorial events."""
     publishable = [
         event for event in events if event.publication_disposition == "AUTO_PUBLISH"
     ]
@@ -59,10 +56,9 @@ def render_event_line(event: EditorialEvent) -> str:
     """Render one event using the established Reddit markdown line contract."""
     venue = _markdown_link(event.display_venue, event.publication_url)
     location = f"{venue}, {event.display_city}" if event.display_city else venue
-    time = _display_time_range(event)
     parts = [event.title, location]
-    if time:
-        parts.append(time)
+    if event.display_time:
+        parts.append(event.display_time)
     return " | ".join(parts)
 
 
@@ -101,7 +97,7 @@ def _sort_key(event: EditorialEvent) -> tuple[str, int, str, str]:
 def _sort_minutes(value: str | None) -> int:
     if not value:
         return 24 * 60 + 1
-    for format_string in ("%I:%M %p", "%H:%M"):
+    for format_string in ("%H:%M", "%I:%M %p"):
         try:
             parsed = datetime.strptime(value.strip(), format_string)
             return parsed.hour * 60 + parsed.minute
@@ -113,14 +109,6 @@ def _sort_minutes(value: str | None) -> int:
 def _date_heading(value: str) -> str:
     parsed = datetime.strptime(value, "%Y-%m-%d")
     return f"#{parsed.day:02d} {parsed.strftime('%B')}"
-
-
-def _display_time_range(event: EditorialEvent) -> str | None:
-    start = event.display_start_time
-    end = event.display_end_time
-    if start and end:
-        return f"{start}–{end}"
-    return start or end
 
 
 def _markdown_link(label: str, url: str) -> str:
