@@ -8,4 +8,4 @@ if "%~1"=="" (
 )
 
 python -m tools.publish_reddit_live --week-start %1 %2 %3 %4 %5 %6 %7 %8 %9
-endlocal
+exit /b %ERRORLEVEL%
