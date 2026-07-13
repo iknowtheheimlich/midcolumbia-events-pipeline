@@ -1,6 +1,7 @@
 """Group sibling editorial occurrences into publisher-facing programs.
 
 Attempt_41_ProgramIntelligence
+Attempt_42_ExplainableIntelligence
 
 This layer does not deduplicate sources. It groups legitimate occurrences of the
 same cleaned program after editorial styling while preserving every occurrence.
@@ -8,10 +9,11 @@ same cleaned program after editorial styling while preserving every occurrence.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import re
-from typing import Iterable
+from typing import Any, Iterable
 
+from src.intelligence import IntelligenceDecision
 from src.publisher_editorial import EditorialEvent
 
 _SPACE_RE = re.compile(r"\s+")
@@ -40,6 +42,8 @@ class EditorialProgram:
     occurrences: tuple[ProgramOccurrence, ...]
     canonical_titles: tuple[str, ...]
     grouping_reason: str
+    grouping_confidence: float = 1.0
+    intelligence: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     @property
     def display_start_time(self) -> str | None:
@@ -98,12 +102,19 @@ def _build_program(events: list[EditorialEvent]) -> EditorialProgram:
     distinct_times = len({(item.display_start_time, item.display_end_time) for item in occurrences})
     reason = "single_occurrence"
     if len(occurrences) > 1:
-        signals = []
+        signals = ["exact_display_title", "same_day", "same_category", "same_source"]
         if distinct_venues > 1:
             signals.append("multiple_venues")
         if distinct_times > 1:
             signals.append("multiple_times")
-        reason = "+".join(signals) or "repeated_occurrence"
+        reason = "+".join(signals)
+
+    confidence = 1.0
+    decision = IntelligenceDecision(
+        value=first.title,
+        confidence=confidence,
+        reason=reason,
+    )
 
     return EditorialProgram(
         title=first.title,
@@ -114,6 +125,8 @@ def _build_program(events: list[EditorialEvent]) -> EditorialProgram:
         occurrences=occurrences,
         canonical_titles=canonical_titles,
         grouping_reason=reason,
+        grouping_confidence=confidence,
+        intelligence={"program_grouping": decision.to_dict()},
     )
 
 
