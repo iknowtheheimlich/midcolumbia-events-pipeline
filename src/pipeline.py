@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from src.category_intelligence import enrich_event_category
 from src.content_classifier import screen_events
 from src.deduplicate import DeduplicationResult, deduplicate_events
 from src.geography import enrich_event_geography
@@ -60,41 +61,30 @@ class PipelineResult:
 
     @property
     def publisher_projection(self) -> list[PublisherEvent]:
-        """Return the canonical deduplicated feed consumed by publishers.
-
-        This is additive for backwards compatibility: existing raw queue fields
-        remain available while publishers migrate to the projection contract.
-        """
         return project_events(self.deduplicated_publisher_ready_events)
 
     @property
     def editorial_projection(self) -> list[EditorialEvent]:
-        """Return display-ready events with deterministic editorial dispositions."""
         return prepare_editorial_events(self.publisher_projection)
 
     @property
     def auto_publish_editorial_events(self) -> list[EditorialEvent]:
-        """Return local events cleared for automatic rendering."""
         return auto_publish_events(self.editorial_projection)
 
     @property
     def editorial_review_events(self) -> list[EditorialEvent]:
-        """Return projected events requiring geographic or data review."""
         return review_events(self.editorial_projection)
 
     @property
     def editorial_rejected_events(self) -> list[EditorialEvent]:
-        """Return projected events excluded by deterministic editorial policy."""
         return rejected_events(self.editorial_projection)
 
     @property
     def main_publisher_events(self) -> list[EditorialEvent]:
-        """Return automatically publishable events routed to the main post."""
         return main_events(self.editorial_projection)
 
     @property
     def community_publisher_events(self) -> list[EditorialEvent]:
-        """Return automatically publishable events routed to the community post."""
         return community_events(self.editorial_projection)
 
 
@@ -105,12 +95,18 @@ def run_pipeline(
     venue_registry: VenueRegistry | None = None,
     enrich_geography: bool = False,
     screen_content: bool = False,
+    enrich_categories: bool = False,
 ) -> PipelineResult:
-    """Run normalized source batches through shared pre-publisher stages."""
+    """Run source batches through shared enrichment and publisher preparation.
+
+    Category intelligence is opt-in for backwards compatibility. Production enables it;
+    historical tests and callers retain the previous unclassified behavior unless asked.
+    """
     all_events = combine_source_batches(
         source_batches,
         venue_registry=venue_registry,
         enrich_geography=enrich_geography,
+        enrich_categories=enrich_categories,
     )
 
     content_rejected: list[dict[str, Any]] = []
@@ -141,8 +137,9 @@ def combine_source_batches(
     *,
     venue_registry: VenueRegistry | None = None,
     enrich_geography: bool = False,
+    enrich_categories: bool = False,
 ) -> list[dict[str, Any]]:
-    """Combine batches and optionally enrich venue and geographic intelligence."""
+    """Combine batches and optionally apply shared enrichment layers."""
     combined: list[dict[str, Any]] = []
 
     for batch in source_batches:
@@ -160,6 +157,8 @@ def combine_source_batches(
                     copied["venue_registry_name"] = record.venue_name
             if enrich_geography:
                 copied = enrich_event_geography(copied)
+            if enrich_categories:
+                copied = enrich_event_category(copied)
             combined.append(copied)
 
     return combined
