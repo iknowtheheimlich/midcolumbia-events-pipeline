@@ -100,20 +100,23 @@ def _build_program(events: list[EditorialEvent]) -> EditorialProgram:
     )
     distinct_venues = len({(_normalize(item.display_venue), _normalize(item.display_city)) for item in occurrences})
     distinct_times = len({(item.display_start_time, item.display_end_time) for item in occurrences})
-    reason = "single_occurrence"
+    grouping_reason = "single_occurrence"
+    evidence = ["exact_display_title", "same_day", "same_category", "same_source"]
     if len(occurrences) > 1:
-        signals = ["exact_display_title", "same_day", "same_category", "same_source"]
+        signals = []
         if distinct_venues > 1:
             signals.append("multiple_venues")
+            evidence.append("multiple_venues")
         if distinct_times > 1:
             signals.append("multiple_times")
-        reason = "+".join(signals)
+            evidence.append("multiple_times")
+        grouping_reason = "+".join(signals) or "repeated_occurrence"
 
     confidence = 1.0
     decision = IntelligenceDecision(
         value=first.title,
         confidence=confidence,
-        reason=reason,
+        reason="+".join(evidence),
     )
 
     return EditorialProgram(
@@ -124,7 +127,7 @@ def _build_program(events: list[EditorialEvent]) -> EditorialProgram:
         publication_disposition=first.publication_disposition,
         occurrences=occurrences,
         canonical_titles=canonical_titles,
-        grouping_reason=reason,
+        grouping_reason=grouping_reason,
         grouping_confidence=confidence,
         intelligence={"program_grouping": decision.to_dict()},
     )
