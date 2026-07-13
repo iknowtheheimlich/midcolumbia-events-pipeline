@@ -3,10 +3,7 @@
 Attempt_30_PublisherEditorialRules
 Attempt_33_PublishingContract
 Attempt_34_NotionPresentationLayer
-
-This layer converts stable PublisherEvent projections into display-ready records.
-Renderers should not contain venue aliases, URL selection, time formatting,
-geographic policy, category policy, or publication-target routing.
+Attempt_38_CategoryIntelligence
 """
 
 from __future__ import annotations
@@ -17,7 +14,6 @@ from typing import Any, Iterable
 
 from src.publisher_projection import PublisherEvent
 from src.publishing_contract import PublishingProfile, format_compact_range
-
 
 _SPACE_RE = re.compile(r"\s+")
 
@@ -35,8 +31,6 @@ REJECT_SCOPES = {"OUT_OF_AREA"}
 
 @dataclass(frozen=True)
 class EditorialEvent:
-    """Display-ready event plus deterministic publication decisions."""
-
     title: str
     start_date: str
     end_date: str | None
@@ -63,6 +57,8 @@ class EditorialEvent:
     eventbrite_event_id: str | None
     duplicate_sources: tuple[str, ...]
     duplicate_count: int
+    category_confidence: float | None = None
+    category_reason: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
@@ -74,7 +70,6 @@ def apply_editorial_rules(
     event: PublisherEvent,
     profile: PublishingProfile | None = None,
 ) -> EditorialEvent:
-    """Apply display cleanup and publication policy to one projected event."""
     active_profile = profile or PublishingProfile.load()
     display_city = _clean_optional(event.city) or ""
     display_venue = _display_venue(event, display_city)
@@ -111,6 +106,8 @@ def apply_editorial_rules(
         eventbrite_event_id=event.eventbrite_event_id,
         duplicate_sources=event.duplicate_sources,
         duplicate_count=event.duplicate_count,
+        category_confidence=event.category_confidence,
+        category_reason=event.category_reason,
     )
 
 
@@ -118,7 +115,6 @@ def prepare_editorial_events(
     events: Iterable[PublisherEvent],
     profile: PublishingProfile | None = None,
 ) -> list[EditorialEvent]:
-    """Apply editorial rules without changing event order."""
     active_profile = profile or PublishingProfile.load()
     return [apply_editorial_rules(event, active_profile) for event in events]
 
