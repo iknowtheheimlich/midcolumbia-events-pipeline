@@ -99,7 +99,7 @@ class VenuePresentationProfile:
                 short_name=rule.short_name,
                 venue_type=_first_text(event, "venue_type", "registry_venue_type"),
                 parent_display_name=rule.parent_display_name,
-                reason="profile_fallback",
+                reason="profile_rule",
             )
 
         return VenuePresentation(
