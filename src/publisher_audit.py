@@ -1,6 +1,7 @@
 """Audit summaries for dual Reddit publication outputs.
 
 Attempt_35_DualPublisher
+Attempt_38_CategoryIntelligence
 """
 
 from __future__ import annotations
@@ -20,14 +21,11 @@ def render_publisher_audit(
     rows = list(events)
     disposition_counts = Counter(event.publication_disposition for event in rows)
     target_counts = Counter(event.publication_target for event in rows)
-    category_counts = Counter(
-        event.semantic_category or "UNCLASSIFIED"
-        for event in rows
-    )
+    category_counts = Counter(event.semantic_category or "UNCLASSIFIED" for event in rows)
 
     lines = [
-        "Attempt_35 Dual Publisher Audit",
-        "=================================",
+        "Publisher Audit",
+        "===============",
         "",
         f"Weekly editorial events: {len(rows)}",
         f"Auto-published: {disposition_counts['AUTO_PUBLISH']}",
@@ -44,6 +42,16 @@ def render_publisher_audit(
         lines.append(f"  {category}: {category_counts[category]}")
     if category_counts["UNCLASSIFIED"]:
         lines.append(f"  UNCLASSIFIED: {category_counts['UNCLASSIFIED']}")
+
+    category_reasons = Counter(
+        event.category_reason or "no_category_explanation"
+        for event in rows
+        if event.semantic_category
+    )
+    if category_reasons:
+        lines.extend(["", "Category decisions:"])
+        for reason, count in sorted(category_reasons.items()):
+            lines.append(f"  {reason}: {count}")
 
     review_reasons = Counter(
         event.editorial_reason or "unspecified"
