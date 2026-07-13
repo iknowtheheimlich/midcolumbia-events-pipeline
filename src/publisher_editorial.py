@@ -4,6 +4,7 @@ Attempt_30_PublisherEditorialRules
 Attempt_33_PublishingContract
 Attempt_34_NotionPresentationLayer
 Attempt_38_CategoryIntelligence
+Attempt_40_EditorialStyleIntelligence
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ from dataclasses import asdict, dataclass
 import re
 from typing import Any, Iterable
 
+from src.editorial_style import derive_display_fields
 from src.publisher_projection import PublisherEvent
 from src.publishing_contract import PublishingProfile, format_compact_range
 
@@ -59,6 +61,8 @@ class EditorialEvent:
     duplicate_count: int
     category_confidence: float | None = None
     category_reason: str | None = None
+    canonical_title: str | None = None
+    style_reason: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
@@ -72,7 +76,12 @@ def apply_editorial_rules(
 ) -> EditorialEvent:
     active_profile = profile or PublishingProfile.load()
     display_city = _clean_optional(event.city) or ""
-    display_venue = _display_venue(event, display_city)
+    base_venue = _display_venue(event, display_city)
+    display_title, display_venue, style_reason = derive_display_fields(
+        event.title,
+        base_venue,
+        display_city,
+    )
     display_organization = _display_organization(event, display_venue)
     semantic_category = active_profile.normalize_category(event.category)
     explicit_target = getattr(event, "publication_target", None)
@@ -80,7 +89,7 @@ def apply_editorial_rules(
     disposition, reason = _publication_disposition(event, publication_target)
 
     return EditorialEvent(
-        title=_clean_text(event.title),
+        title=display_title,
         start_date=event.start_date,
         end_date=event.end_date,
         display_start_time=event.start_time,
@@ -108,6 +117,8 @@ def apply_editorial_rules(
         duplicate_count=event.duplicate_count,
         category_confidence=event.category_confidence,
         category_reason=event.category_reason,
+        canonical_title=_clean_text(event.title),
+        style_reason=style_reason,
     )
 
 
