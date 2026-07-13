@@ -5,6 +5,7 @@ Attempt_35_DualPublisher
 Attempt_36_SourceRegistry
 Attempt_38_CategoryIntelligence
 Attempt_41_ProgramIntelligence
+Attempt_43_OccurrenceResolution
 
 This command is the production path. It does not read tracked event fixtures
 except where an enabled migration bridge explicitly defines that behavior.
@@ -95,6 +96,7 @@ def main() -> int:
     pipeline = run_pipeline(
         batches,
         deduplicate=True,
+        resolve_cross_source_occurrences=True,
         venue_registry=venue_registry,
         enrich_geography=True,
         screen_content=True,
