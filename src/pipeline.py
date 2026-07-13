@@ -23,6 +23,7 @@ from src.publisher_editorial import (
 from src.publisher_projection import PublisherEvent, project_events
 from src.recurrence_classifier import split_publisher_ready
 from src.text_normalization import normalize_event
+from src.time_semantics import enrich_event_time_semantics
 from src.venue_registry import VenueMatch, VenueRegistry
 
 
@@ -98,19 +99,22 @@ def run_pipeline(
     enrich_geography: bool = False,
     screen_content: bool = False,
     enrich_categories: bool = False,
+    enrich_time_semantics: bool = False,
 ) -> PipelineResult:
     """Run source batches through shared enrichment and publisher preparation.
 
     ``deduplicate`` retains the established conservative exact-key contract.
     ``resolve_cross_source_occurrences`` is an additive identity stage that runs
     after exact deduplication. Production enables both; legacy callers keep their
-    historical counts and semantics.
+    historical counts and semantics. Time semantics is likewise opt-in so old
+    fixture contracts do not change under existing callers.
     """
     all_events = combine_source_batches(
         source_batches,
         venue_registry=venue_registry,
         enrich_geography=enrich_geography,
         enrich_categories=enrich_categories,
+        enrich_time_semantics=enrich_time_semantics,
     )
 
     content_rejected: list[dict[str, Any]] = []
@@ -149,6 +153,7 @@ def combine_source_batches(
     venue_registry: VenueRegistry | None = None,
     enrich_geography: bool = False,
     enrich_categories: bool = False,
+    enrich_time_semantics: bool = False,
 ) -> list[dict[str, Any]]:
     """Combine batches and optionally apply shared enrichment layers."""
     combined: list[dict[str, Any]] = []
@@ -157,6 +162,8 @@ def combine_source_batches(
         for event in batch.events:
             copied = normalize_event(event)
             copied.setdefault("source", batch.source_name)
+            if enrich_time_semantics:
+                copied = enrich_event_time_semantics(copied)
             if venue_registry is not None:
                 copied, match = venue_registry.enrich_event(copied)
                 copied = _attach_venue_explanation(copied, match)
