@@ -1,0 +1,40 @@
+{
+  "profile_version": 1,
+  "venues": {
+    "the emerald of siam": {
+      "display_name": "The Emerald of Siam",
+      "display_url": "https://www.emeraldofsiam.com/",
+      "display_city": "Richland"
+    },
+    "emerald of siam": {
+      "display_name": "The Emerald of Siam",
+      "display_url": "https://www.emeraldofsiam.com/",
+      "display_city": "Richland"
+    },
+    "solar spirits": {
+      "display_name": "Solar Spirits",
+      "display_url": "https://www.solarspirits.com/",
+      "display_city": "Richland"
+    },
+    "solar spirits distillery": {
+      "display_name": "Solar Spirits",
+      "display_url": "https://www.solarspirits.com/",
+      "display_city": "Richland"
+    },
+    "solar spirits distillery tasting room": {
+      "display_name": "Solar Spirits",
+      "display_url": "https://www.solarspirits.com/",
+      "display_city": "Richland"
+    },
+    "goose ridge winery": {
+      "display_name": "Goose Ridge Winery",
+      "display_url": "https://www.gooseridge.com/",
+      "display_city": "Richland"
+    },
+    "goose ridge estate vineyards and winery": {
+      "display_name": "Goose Ridge Winery",
+      "display_url": "https://www.gooseridge.com/",
+      "display_city": "Richland"
+    }
+  }
+}
