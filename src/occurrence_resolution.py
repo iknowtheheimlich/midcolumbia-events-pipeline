@@ -2,9 +2,11 @@
 
 Attempt_43_OccurrenceResolution
 Attempt_49_OccurrenceResolutionTuning
+Attempt_52_SourceLineage
 
 The resolver merges provenance, not programs. Separate legitimate sessions remain
-separate occurrences for downstream Program Intelligence.
+separate occurrences for downstream Program Intelligence. Discovery sources and origin
+sources are tracked separately so syndicated copies do not masquerade as corroboration.
 """
 
 from __future__ import annotations
@@ -18,34 +20,14 @@ from typing import Any, Iterable
 from adapters.registry import SOURCE_REGISTRY
 from src.explainable_intelligence import add_decision
 from src.deduplicate import normalize_text
-
+from src.source_lineage import enrich_event_source_lineage
 
 _WORD_RE = re.compile(r"[a-z0-9]+")
-_PROMOTIONAL_WORDS = {
-    "live",
-    "featuring",
-    "presents",
-    "presenting",
-    "hosted",
-    "normal",
-}
+_PROMOTIONAL_WORDS = {"live", "featuring", "presents", "presenting", "hosted", "normal"}
 _VENUE_NOISE = {
-    "the",
-    "and",
-    "estate",
-    "vineyards",
-    "vineyard",
-    "winery",
-    "cellars",
-    "distillery",
-    "tasting",
-    "room",
-    "cocktail",
-    "lounge",
-    "bar",
-    "grill",
-    "company",
-    "co",
+    "the", "and", "estate", "vineyards", "vineyard", "winery", "cellars",
+    "distillery", "tasting", "room", "cocktail", "lounge", "bar", "grill",
+    "company", "co",
 }
 
 
@@ -67,7 +49,8 @@ def resolve_occurrences(events: Iterable[dict[str, Any]]) -> OccurrenceResolutio
     clusters: list[list[dict[str, Any]]] = []
     skipped = 0
 
-    for event in events:
+    for raw_event in events:
+        event = enrich_event_source_lineage(raw_event)
         if not _minimum_identity(event):
             clusters.append([event])
             skipped += 1
@@ -104,6 +87,9 @@ def resolve_occurrences(events: Iterable[dict[str, Any]]) -> OccurrenceResolutio
                     "confidence": decision.get("confidence"),
                     "reason": decision.get("reason"),
                     "source_events": provenance,
+                    "discovery_sources": event.get("discovery_sources") or [],
+                    "origin_sources": event.get("origin_sources") or [],
+                    "independent_source_count": event.get("independent_source_count", 1),
                 }
             )
 
@@ -118,9 +104,7 @@ def compare_occurrences(left: dict[str, Any], right: dict[str, Any]) -> Occurren
     reasons: list[str] = ["same_date"]
     confidence = 0.20
 
-    left_urls = _urls(left)
-    right_urls = _urls(right)
-    if left_urls & right_urls:
+    if _urls(left) & _urls(right):
         return OccurrenceEvidence(1.0, ("shared_url", "same_date"))
 
     left_eventbrite = normalize_text(left.get("eventbrite_event_id"))
@@ -140,8 +124,6 @@ def compare_occurrences(left: dict[str, Any], right: dict[str, Any]) -> Occurren
         confidence += 0.25
         reasons.append("start_time_within_10m")
     elif time_delta is None:
-        # Missing time is not positive evidence. A merge can still succeed only with
-        # exceptionally strong title and venue evidence.
         reasons.append("missing_start_time")
     else:
         return OccurrenceEvidence(confidence, tuple(reasons + ["different_start_time"]))
@@ -157,10 +139,7 @@ def compare_occurrences(left: dict[str, Any], right: dict[str, Any]) -> Occurren
         confidence += 0.18
         reasons.append(f"{title_reason}={title_score:.2f}")
     else:
-        return OccurrenceEvidence(
-            confidence,
-            tuple(reasons + [f"{title_reason}={title_score:.2f}"]),
-        )
+        return OccurrenceEvidence(confidence, tuple(reasons + [f"{title_reason}={title_score:.2f}"]))
 
     return OccurrenceEvidence(min(confidence, 1.0), tuple(reasons))
 
@@ -168,21 +147,29 @@ def compare_occurrences(left: dict[str, Any], right: dict[str, Any]) -> Occurren
 def _merge_cluster(group: list[dict[str, Any]], evidence: OccurrenceEvidence | None) -> dict[str, Any]:
     primary = max(group, key=_source_priority)
     merged = dict(primary)
-    provenance = []
-    sources: list[str] = []
+    provenance: list[dict[str, Any]] = []
+    discovery_sources: list[str] = []
+    origin_sources: list[str] = []
     urls: list[str] = []
 
     for event in group:
-        source = str(event.get("source") or "").strip()
-        if source and source not in sources:
-            sources.append(source)
+        discovery = str(event.get("discovery_source") or event.get("source") or "").strip()
+        origin = str(event.get("origin_source") or discovery).strip()
+        if discovery and discovery not in discovery_sources:
+            discovery_sources.append(discovery)
+        if origin and origin not in origin_sources:
+            origin_sources.append(origin)
         for url in sorted(_urls(event)):
             if url not in urls:
                 urls.append(url)
         provenance.extend(event.get("occurrence_provenance") or [_summarize(event)])
 
-    merged["sources"] = sources
-    merged["duplicate_sources"] = sources
+    merged["sources"] = discovery_sources
+    merged["duplicate_sources"] = discovery_sources
+    merged["discovery_sources"] = discovery_sources
+    merged["origin_sources"] = origin_sources
+    merged["corroborating_sources"] = origin_sources
+    merged["independent_source_count"] = len(origin_sources)
     merged["source_urls"] = urls
     merged["duplicate_count"] = len(provenance)
     merged["occurrence_provenance"] = provenance
@@ -197,14 +184,16 @@ def _merge_cluster(group: list[dict[str, Any]], evidence: OccurrenceEvidence | N
     return merged
 
 
-def _source_priority(event: dict[str, Any]) -> tuple[int, int]:
-    source = str(event.get("source") or "")
+def _source_priority(event: dict[str, Any]) -> tuple[int, int, int]:
+    discovery = str(event.get("discovery_source") or event.get("source") or "")
+    origin = str(event.get("origin_source") or discovery)
     try:
-        priority = SOURCE_REGISTRY.get(source).priority
+        priority = SOURCE_REGISTRY.get(discovery).priority
     except KeyError:
         priority = 0
+    native_origin = int(bool(discovery and origin and discovery == origin))
     richness = sum(bool(event.get(field)) for field in ("description", "venue_id", "organization", "external_url"))
-    return priority, richness
+    return native_origin, priority, richness
 
 
 def _title_similarity(left: dict[str, Any], right: dict[str, Any]) -> tuple[float, str]:
@@ -256,55 +245,38 @@ def _token_similarity(left: str, right: str) -> float:
 
 
 def _venue_match_reason(left: dict[str, Any], right: dict[str, Any]) -> str | None:
-    left_ids = _venue_ids(left)
-    right_ids = _venue_ids(right)
-    if left_ids & right_ids:
+    if _venue_ids(left) & _venue_ids(right):
         return "same_venue_id"
-
-    left_names = _venue_names(left)
-    right_names = _venue_names(right)
-    if left_names & right_names:
+    if _venue_names(left) & _venue_names(right):
         return "same_canonical_venue"
     return None
 
 
 def _venue_ids(event: dict[str, Any]) -> set[str]:
     fields = ("venue_id", "parent_venue_id", "venue_parent_id")
-    return {
-        normalize_text(event.get(field))
-        for field in fields
-        if normalize_text(event.get(field))
-    }
+    return {normalize_text(event.get(field)) for field in fields if normalize_text(event.get(field))}
 
 
 def _venue_names(event: dict[str, Any]) -> set[str]:
-    fields = (
-        "venue_registry_name",
-        "venue",
-        "parent_venue",
-        "venue_parent",
-        "organization",
-    )
+    fields = ("venue_registry_name", "venue", "parent_venue", "venue_parent", "organization")
     names: set[str] = set()
     for field in fields:
         value = normalize_text(event.get(field))
-        if not value:
-            continue
-        normalized = _normalize_venue_name(value)
-        if normalized:
-            names.add(normalized)
+        if value:
+            normalized = _normalize_venue_name(value)
+            if normalized:
+                names.add(normalized)
     return names
 
 
 def _normalize_venue_name(value: str) -> str:
-    words = [word for word in _WORD_RE.findall(value.casefold()) if word not in _VENUE_NOISE]
-    return " ".join(words)
+    return " ".join(word for word in _WORD_RE.findall(value.casefold()) if word not in _VENUE_NOISE)
 
 
 def _time_delta_minutes(left: Any, right: Any) -> int | None:
     if not left or not right:
         return None
-    parsed = []
+    parsed: list[int] = []
     for value in (left, right):
         text = str(value).strip()
         item = None
@@ -334,6 +306,9 @@ def _summarize(event: dict[str, Any]) -> dict[str, Any]:
     return {
         "title": event.get("title"),
         "source": event.get("source"),
+        "origin_source": event.get("origin_source"),
+        "discovery_source": event.get("discovery_source"),
+        "is_syndicated": event.get("is_syndicated", False),
         "url": event.get("url"),
         "venue": event.get("venue"),
         "venue_id": event.get("venue_id"),
