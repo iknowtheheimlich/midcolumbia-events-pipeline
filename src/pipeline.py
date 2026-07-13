@@ -9,6 +9,7 @@ from src.category_intelligence import enrich_event_category
 from src.content_classifier import screen_events
 from src.deduplicate import DeduplicationResult, deduplicate_events
 from src.geography import enrich_event_geography
+from src.intelligence import attach_intelligence
 from src.publisher_editorial import (
     EditorialEvent,
     auto_publish_events,
@@ -21,7 +22,7 @@ from src.publisher_editorial import (
 from src.publisher_projection import PublisherEvent, project_events
 from src.recurrence_classifier import split_publisher_ready
 from src.text_normalization import normalize_event
-from src.venue_registry import VenueRegistry
+from src.venue_registry import VenueMatch, VenueRegistry
 
 
 @dataclass(frozen=True)
@@ -148,6 +149,7 @@ def combine_source_batches(
             copied.setdefault("source", batch.source_name)
             if venue_registry is not None:
                 copied, match = venue_registry.enrich_event(copied)
+                copied = _attach_venue_explanation(copied, match)
                 if match.status == "matched" and match.record is not None:
                     record = match.record
                     if record.reddit_combo:
@@ -156,9 +158,55 @@ def combine_source_batches(
                         copied["venue_website"] = record.website
                     copied["venue_registry_name"] = record.venue_name
             if enrich_geography:
+                had_city = bool(str(copied.get("city") or "").strip())
+                had_address = bool(str(copied.get("address") or "").strip())
                 copied = enrich_event_geography(copied)
+                geo_reason = "city_region_lookup" if had_city else "address_city_parse" if had_address else "location_unresolved"
+                geo_confidence = 0.98 if had_city else 0.90 if had_address else 0.0
+                copied = attach_intelligence(
+                    copied,
+                    "geographic_scope",
+                    copied.get("geo_scope"),
+                    geo_confidence,
+                    geo_reason,
+                )
             if enrich_categories:
                 copied = enrich_event_category(copied)
+                copied = attach_intelligence(
+                    copied,
+                    "category",
+                    copied.get("category"),
+                    float(copied.get("category_confidence") or 0.0),
+                    str(copied.get("category_reason") or "no_category_rule_matched"),
+                )
             combined.append(copied)
 
     return combined
+
+
+def _attach_venue_explanation(event: dict[str, Any], match: VenueMatch) -> dict[str, Any]:
+    confidence_by_method = {
+        "alias": 1.0,
+        "address": 1.0,
+        "street_address": 0.98,
+        "venue_as_address": 0.98,
+        "known_alias": 0.99,
+        "parent_room": 0.98,
+        "branch_rewrite": 0.97,
+        "city_branch": 0.95,
+    }
+    if match.status == "matched" and match.record is not None:
+        return attach_intelligence(
+            event,
+            "venue",
+            match.record.canonical_name,
+            confidence_by_method.get(match.method or "", 0.95),
+            f"registry_{match.method or 'match'}",
+        )
+    return attach_intelligence(
+        event,
+        "venue",
+        event.get("venue"),
+        0.0,
+        f"registry_{match.status}",
+    )
