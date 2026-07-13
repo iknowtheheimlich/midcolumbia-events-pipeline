@@ -77,10 +77,15 @@ def apply_editorial_rules(
     active_profile = profile or PublishingProfile.load()
     display_city = _clean_optional(event.city) or ""
     base_venue = _display_venue(event, display_city)
+
+    # Venue Reddit Combo is a curated, opaque Notion presentation fragment.
+    # Editorial style may clean the title, but must not rewrite the combo or
+    # strip its city suffix. Synthesized venue text remains style-managed.
+    style_city = None if event.venue_reddit_combo else display_city
     display_title, display_venue, style_reason = derive_display_fields(
         event.title,
         base_venue,
-        display_city,
+        style_city,
     )
     display_organization = _display_organization(event, display_venue)
     semantic_category = active_profile.normalize_category(event.category)
@@ -117,7 +122,7 @@ def apply_editorial_rules(
         duplicate_count=event.duplicate_count,
         category_confidence=event.category_confidence,
         category_reason=event.category_reason,
-        canonical_title=_clean_text(event.title),
+        canonical_title=event.title,
         style_reason=style_reason,
     )
 
