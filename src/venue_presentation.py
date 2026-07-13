@@ -2,8 +2,9 @@
 
 Attempt_50_VenuePresentationProfile
 
-Canonical venue identity remains untouched. This layer decides how a resolved venue is
-shown to humans and gives every presentation consumer the same name, URL, and city.
+Canonical venue identity remains untouched. Registry-enriched presentation fields are
+primary. Curated profile rules remain a compatibility fallback for unresolved legacy
+records and manually constructed test events.
 """
 
 from __future__ import annotations
@@ -59,6 +60,21 @@ class VenuePresentationProfile:
 
     def present(self, event: dict[str, Any]) -> VenuePresentation:
         canonical = _first_text(event, "venue_registry_name", "venue") or "Unknown Venue"
+
+        explicit_name = _first_text(event, "display_venue")
+        if explicit_name:
+            return VenuePresentation(
+                canonical_name=canonical,
+                display_name=explicit_name,
+                display_url=_first_text(event, "display_url", "venue_website"),
+                display_city=_first_text(event, "display_city", "city"),
+                suppress_city=_bool(event.get("suppress_display_city")),
+                short_name=_first_text(event, "venue_short_name"),
+                venue_type=_first_text(event, "venue_type", "registry_venue_type"),
+                parent_display_name=_first_text(event, "parent_display_name"),
+                reason=_first_text(event, "venue_presentation_reason") or "registry_presentation",
+            )
+
         candidates = [
             _first_text(event, "venue_registry_name"),
             _first_text(event, "venue"),
@@ -83,7 +99,7 @@ class VenuePresentationProfile:
                 short_name=rule.short_name,
                 venue_type=_first_text(event, "venue_type", "registry_venue_type"),
                 parent_display_name=rule.parent_display_name,
-                reason="profile_rule",
+                reason="profile_fallback",
             )
 
         return VenuePresentation(
@@ -108,6 +124,12 @@ def present_event(
     profile: VenuePresentationProfile | None = None,
 ) -> VenuePresentation:
     return (profile or default_profile()).present(event)
+
+
+def _bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    return str(value or "").strip().casefold() in {"1", "true", "yes", "y"}
 
 
 def _key(value: Any) -> str:
