@@ -8,6 +8,7 @@ Attempt_41_ProgramIntelligence
 Attempt_43_OccurrenceResolution
 Attempt_44_PipelineInspector
 Attempt_46_TimeSemantics
+Attempt_52_ReviewTrainer
 
 This command is the production path. It does not read tracked event fixtures
 except where an enabled migration bridge explicitly defines that behavior.
@@ -39,6 +40,7 @@ from src.reddit_renderer import (
     render_program_line,
     write_reddit_artifact,
 )
+from src.review_trainer import DEFAULT_REVIEW_TRAINING_PATH, write_review_training_artifact
 from src.source_metrics import (
     DEFAULT_SOURCE_METRICS_PATH,
     build_source_metrics,
@@ -65,6 +67,12 @@ def main() -> int:
     parser.add_argument("--output-community", type=Path)
     parser.add_argument("--output-audit", type=Path)
     parser.add_argument("--output-source-metrics", type=Path)
+    parser.add_argument("--output-review-training", type=Path)
+    parser.add_argument(
+        "--review-corrections",
+        type=Path,
+        help="Optional curated JSON corrections keyed by review fingerprint",
+    )
     parser.add_argument(
         "--inspect-title",
         help="Write an HTML trace for records containing this title or text",
@@ -84,6 +92,8 @@ def main() -> int:
         parser.error("use either --output or --output-main, not both")
     if args.output_inspector and not args.inspect_title:
         parser.error("--output-inspector requires --inspect-title")
+    if args.review_corrections and not args.review_corrections.exists():
+        parser.error(f"review corrections not found: {args.review_corrections}")
     if not args.registry.exists():
         parser.error(
             f"venue registry not found: {args.registry}. "
@@ -133,6 +143,7 @@ def main() -> int:
     community_output = args.output_community or default_community_artifact_path()
     audit_output = args.output_audit or default_audit_path()
     metrics_output = args.output_source_metrics or DEFAULT_SOURCE_METRICS_PATH
+    review_training_output = args.output_review_training or DEFAULT_REVIEW_TRAINING_PATH
 
     write_reddit_artifact(main_programs, main_output, category_order=profile.category_order)
     write_reddit_artifact(
@@ -141,6 +152,11 @@ def main() -> int:
         category_order=profile.category_order,
     )
     write_publisher_audit(editorial, audit_output, category_order=profile.category_order)
+    write_review_training_artifact(
+        review,
+        review_training_output,
+        corrections_path=args.review_corrections,
+    )
 
     source_metrics = build_source_metrics(
         selected_adapters,
@@ -189,6 +205,7 @@ def main() -> int:
     print(f"Community artifact: {community_output}")
     print(f"Audit artifact: {audit_output}")
     print(f"Source metrics: {metrics_output}")
+    print(f"Review training: {review_training_output}")
     if inspector_output is not None:
         print(f"Pipeline inspector: {inspector_output}")
 
