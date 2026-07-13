@@ -6,6 +6,7 @@ Attempt_36_SourceRegistry
 Attempt_38_CategoryIntelligence
 Attempt_41_ProgramIntelligence
 Attempt_43_OccurrenceResolution
+Attempt_44_PipelineInspector
 
 This command is the production path. It does not read tracked event fixtures
 except where an enabled migration bridge explicitly defines that behavior.
@@ -20,6 +21,7 @@ from pathlib import Path
 from adapters.harvest import HarvestOptions, harvest_adapter
 from adapters.registry import SOURCE_REGISTRY
 from src.pipeline import PipelineResult, SourceBatch, run_pipeline
+from src.pipeline_inspector import DEFAULT_INSPECTOR_PATH, write_pipeline_inspector
 from src.program_intelligence import group_editorial_programs
 from src.publisher_audit import default_audit_path, write_publisher_audit
 from src.publisher_editorial import (
@@ -33,6 +35,7 @@ from src.publishing_contract import PublishingProfile
 from src.reddit_renderer import (
     default_community_artifact_path,
     default_main_artifact_path,
+    render_program_line,
     write_reddit_artifact,
 )
 from src.source_metrics import (
@@ -62,6 +65,11 @@ def main() -> int:
     parser.add_argument("--output-audit", type=Path)
     parser.add_argument("--output-source-metrics", type=Path)
     parser.add_argument(
+        "--inspect-title",
+        help="Write an HTML trace for records containing this title or text",
+    )
+    parser.add_argument("--output-inspector", type=Path)
+    parser.add_argument(
         "--source",
         action="append",
         choices=SOURCE_REGISTRY.names(),
@@ -73,6 +81,8 @@ def main() -> int:
         parser.error("--days must be at least 1")
     if args.output and args.output_main:
         parser.error("use either --output or --output-main, not both")
+    if args.output_inspector and not args.inspect_title:
+        parser.error("--output-inspector requires --inspect-title")
     if not args.registry.exists():
         parser.error(
             f"venue registry not found: {args.registry}. "
@@ -139,6 +149,31 @@ def main() -> int:
     )
     write_source_metrics(source_metrics, metrics_output)
 
+    inspector_output: Path | None = None
+    if args.inspect_title:
+        inspector_output = args.output_inspector or DEFAULT_INSPECTOR_PATH
+        collected = [
+            event
+            for result in harvest_results
+            for event in result.normalized_events
+        ]
+        programs = [*main_programs, *community_programs]
+        rendered_lines = [render_program_line(program) for program in programs]
+        write_pipeline_inspector(
+            args.inspect_title,
+            {
+                "Collected source records": collected,
+                "Normalized and enriched events": pipeline.all_events,
+                "Publisher-ready occurrences": pipeline.publisher_ready_events,
+                "Resolved occurrences": pipeline.deduplicated_publisher_ready_events,
+                "Publisher projection": weekly_projection,
+                "Editorial projection": editorial,
+                "Program projection": programs,
+            },
+            inspector_output,
+            rendered_lines=rendered_lines,
+        )
+
     print(f"Sources: {len(harvest_results)} ({', '.join(source_names)})")
     print(f"Harvested events: {len(pipeline.all_events)}")
     print(f"Content rejected: {len(pipeline.content_rejected_events)}")
@@ -152,6 +187,8 @@ def main() -> int:
     print(f"Community artifact: {community_output}")
     print(f"Audit artifact: {audit_output}")
     print(f"Source metrics: {metrics_output}")
+    if inspector_output is not None:
+        print(f"Pipeline inspector: {inspector_output}")
 
     for result in harvest_results:
         if result.error:
