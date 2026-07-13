@@ -4,6 +4,7 @@ Attempt_29_PublisherModelAdapter
 Attempt_34_NotionPresentationLayer
 Attempt_38_CategoryIntelligence
 Attempt_42_ExplainableIntelligence
+Attempt_50_VenuePresentationProfile
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from typing import Any, Iterable
 
 from adapters.eventbrite.bridge import extract_event_id, first_eventbrite_url
 from src.intelligence import normalize_intelligence
+from src.venue_presentation import present_event
 
 
 @dataclass(frozen=True)
@@ -52,6 +54,11 @@ class PublisherEvent:
     venue_reddit_combo: str | None = None
     venue_website: str | None = None
     venue_registry_name: str | None = None
+    display_venue: str | None = None
+    display_city: str | None = None
+    display_url: str | None = None
+    venue_presentation_reason: str | None = None
+    suppress_display_city: bool = False
     category_confidence: float | None = None
     category_reason: str | None = None
     intelligence: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -72,6 +79,7 @@ def project_event(event: dict[str, Any]) -> PublisherEvent:
     source_url = _required_text(event, "url")
     if not source_urls:
         source_urls = (source_url,)
+    presentation = present_event(event)
 
     return PublisherEvent(
         title=_required_text(event, "title"),
@@ -111,6 +119,11 @@ def project_event(event: dict[str, Any]) -> PublisherEvent:
         venue_reddit_combo=_optional_text(event.get("venue_reddit_combo")),
         venue_website=_optional_text(event.get("venue_website")),
         venue_registry_name=_optional_text(event.get("venue_registry_name")),
+        display_venue=presentation.display_name,
+        display_city=None if presentation.suppress_city else presentation.display_city,
+        display_url=presentation.display_url,
+        venue_presentation_reason=presentation.reason,
+        suppress_display_city=presentation.suppress_city,
         category_confidence=_optional_float(event.get("category_confidence")),
         category_reason=_optional_text(event.get("category_reason")),
         intelligence=normalize_intelligence(event.get("intelligence")),
