@@ -1,9 +1,10 @@
 """Configurable presentation cleanup for publisher-facing events.
 
 Attempt_40_EditorialStyleIntelligence
+Attempt_50_VenuePresentationProfile
 
-Canonical source fields remain unchanged. This module derives display-only title and
-venue values at the editorial boundary.
+Canonical source fields remain unchanged. Title cleanup remains editorial policy; venue
+cleanup is a compatibility path used only when no authoritative venue presentation exists.
 """
 
 from __future__ import annotations
@@ -62,12 +63,13 @@ def derive_display_fields(
     city: str | None,
     *,
     profile: EditorialStyleProfile | None = None,
+    preserve_venue: bool = False,
 ) -> tuple[str, str, str]:
     """Return display title, display venue, and an explainable style reason."""
     active = profile or EditorialStyleProfile.load()
     original_title = _clean(title)
     original_venue = _clean(venue)
-    display_venue = _display_venue(original_venue, city, active)
+    display_venue = original_venue if preserve_venue else _display_venue(original_venue, city, active)
     display_title = _display_title(original_title, display_venue, active)
 
     reasons: list[str] = []
@@ -94,8 +96,6 @@ def _display_venue(venue: str, city: str | None, profile: EditorialStyleProfile)
         ).strip(" ,")
 
     if _ADDRESS_RE.search(cleaned):
-        # Raw addresses are not venue names. Retain the compact street address only;
-        # registry aliases should replace known locations with their actual names.
         cleaned = cleaned.split(",", 1)[0].strip()
     return cleaned
 
