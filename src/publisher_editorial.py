@@ -5,15 +5,17 @@ Attempt_33_PublishingContract
 Attempt_34_NotionPresentationLayer
 Attempt_38_CategoryIntelligence
 Attempt_40_EditorialStyleIntelligence
+Attempt_42_ExplainableIntelligence
 """
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 import re
 from typing import Any, Iterable
 
 from src.editorial_style import derive_display_fields
+from src.intelligence import attach_intelligence, normalize_intelligence
 from src.publisher_projection import PublisherEvent
 from src.publishing_contract import PublishingProfile, format_compact_range
 
@@ -63,6 +65,7 @@ class EditorialEvent:
     category_reason: str | None = None
     canonical_title: str | None = None
     style_reason: str | None = None
+    intelligence: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
@@ -92,6 +95,14 @@ def apply_editorial_rules(
     explicit_target = getattr(event, "publication_target", None)
     publication_target = active_profile.publication_target(semantic_category, explicit_target)
     disposition, reason = _publication_disposition(event, publication_target)
+
+    explanation = attach_intelligence(
+        {"intelligence": normalize_intelligence(event.intelligence)},
+        "display_style",
+        {"title": display_title, "venue": display_venue},
+        1.0,
+        style_reason,
+    )["intelligence"]
 
     return EditorialEvent(
         title=display_title,
@@ -124,6 +135,7 @@ def apply_editorial_rules(
         category_reason=event.category_reason,
         canonical_title=event.title,
         style_reason=style_reason,
+        intelligence=explanation,
     )
 
 
