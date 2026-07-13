@@ -1,11 +1,13 @@
 {
-  "profile_version": 1,
+  "profile_version": 2,
   "time_style": "compact",
   "category_order": [
     "Events/Hangouts",
     "Classes/Workshops",
+    "Lectures/Talks",
     "Music/Comedy",
     "Sports",
+    "Food & Drink",
     "Restaurants/Bars/Wineries",
     "Art/Theater",
     "Trivia/Game Night",
@@ -22,8 +24,10 @@
   "publication_targets": {
     "MAIN": [
       "Events/Hangouts",
+      "Lectures/Talks",
       "Music/Comedy",
       "Sports",
+      "Food & Drink",
       "Restaurants/Bars/Wineries",
       "Art/Theater",
       "Trivia/Game Night",
