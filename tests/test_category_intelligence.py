@@ -28,18 +28,18 @@ def test_classifies_storytime_as_community_program() -> None:
     decision = classify_event(event(title="Baby Storytime With Ms. Amy"))
     assert decision.category == "Community Programs"
     assert decision.confidence >= 0.9
-    assert decision.reason == "keyword=storytime"
+    assert decision.reason == "title_rule=library_or_community_program"
 
 
 def test_classifies_open_mic_before_generic_music() -> None:
     decision = classify_event(event(title="Live Music Open Mic at Emerald"))
     assert decision.category == "Karaoke/Open Mic"
-    assert decision.reason == "keyword=open mic"
+    assert decision.reason == "title_rule=karaoke_or_open_mic"
 
 
 def test_classifies_source_category_without_copying_source_vocabulary() -> None:
     decision = classify_event(event(title="Unknown", source_category="Food & Drink"))
-    assert decision.category == "Restaurants/Bars/Wineries"
+    assert decision.category == "Food & Drink"
     assert decision.reason == "source_category=Food & Drink"
 
 
@@ -56,7 +56,7 @@ def test_enrichment_is_additive_and_does_not_mutate_input() -> None:
     assert "category" not in original
     assert enriched["category"] == "Sports"
     assert enriched["category_confidence"] > 0
-    assert enriched["category_reason"].startswith("keyword=")
+    assert enriched["category_reason"] == "title_rule=sports_competition"
 
 
 def test_pipeline_category_enrichment_is_opt_in_for_backwards_compatibility() -> None:
@@ -74,8 +74,58 @@ def test_category_explanation_survives_projection_and_editorial_layers() -> None
     )
     projected = pipeline.publisher_projection[0]
     editorial = pipeline.editorial_projection[0]
-    assert projected.category_reason == "keyword=open mic"
+    assert projected.category_reason == "title_rule=karaoke_or_open_mic"
     assert projected.category_confidence == 0.99
-    assert editorial.category_reason == "keyword=open mic"
+    assert editorial.category_reason == "title_rule=karaoke_or_open_mic"
     assert editorial.semantic_category == "Karaoke/Open Mic"
     assert editorial.publication_target == "MAIN"
+
+
+def test_play_is_not_a_bare_art_theater_trigger() -> None:
+    decision = classify_event(event(title="Summer Chess Classes Learn & Play"))
+    assert decision.category == "Classes/Workshops"
+    assert decision.reason == "title_rule=class_or_workshop"
+
+
+def test_stage_play_remains_art_theater() -> None:
+    decision = classify_event(event(title="Bluey's Big Stage Play"))
+    assert decision.category == "Art/Theater"
+    assert decision.reason == "title_rule=film_or_theater"
+
+
+def test_history_presentation_is_a_lecture() -> None:
+    decision = classify_event(
+        event(title="The Triple Nickel: Black Paratroopers in Washington State, 1945")
+    )
+    assert decision.category == "Lectures/Talks"
+
+
+def test_family_movies_are_not_sports() -> None:
+    decision = classify_event(
+        event(title="Family Movies of the 1990s: Jumanji, The Sandlot, and Matilda")
+    )
+    assert decision.category == "Art/Theater"
+
+
+def test_food_pairing_gets_food_and_drink_category() -> None:
+    decision = classify_event(event(title="Peaches + Cream Cake Pairing Flight"))
+    assert decision.category == "Food & Drink"
+
+
+def test_live_performer_title_beats_class_language_in_description() -> None:
+    decision = classify_event(
+        event(
+            title="Joshua Peace Saxxidelic, LIVE at Solar Spirits!",
+            venue="Solar Spirits",
+            description="This class of performer brings a playful sound to the tasting room.",
+        )
+    )
+    assert decision.category == "Music/Comedy"
+
+
+def test_performer_named_faith_is_not_religious() -> None:
+    decision = classify_event(
+        event(title="Faith Martin @ At Michele's", venue="At Michele's")
+    )
+    assert decision.category == "Music/Comedy"
+    assert decision.reason == "context_rule=performer_at_hospitality_venue"
