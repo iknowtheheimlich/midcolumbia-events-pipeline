@@ -1,4 +1,4 @@
-"""Deterministic venue registry import, matching, and enrichment."""
+"""Deterministic venue registry import, matching, enrichment, and presentation."""
 
 from __future__ import annotations
 
@@ -38,17 +38,57 @@ class VenueRecord:
     website: str | None = None
     venue_type: str | None = None
     reddit_combo: str | None = None
+    display_name: str | None = None
+    display_url: str | None = None
+    display_city: str | None = None
+    suppress_display_city: bool = False
+    short_name: str | None = None
+    parent_display_name: str | None = None
 
     @property
     def canonical_name(self) -> str:
         return self.official_name or self.venue_name
 
+    @property
+    def presentation_name(self) -> str:
+        return self.display_name or self.venue_name or self.canonical_name
+
+    @property
+    def presentation_url(self) -> str | None:
+        return self.display_url or self.website
+
     def aliases(self) -> set[str]:
         return {
             value
-            for value in (self.venue_name, self.official_name, self.reddit_combo)
+            for value in (
+                self.venue_name,
+                self.official_name,
+                self.reddit_combo,
+                self.display_name,
+                self.short_name,
+            )
             if value and value.strip()
         }
+
+    def enrich_presentation(self, event: dict[str, Any]) -> dict[str, Any]:
+        copied = dict(event)
+        copied["venue_registry_name"] = self.venue_name
+        copied["display_venue"] = self.presentation_name
+        copied["display_url"] = self.presentation_url
+        copied["display_city"] = self.display_city or _event_city(copied)
+        copied["suppress_display_city"] = self.suppress_display_city
+        copied["venue_presentation_reason"] = (
+            "registry_presentation" if self.display_name or self.display_url or self.display_city else "registry_fallback"
+        )
+        if self.short_name:
+            copied["venue_short_name"] = self.short_name
+        if self.parent_display_name:
+            copied["parent_display_name"] = self.parent_display_name
+        if self.website:
+            copied["venue_website"] = self.website
+        if self.reddit_combo:
+            copied["venue_reddit_combo"] = self.reddit_combo
+        return copied
 
 
 @dataclass(frozen=True)
@@ -101,12 +141,13 @@ class VenueRegistry:
         )
 
     @staticmethod
-    def _record_quality(record: VenueRecord) -> tuple[int, int, int, int, int]:
+    def _record_quality(record: VenueRecord) -> tuple[int, int, int, int, int, int]:
         return (
+            int(bool(record.display_name)),
             int(bool(record.official_name)),
             int(bool(record.place_id)),
             int(bool(record.address)),
-            int(bool(record.website)),
+            int(bool(record.presentation_url)),
             len(record.canonical_name),
         )
 
@@ -115,12 +156,7 @@ class VenueRegistry:
         grouped: dict[tuple[str, ...], list[VenueRecord]] = {}
         for record in candidates:
             grouped.setdefault(cls._record_identity(record), []).append(record)
-
-        representatives = [
-            max(group, key=cls._record_quality)
-            for group in grouped.values()
-        ]
-        return tuple(representatives)
+        return tuple(max(group, key=cls._record_quality) for group in grouped.values())
 
     @classmethod
     def _resolve_candidates(
@@ -165,8 +201,7 @@ class VenueRegistry:
 
         parenthetical = _MCL_PAREN_RE.match(venue_name)
         if parenthetical:
-            branch = parenthetical.group(1).strip()
-            rewritten = f"{branch} Mid-Columbia Library"
+            rewritten = f"{parenthetical.group(1).strip()} Mid-Columbia Library"
             branch_match = self._resolve_candidates(
                 self._alias_map.get(normalize_venue_key(rewritten), ()),
                 method="branch_rewrite",
@@ -215,7 +250,6 @@ class VenueRegistry:
                 if street.status != "unknown":
                     return street
 
-        # Some adapters put a bare street address in the venue field.
         street_key = normalize_street_key(venue_name)
         if street_key and any(char.isdigit() for char in venue_name):
             street = self._resolve_candidates(
@@ -243,6 +277,7 @@ class VenueRegistry:
             copied["venue_id"] = record.place_id
         if record.address and not copied.get("address"):
             copied["address"] = record.address
+        copied = record.enrich_presentation(copied)
         return copied, match
 
     def to_json(self, path: Path) -> None:
@@ -254,6 +289,12 @@ class VenueRegistry:
     def from_json(cls, path: Path) -> "VenueRegistry":
         payload = json.loads(path.read_text(encoding="utf-8"))
         return cls(VenueRecord(**row) for row in payload)
+
+
+def _event_city(event: dict[str, Any]) -> str | None:
+    value = event.get("city")
+    text = str(value).strip() if value is not None else ""
+    return text or None
 
 
 def normalize_venue_key(value: str) -> str:
