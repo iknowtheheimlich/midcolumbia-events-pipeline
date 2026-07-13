@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 
@@ -87,6 +88,35 @@ def test_parser_ignores_non_event_json_ld_and_incomplete_events() -> None:
     )
 
     assert parse_pages({"Kennewick": page}) == []
+
+
+def test_saved_city_page_handles_itemlists_entities_and_organizer_lists() -> None:
+    html = Path("fixtures/allevents/saved_city_page.html").read_text(encoding="utf-8")
+
+    events = parse_pages({"Kennewick": html})
+
+    assert len(events) == 2
+    water_follies = events[0]
+    assert water_follies["title"] == (
+        "2026 Tri-City Water Follies Apollo Columbia Cup & STCU Over-the-River Air Show"
+    )
+    assert water_follies["organization"] == "Water Follies, STCU"
+    assert water_follies["start_date"] == "2026-07-24"
+    assert water_follies["end_date"] == "2026-07-26"
+    assert "start_time" not in water_follies
+    assert "end_time" not in water_follies
+
+
+def test_saved_city_page_preserves_explicit_times_and_list_location() -> None:
+    html = Path("fixtures/allevents/saved_city_page.html").read_text(encoding="utf-8")
+
+    events = parse_pages({"Kennewick": html})
+    evening = next(event for event in events if event["title"] == "Evening Concert")
+
+    assert evening["start_time"] == "19:00"
+    assert evening["end_time"] == "21:00"
+    assert evening["venue"] == "Columbia Park"
+    assert evening["organization"] == "River Events"
 
 
 def test_normalizer_requires_city_html_mapping() -> None:
