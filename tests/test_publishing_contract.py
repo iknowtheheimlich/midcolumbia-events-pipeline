@@ -9,18 +9,41 @@ from src.publishing_contract import (
 )
 
 
+EXPECTED_CATEGORY_ORDER = (
+    "Events/Hangouts",
+    "Classes/Workshops",
+    "Lectures/Talks",
+    "Music/Comedy",
+    "Sports",
+    "Food & Drink",
+    "Restaurants/Bars/Wineries",
+    "Art/Theater",
+    "Trivia/Game Night",
+    "Karaoke/Open Mic",
+    "Fundraisers",
+    "Markets",
+    "Community Programs",
+    "School District Event",
+    "Tours",
+    "Festivals/Fair",
+    "Estate/Yard/Garage Sales",
+    "Faith Based",
+)
+
+
 def test_default_profile_loads_exact_category_vocabulary():
     profile = PublishingProfile.load(Path("config/reddit_publishing_profile.json"))
 
-    assert profile.category_order[0] == "Events/Hangouts"
-    assert profile.category_order[-1] == "Faith Based"
-    assert len(profile.category_order) == 16
+    assert profile.profile_version == 2
+    assert profile.category_order == EXPECTED_CATEGORY_ORDER
 
 
 def test_profile_routes_categories_to_separate_posts():
     profile = PublishingProfile.load()
 
     assert profile.publication_target("Music/Comedy") == "MAIN"
+    assert profile.publication_target("Food & Drink") == "MAIN"
+    assert profile.publication_target("Lectures/Talks") == "MAIN"
     assert profile.publication_target("Community Programs") == "COMMUNITY"
     assert profile.publication_target(None) == "REVIEW"
 
