@@ -4,6 +4,7 @@ Attempt_32_LiveProductionPublisher
 Attempt_35_DualPublisher
 Attempt_36_SourceRegistry
 Attempt_38_CategoryIntelligence
+Attempt_41_ProgramIntelligence
 
 This command is the production path. It does not read tracked event fixtures
 except where an enabled migration bridge explicitly defines that behavior.
@@ -18,6 +19,7 @@ from pathlib import Path
 from adapters.harvest import HarvestOptions, harvest_adapter
 from adapters.registry import SOURCE_REGISTRY
 from src.pipeline import PipelineResult, SourceBatch, run_pipeline
+from src.program_intelligence import group_editorial_programs
 from src.publisher_audit import default_audit_path, write_publisher_audit
 from src.publisher_editorial import (
     EditorialEvent,
@@ -107,6 +109,8 @@ def main() -> int:
     editorial = _weekly_editorial_events(pipeline, args.week_start, args.days)
     main_publishable = main_events(editorial)
     community_publishable = community_events(editorial)
+    main_programs = group_editorial_programs(main_publishable)
+    community_programs = group_editorial_programs(community_publishable)
     review = review_events(editorial)
     rejected = rejected_events(editorial)
     profile = PublishingProfile.load()
@@ -116,9 +120,9 @@ def main() -> int:
     audit_output = args.output_audit or default_audit_path()
     metrics_output = args.output_source_metrics or DEFAULT_SOURCE_METRICS_PATH
 
-    write_reddit_artifact(main_publishable, main_output, category_order=profile.category_order)
+    write_reddit_artifact(main_programs, main_output, category_order=profile.category_order)
     write_reddit_artifact(
-        community_publishable,
+        community_programs,
         community_output,
         category_order=profile.category_order,
     )
@@ -138,8 +142,8 @@ def main() -> int:
     print(f"Content rejected: {len(pipeline.content_rejected_events)}")
     print(f"Deduplicated publisher events: {len(pipeline.deduplicated_publisher_ready_events)}")
     print(f"Weekly events: {len(weekly_projection)}")
-    print(f"Main events: {len(main_publishable)}")
-    print(f"Community events: {len(community_publishable)}")
+    print(f"Main events: {len(main_publishable)} -> {len(main_programs)} programs")
+    print(f"Community events: {len(community_publishable)} -> {len(community_programs)} programs")
     print(f"Review queue: {len(review)}")
     print(f"Rejected: {len(rejected)}")
     print(f"Main artifact: {main_output}")
