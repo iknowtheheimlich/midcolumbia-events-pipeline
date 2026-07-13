@@ -7,7 +7,7 @@ from typing import Any
 
 from src.category_intelligence import enrich_event_category
 from src.content_classifier import screen_events
-from src.deduplicate import DeduplicationResult
+from src.deduplicate import DeduplicationResult, deduplicate_events
 from src.geography import enrich_event_geography
 from src.intelligence import attach_intelligence
 from src.occurrence_resolution import resolve_occurrences
@@ -93,12 +93,19 @@ def run_pipeline(
     source_batches: list[SourceBatch],
     *,
     deduplicate: bool = False,
+    resolve_cross_source_occurrences: bool = False,
     venue_registry: VenueRegistry | None = None,
     enrich_geography: bool = False,
     screen_content: bool = False,
     enrich_categories: bool = False,
 ) -> PipelineResult:
-    """Run source batches through shared enrichment and publisher preparation."""
+    """Run source batches through shared enrichment and publisher preparation.
+
+    ``deduplicate`` retains the established conservative exact-key contract.
+    ``resolve_cross_source_occurrences`` is an additive identity stage that runs
+    after exact deduplication. Production enables both; legacy callers keep their
+    historical counts and semantics.
+    """
     all_events = combine_source_batches(
         source_batches,
         venue_registry=venue_registry,
@@ -114,22 +121,24 @@ def run_pipeline(
     publisher_ready, recurrence_review = split_publisher_ready(publisher_candidates)
 
     if deduplicate:
-        resolution = resolve_occurrences(publisher_ready)
-        dedupe_result = DeduplicationResult(
-            events=resolution.events,
-            duplicate_groups=resolution.groups,
-            skipped_low_quality=resolution.skipped_low_quality,
-        )
+        dedupe_result = deduplicate_events(publisher_ready)
     else:
         dedupe_result = DeduplicationResult(events=list(publisher_ready))
+
+    final_events = dedupe_result.events
+    duplicate_groups = list(dedupe_result.duplicate_groups)
+    if resolve_cross_source_occurrences:
+        resolution = resolve_occurrences(final_events)
+        final_events = resolution.events
+        duplicate_groups.extend(resolution.groups)
 
     return PipelineResult(
         all_events=all_events,
         content_rejected_events=content_rejected,
         publisher_ready_events=publisher_ready,
         recurrence_review_events=recurrence_review,
-        deduplicated_publisher_ready_events=dedupe_result.events,
-        duplicate_groups=dedupe_result.duplicate_groups,
+        deduplicated_publisher_ready_events=final_events,
+        duplicate_groups=duplicate_groups,
         skipped_low_quality_dedupe=dedupe_result.skipped_low_quality,
     )
 
