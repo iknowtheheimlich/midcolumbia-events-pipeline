@@ -1,4 +1,4 @@
-from adapters.richland_library.parser import clean_title, parse_event_anchor, parse_event_block
+from adapters.richland_library.parser import clean_text, clean_title, parse_event_anchor, parse_event_block
 
 
 def test_event_anchor_excludes_popover_metadata_from_title() -> None:
@@ -45,6 +45,42 @@ def test_clean_title_removes_adjacent_duplicate_accessibility_prefix() -> None:
     assert clean_title(
         "Family Movies ofFamily Movies of the 1990s: Jumanji, The Sandlot, and Matilda"
     ) == "Family Movies of the 1990s: Jumanji, The Sandlot, and Matilda"
+
+
+def test_event_anchor_discards_redundant_accessibility_fragments() -> None:
+    block = '''
+    <div class="s-lc-mc-evt">
+      <a href="https://myrichlandlibrary.libcal.com/event/17000001">
+        <span>Family Movies of</span>
+        <span>Family Movies of the 1990s: Jumanji (1995), The Sandlot (1993), and Matilda (1996)</span>
+        <span>the</span>
+      </a>
+    </div></div>
+    '''
+
+    assert parse_event_anchor(block) == (
+        "https://myrichlandlibrary.libcal.com/event/17000001",
+        "Family Movies of the 1990s: Jumanji (1995), The Sandlot (1993), and Matilda (1996)",
+    )
+
+
+def test_event_anchor_keeps_independent_title_fragments() -> None:
+    block = '''
+    <div class="s-lc-mc-evt">
+      <a href="https://myrichlandlibrary.libcal.com/event/17000002">
+        <span>STEAMKids:</span><span>Build a Mars Lander</span>
+      </a>
+    </div></div>
+    '''
+
+    assert parse_event_anchor(block) == (
+        "https://myrichlandlibrary.libcal.com/event/17000002",
+        "STEAMKids: Build a Mars Lander",
+    )
+
+
+def test_clean_text_decodes_entities_nonbreaking_spaces_and_zero_width_space() -> None:
+    assert clean_text("Rock&nbsp;&amp;&nbsp;Roll\u200b Night") == "Rock & Roll Night"
 
 
 def test_event_anchor_ignores_non_event_links() -> None:
