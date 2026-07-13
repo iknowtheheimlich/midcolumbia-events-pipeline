@@ -2,6 +2,7 @@
 
 Attempt_29_PublisherModelAdapter
 Attempt_34_NotionPresentationLayer
+Attempt_38_CategoryIntelligence
 """
 
 from __future__ import annotations
@@ -49,6 +50,8 @@ class PublisherEvent:
     venue_reddit_combo: str | None = None
     venue_website: str | None = None
     venue_registry_name: str | None = None
+    category_confidence: float | None = None
+    category_reason: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
@@ -105,6 +108,8 @@ def project_event(event: dict[str, Any]) -> PublisherEvent:
         venue_reddit_combo=_optional_text(event.get("venue_reddit_combo")),
         venue_website=_optional_text(event.get("venue_website")),
         venue_registry_name=_optional_text(event.get("venue_registry_name")),
+        category_confidence=_optional_float(event.get("category_confidence")),
+        category_reason=_optional_text(event.get("category_reason")),
     )
 
 
@@ -132,6 +137,15 @@ def _optional_text(value: Any) -> str | None:
         return None
     text = str(value).strip()
     return text or None
+
+
+def _optional_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _string_tuple(value: Any) -> tuple[str, ...]:
