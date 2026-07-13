@@ -3,6 +3,7 @@
 Attempt_32_LiveProductionPublisher
 Attempt_35_DualPublisher
 Attempt_36_SourceRegistry
+Attempt_38_CategoryIntelligence
 
 This command is the production path. It does not read tracked event fixtures
 except where an enabled migration bridge explicitly defines that behavior.
@@ -95,6 +96,7 @@ def main() -> int:
         venue_registry=venue_registry,
         enrich_geography=True,
         screen_content=True,
+        enrich_categories=True,
     )
 
     weekly_projection = [
@@ -114,21 +116,13 @@ def main() -> int:
     audit_output = args.output_audit or default_audit_path()
     metrics_output = args.output_source_metrics or DEFAULT_SOURCE_METRICS_PATH
 
-    write_reddit_artifact(
-        main_publishable,
-        main_output,
-        category_order=profile.category_order,
-    )
+    write_reddit_artifact(main_publishable, main_output, category_order=profile.category_order)
     write_reddit_artifact(
         community_publishable,
         community_output,
         category_order=profile.category_order,
     )
-    write_publisher_audit(
-        editorial,
-        audit_output,
-        category_order=profile.category_order,
-    )
+    write_publisher_audit(editorial, audit_output, category_order=profile.category_order)
 
     source_metrics = build_source_metrics(
         selected_adapters,
@@ -165,7 +159,6 @@ def _weekly_editorial_events(
     week_start: date,
     days: int,
 ) -> list[EditorialEvent]:
-    """Return weekly editorial records from the pipeline aggregate property."""
     return [
         event
         for event in pipeline.editorial_projection
