@@ -7,9 +7,10 @@ from typing import Any
 
 from src.category_intelligence import enrich_event_category
 from src.content_classifier import screen_events
-from src.deduplicate import DeduplicationResult, deduplicate_events
+from src.deduplicate import DeduplicationResult
 from src.geography import enrich_event_geography
 from src.intelligence import attach_intelligence
+from src.occurrence_resolution import resolve_occurrences
 from src.publisher_editorial import (
     EditorialEvent,
     auto_publish_events,
@@ -47,7 +48,6 @@ class PipelineResult:
 
     @property
     def counts(self) -> dict[str, int]:
-        """Return stable pipeline counts, adding screening data only when used."""
         counts = {
             "all_events": len(self.all_events),
             "publisher_ready_events": len(self.publisher_ready_events),
@@ -98,11 +98,7 @@ def run_pipeline(
     screen_content: bool = False,
     enrich_categories: bool = False,
 ) -> PipelineResult:
-    """Run source batches through shared enrichment and publisher preparation.
-
-    Category intelligence is opt-in for backwards compatibility. Production enables it;
-    historical tests and callers retain the previous unclassified behavior unless asked.
-    """
+    """Run source batches through shared enrichment and publisher preparation."""
     all_events = combine_source_batches(
         source_batches,
         venue_registry=venue_registry,
@@ -118,7 +114,12 @@ def run_pipeline(
     publisher_ready, recurrence_review = split_publisher_ready(publisher_candidates)
 
     if deduplicate:
-        dedupe_result = deduplicate_events(publisher_ready)
+        resolution = resolve_occurrences(publisher_ready)
+        dedupe_result = DeduplicationResult(
+            events=resolution.events,
+            duplicate_groups=resolution.groups,
+            skipped_low_quality=resolution.skipped_low_quality,
+        )
     else:
         dedupe_result = DeduplicationResult(events=list(publisher_ready))
 
