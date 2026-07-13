@@ -1,0 +1,18 @@
+{
+  "profile_version": 1,
+  "strip_prefixes": [
+    "Live Music ::",
+    "LIVE ::",
+    "Live Music with",
+    "Live Music w/"
+  ],
+  "strip_terminal_date": true,
+  "venue_aliases": {
+    "325 East Columbia Gardens Way, Kennewick, WA, United States, Washington 99336": "Columbia Gardens",
+    "325 East Columbia Gardens Way, Kennewick, WA 99336": "Columbia Gardens",
+    "5651 W 36th Pl": "Argyle Southridge",
+    "Pasco, Washington": "Pasco",
+    "Fair Grounds Food Alley": "Benton Franklin Fairgrounds"
+  },
+  "deconflict_title_venue": true
+}
