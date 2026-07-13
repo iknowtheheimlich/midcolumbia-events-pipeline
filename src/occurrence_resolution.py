@@ -31,6 +31,7 @@ _PROMOTIONAL_WORDS = {
 }
 _VENUE_NOISE = {
     "the",
+    "and",
     "estate",
     "vineyards",
     "vineyard",
