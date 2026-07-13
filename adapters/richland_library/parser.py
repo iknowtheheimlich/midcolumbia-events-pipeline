@@ -11,7 +11,6 @@ from typing import Any
 from adapters.richland_library.config import DEFAULT_CITY, DEFAULT_VENUE, SOURCE_NAME
 
 EVENT_BLOCK_RE = re.compile(r'<div class="s-lc-mc-evt".*?</div>\s*</div>', re.DOTALL)
-ANCHOR_RE = re.compile(r'<a\s+href="(?P<url>[^"]+)"(?P<attrs>.*?)>(?P<title>.*?)</a>', re.DOTALL)
 DATA_CONTENT_RE = re.compile(r'data-content="(?P<content>.*?)"\s*>', re.DOTALL)
 LOCATION_RE = re.compile(r'<div class="s-lc-mc-evt-loc">(?P<location>.*?)</div>', re.DOTALL)
 TIME_RE = re.compile(r'<div class="s-lc-mc-evt-time">(?P<time>.*?)</div>', re.DOTALL)
@@ -39,13 +38,12 @@ def parse_monthly_html(fragment: str) -> list[dict[str, Any]]:
 
 
 def parse_event_block(block: str) -> dict[str, Any] | None:
-    """Parse one LibCal event block."""
-    anchor = ANCHOR_RE.search(block)
-    if not anchor:
+    """Parse one LibCal event block using structured anchor and popover fields."""
+    anchor = parse_event_anchor(block)
+    if anchor is None:
         return None
 
-    url = html.unescape(anchor.group("url")).strip()
-    title = clean_text(anchor.group("title"))
+    url, title = anchor
     source_event_id = extract_event_id(url)
     location = clean_text(match_or_empty(LOCATION_RE, block, "location"))
     visible_time = clean_text(match_or_empty(TIME_RE, block, "time"))
@@ -79,6 +77,24 @@ def parse_event_block(block: str) -> dict[str, Any] | None:
         "source_room": location or None,
         "presenter": presenter,
     }
+
+
+def parse_event_anchor(block: str) -> tuple[str, str] | None:
+    """Return the event URL and clean title from the first LibCal event anchor.
+
+    LibCal embeds HTML inside ``data-content``. Regex-based opening-tag parsing can
+    therefore mistake popover prose for anchor text. HTMLParser understands quoted
+    attributes and keeps that metadata out of the title.
+    """
+    parser = _EventAnchorParser()
+    parser.feed(block)
+    if not parser.url:
+        return None
+
+    title = clean_title(" ".join(parser.title_parts))
+    if not title:
+        return None
+    return html.unescape(parser.url).strip(), title
 
 
 def parse_popover_details(block: str) -> dict[str, str]:
@@ -143,6 +159,22 @@ def match_or_empty(pattern: re.Pattern[str], text: str, group: str) -> str:
     return match.group(group) if match else ""
 
 
+def clean_title(value: str | None) -> str | None:
+    """Normalize title text and remove adjacent duplicated accessibility prefixes."""
+    title = clean_text(value)
+    if not title:
+        return None
+
+    # Some LibCal anchors emit the same accessible-label prefix twice without a
+    # separator, e.g. ``Family Movies ofFamily Movies of the 1990s``.
+    folded = title.casefold()
+    for length in range(len(title) // 2, 7, -1):
+        if folded[:length] == folded[length : length * 2]:
+            title = title[length:].lstrip(" :-–—|")
+            break
+    return title or None
+
+
 def clean_text(value: str | None) -> str | None:
     """Strip HTML tags and normalize whitespace."""
     if value is None:
@@ -152,6 +184,36 @@ def clean_text(value: str | None) -> str | None:
     text = html.unescape(text)
     text = re.sub(r"\s+", " ", text).strip()
     return text or None
+
+
+class _EventAnchorParser(HTMLParser):
+    """Extract visible text from the first anchor whose URL is a LibCal event."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.url: str | None = None
+        self.in_event_anchor = False
+        self.done = False
+        self.title_parts: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if self.done or tag.casefold() != "a":
+            return
+        values = {name.casefold(): value for name, value in attrs}
+        href = values.get("href") or ""
+        if "/event/" not in href:
+            return
+        self.url = href
+        self.in_event_anchor = True
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.casefold() == "a" and self.in_event_anchor:
+            self.in_event_anchor = False
+            self.done = True
+
+    def handle_data(self, data: str) -> None:
+        if self.in_event_anchor and data.strip():
+            self.title_parts.append(data)
 
 
 class _TextExtractor(HTMLParser):
