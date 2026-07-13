@@ -2,13 +2,14 @@
 
 Attempt_35_DualPublisher
 Attempt_38_CategoryIntelligence
+Attempt_42_ExplainableIntelligence
 """
 
 from __future__ import annotations
 
 from collections import Counter
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Any, Iterable, Mapping, Sequence
 
 from src.publisher_editorial import EditorialEvent
 
@@ -53,6 +54,12 @@ def render_publisher_audit(
         for reason, count in sorted(category_reasons.items()):
             lines.append(f"  {reason}: {count}")
 
+    intelligence_counts = _intelligence_counts(rows)
+    if intelligence_counts:
+        lines.extend(["", "Intelligence decisions:"])
+        for (field, reason), count in sorted(intelligence_counts.items()):
+            lines.append(f"  {field} | {reason}: {count}")
+
     review_reasons = Counter(
         event.editorial_reason or "unspecified"
         for event in rows
@@ -64,6 +71,20 @@ def render_publisher_audit(
             lines.append(f"  {reason}: {count}")
 
     return "\n".join(lines) + "\n"
+
+
+def _intelligence_counts(events: Iterable[EditorialEvent]) -> Counter[tuple[str, str]]:
+    counts: Counter[tuple[str, str]] = Counter()
+    for event in events:
+        intelligence = getattr(event, "intelligence", None)
+        if not isinstance(intelligence, Mapping):
+            continue
+        for field, payload in intelligence.items():
+            if not isinstance(payload, Mapping):
+                continue
+            reason = str(payload.get("reason") or "unspecified")
+            counts[(str(field), reason)] += 1
+    return counts
 
 
 def write_publisher_audit(
