@@ -1,7 +1,7 @@
 """Normalize AllEvents city pages from embedded JSON-LD.
 
-The collector deliberately ignores surrounding recommendation and FAQ prose. AllEvents
-mixes local listings with nearby recommendations; geography remains a downstream concern.
+The collector uses JSON-LD for event detail and the visible local-results section for
+eligibility. Cards after the global-results divider are recommendations, not local events.
 """
 
 from __future__ import annotations
@@ -18,6 +18,11 @@ from adapters.contract import CanonicalEvent
 
 
 _SPACE_RE = re.compile(r"\s+")
+_EVENT_ID_RE = re.compile(r'data-eid=["\'](?P<id>\d+)["\']', re.IGNORECASE)
+_GLOBAL_RESULTS_RE = re.compile(
+    r"results\s+for\s+selected\s+filters\s+around\s+the\s+globe",
+    re.IGNORECASE,
+)
 _EVENT_TYPES = {
     "event",
     "businessevent",
@@ -68,15 +73,19 @@ class _JsonLdExtractor(HTMLParser):
 
 
 def parse_pages(pages: dict[str, str] | Iterable[str]) -> list[CanonicalEvent]:
-    """Parse one or more AllEvents city pages and deduplicate repeated occurrences."""
+    """Parse AllEvents city pages and deduplicate repeated occurrences."""
     page_values = pages.values() if isinstance(pages, dict) else pages
     events: list[CanonicalEvent] = []
     seen: set[tuple[str, str, str]] = set()
 
     for html in page_values:
+        eligible_ids = _eligible_event_ids(html)
         for node in _event_nodes(html):
             event = _normalize_event(node)
             if event is None:
+                continue
+            source_id = str(event.get("source_event_id") or "")
+            if eligible_ids is not None and source_id not in eligible_ids:
                 continue
             identity = (
                 str(event.get("url") or ""),
@@ -89,6 +98,20 @@ def parse_pages(pages: dict[str, str] | Iterable[str]) -> list[CanonicalEvent]:
             events.append(event)
 
     return events
+
+
+def _eligible_event_ids(html: str) -> set[str] | None:
+    """Return card IDs before the global-results divider, when that divider exists.
+
+    ``None`` means the page exposes no recognized boundary, so JSON-LD remains the
+    authoritative source. An empty set means a boundary was present but no local cards
+    preceded it; in that case no JSON-LD event is eligible.
+    """
+    boundary = _GLOBAL_RESULTS_RE.search(html)
+    if boundary is None:
+        return None
+    local_html = html[: boundary.start()]
+    return {match.group("id") for match in _EVENT_ID_RE.finditer(local_html)}
 
 
 def _event_nodes(html: str) -> Iterable[dict[str, Any]]:
