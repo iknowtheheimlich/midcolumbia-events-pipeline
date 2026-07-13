@@ -1,8 +1,10 @@
-"""Compatibility helpers for the additive explainable-intelligence mapping."""
+"""Compatibility helper delegating to the canonical intelligence contract."""
 
 from __future__ import annotations
 
 from typing import Any
+
+from src.intelligence import attach_intelligence
 
 
 def add_decision(
@@ -12,12 +14,8 @@ def add_decision(
     confidence: float,
     reason: str,
 ) -> dict[str, Any]:
-    """Add one JSON-safe intelligence decision without changing flat fields."""
-    intelligence = dict(event.get("intelligence") or {})
-    intelligence[field] = {
-        "value": value,
-        "confidence": float(confidence),
-        "reason": str(reason),
-    }
-    event["intelligence"] = intelligence
+    """Attach one decision while preserving the legacy mutating call shape."""
+    updated = attach_intelligence(event, field, value, confidence, reason)
+    event.clear()
+    event.update(updated)
     return event
