@@ -6,6 +6,7 @@ Attempt_34_NotionPresentationLayer
 Attempt_38_CategoryIntelligence
 Attempt_40_EditorialStyleIntelligence
 Attempt_42_ExplainableIntelligence
+Attempt_50_VenuePresentationProfile
 """
 
 from __future__ import annotations
@@ -78,12 +79,11 @@ def apply_editorial_rules(
     profile: PublishingProfile | None = None,
 ) -> EditorialEvent:
     active_profile = profile or PublishingProfile.load()
-    display_city = _clean_optional(event.city) or ""
+    display_city = _clean_optional(event.display_city or event.city) or ""
     base_venue = _display_venue(event, display_city)
 
     # Venue Reddit Combo is a curated, opaque Notion presentation fragment.
-    # Editorial style may clean the title, but must not rewrite the combo or
-    # strip its city suffix. Synthesized venue text remains style-managed.
+    # All other venue presentation is already authoritative at projection time.
     style_city = None if event.venue_reddit_combo else display_city
     display_title, display_venue, style_reason = derive_display_fields(
         event.title,
@@ -102,6 +102,13 @@ def apply_editorial_rules(
         {"title": display_title, "venue": display_venue},
         1.0,
         style_reason,
+    )["intelligence"]
+    explanation = attach_intelligence(
+        {"intelligence": explanation},
+        "venue_presentation",
+        {"venue": display_venue, "city": display_city, "url": event.display_url},
+        1.0,
+        event.venue_presentation_reason or "legacy_fallback",
     )["intelligence"]
 
     return EditorialEvent(
@@ -201,7 +208,7 @@ def _publication_disposition(
 
 
 def _publication_url(event: PublisherEvent) -> str:
-    for value in (event.external_url, event.eventbrite_url, event.source_url):
+    for value in (event.display_url, event.external_url, event.eventbrite_url, event.source_url):
         if value and value.strip():
             return value.strip()
     return event.source_url
@@ -210,11 +217,13 @@ def _publication_url(event: PublisherEvent) -> str:
 def _display_venue(event: PublisherEvent, city: str) -> str:
     if event.venue_reddit_combo:
         return _clean_text(event.venue_reddit_combo)
+    if event.display_venue:
+        return _clean_text(event.display_venue)
 
+    # Compatibility fallback for manually constructed PublisherEvent instances.
     venue = _normalize_venue(event.venue)
     parent = _normalize_venue(event.parent_venue) if event.parent_venue else None
     detail = _clean_optional(event.venue_detail)
-
     if city:
         venue = _remove_duplicate_city(venue, city)
         if parent:
