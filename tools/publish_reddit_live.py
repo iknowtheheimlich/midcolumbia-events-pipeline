@@ -7,6 +7,7 @@ Attempt_38_CategoryIntelligence
 Attempt_41_ProgramIntelligence
 Attempt_43_OccurrenceResolution
 Attempt_44_PipelineInspector
+Attempt_46_TimeSemantics
 
 This command is the production path. It does not read tracked event fixtures
 except where an enabled migration bridge explicitly defines that behavior.
@@ -111,6 +112,7 @@ def main() -> int:
         enrich_geography=True,
         screen_content=True,
         enrich_categories=True,
+        enrich_time_semantics=True,
     )
 
     weekly_projection = [
