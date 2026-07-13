@@ -7,6 +7,7 @@ mixes local listings with nearby recommendations; geography remains a downstream
 from __future__ import annotations
 
 from datetime import datetime
+from html import unescape
 from html.parser import HTMLParser
 import json
 import re
@@ -17,11 +18,27 @@ from adapters.contract import CanonicalEvent
 
 
 _SPACE_RE = re.compile(r"\s+")
-_EVENT_TYPES = {"event", "businessevent", "childrensevent", "comedyEvent".casefold(),
-                "danceevent", "deliveryevent", "educationevent", "exhibitionevent",
-                "festivalevent", "foodevent", "literaryevent", "musicevent",
-                "publicationevent", "saleevent", "screeningevent", "socialevent",
-                "sportsevent", "theaterevent", "visualartsevent"}
+_EVENT_TYPES = {
+    "event",
+    "businessevent",
+    "childrensevent",
+    "comedyevent",
+    "danceevent",
+    "deliveryevent",
+    "educationevent",
+    "exhibitionevent",
+    "festivalevent",
+    "foodevent",
+    "literaryevent",
+    "musicevent",
+    "publicationevent",
+    "saleevent",
+    "screeningevent",
+    "socialevent",
+    "sportsevent",
+    "theaterevent",
+    "visualartsevent",
+}
 
 
 class _JsonLdExtractor(HTMLParser):
@@ -51,7 +68,7 @@ class _JsonLdExtractor(HTMLParser):
 
 
 def parse_pages(pages: dict[str, str] | Iterable[str]) -> list[CanonicalEvent]:
-    """Parse one or more AllEvents city pages and deduplicate repeated listing URLs."""
+    """Parse one or more AllEvents city pages and deduplicate repeated occurrences."""
     page_values = pages.values() if isinstance(pages, dict) else pages
     events: list[CanonicalEvent] = []
     seen: set[tuple[str, str, str]] = set()
@@ -98,28 +115,24 @@ def _walk_events(value: Any) -> Iterable[dict[str, Any]]:
     if any(str(item).casefold() in _EVENT_TYPES for item in types if item):
         yield value
 
-    graph = value.get("@graph")
-    if graph is not None:
-        yield from _walk_events(graph)
-    items = value.get("itemListElement")
-    if items is not None:
-        yield from _walk_events(items)
-    item = value.get("item")
-    if item is not None:
-        yield from _walk_events(item)
+    for field in ("@graph", "itemListElement", "item"):
+        nested = value.get(field)
+        if nested is not None:
+            yield from _walk_events(nested)
 
 
 def _normalize_event(node: dict[str, Any]) -> CanonicalEvent | None:
     title = _text(node.get("name"))
     url = _text(node.get("url") or node.get("@id"))
-    start = _parse_datetime(node.get("startDate"))
+    start_raw = _text(node.get("startDate"))
+    start = _parse_datetime(start_raw)
     if not title or not url or start is None:
         return None
 
-    end = _parse_datetime(node.get("endDate"))
-    location = node.get("location") if isinstance(node.get("location"), dict) else {}
-    address = location.get("address") if isinstance(location.get("address"), dict) else {}
-    organizer = node.get("organizer") if isinstance(node.get("organizer"), dict) else {}
+    end_raw = _text(node.get("endDate"))
+    end = _parse_datetime(end_raw)
+    location = _first_mapping(node.get("location"))
+    address = _first_mapping(location.get("address"))
 
     venue = _text(location.get("name")) or _text(address.get("streetAddress")) or "Online"
     city = _text(address.get("addressLocality"))
@@ -136,10 +149,10 @@ def _normalize_event(node: dict[str, Any]) -> CanonicalEvent | None:
         "state": state,
         "address": full_address,
         "start_date": start.date().isoformat(),
-        "start_time": start.strftime("%H:%M"),
+        "start_time": start.strftime("%H:%M") if _has_explicit_time(start_raw) else None,
         "end_date": end.date().isoformat() if end else None,
-        "end_time": end.strftime("%H:%M") if end else None,
-        "organization": _text(organizer.get("name")),
+        "end_time": end.strftime("%H:%M") if end and _has_explicit_time(end_raw) else None,
+        "organization": _organization_name(node.get("organizer")),
         "url": url,
         "external_url": url,
         "source": "AllEvents",
@@ -168,6 +181,34 @@ def _parse_datetime(value: Any) -> datetime | None:
     return None
 
 
+def _has_explicit_time(value: Any) -> bool:
+    text = _text(value)
+    if not text:
+        return False
+    return bool(re.search(r"(?:T|\s)\d{1,2}:\d{2}", text))
+
+
+def _organization_name(value: Any) -> str | None:
+    if isinstance(value, list):
+        names: list[str] = []
+        for item in value:
+            name = _organization_name(item)
+            if name and name not in names:
+                names.append(name)
+        return ", ".join(names) if names else None
+    if isinstance(value, dict):
+        return _text(value.get("name"))
+    return _text(value)
+
+
+def _first_mapping(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, list):
+        return next((item for item in value if isinstance(item, dict)), {})
+    return {}
+
+
 def _source_category(node: dict[str, Any]) -> str | None:
     for field in ("eventType", "category", "keywords"):
         value = node.get(field)
@@ -184,7 +225,11 @@ def _source_category(node: dict[str, Any]) -> str | None:
 
 def _image_url(value: Any) -> str | None:
     if isinstance(value, list):
-        return next((_image_url(item) for item in value if _image_url(item)), None)
+        for item in value:
+            image = _image_url(item)
+            if image:
+                return image
+        return None
     if isinstance(value, dict):
         return _text(value.get("url") or value.get("contentUrl"))
     return _text(value)
@@ -209,5 +254,5 @@ def _join_address(*parts: str | None) -> str | None:
 def _text(value: Any) -> str | None:
     if value is None or isinstance(value, (dict, list)):
         return None
-    text = _SPACE_RE.sub(" ", str(value)).strip()
+    text = _SPACE_RE.sub(" ", unescape(str(value))).strip()
     return text or None
