@@ -3,14 +3,16 @@
 Attempt_29_PublisherModelAdapter
 Attempt_34_NotionPresentationLayer
 Attempt_38_CategoryIntelligence
+Attempt_42_ExplainableIntelligence
 """
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Any, Iterable
 
 from adapters.eventbrite.bridge import extract_event_id, first_eventbrite_url
+from src.intelligence import normalize_intelligence
 
 
 @dataclass(frozen=True)
@@ -52,6 +54,7 @@ class PublisherEvent:
     venue_registry_name: str | None = None
     category_confidence: float | None = None
     category_reason: str | None = None
+    intelligence: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
@@ -110,6 +113,7 @@ def project_event(event: dict[str, Any]) -> PublisherEvent:
         venue_registry_name=_optional_text(event.get("venue_registry_name")),
         category_confidence=_optional_float(event.get("category_confidence")),
         category_reason=_optional_text(event.get("category_reason")),
+        intelligence=normalize_intelligence(event.get("intelligence")),
     )
 
 
