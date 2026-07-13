@@ -16,6 +16,7 @@ LOCATION_RE = re.compile(r'<div class="s-lc-mc-evt-loc">(?P<location>.*?)</div>'
 TIME_RE = re.compile(r'<div class="s-lc-mc-evt-time">(?P<time>.*?)</div>', re.DOTALL)
 DETAIL_ROW_RE = re.compile(r"<dt>(?P<label>.*?)</dt>\s*<dd>(?P<value>.*?)</dd>", re.DOTALL)
 EVENT_ID_RE = re.compile(r"/event/(?P<id>\d+)")
+_WORD_RE = re.compile(r"[a-z0-9]+")
 
 
 def parse_monthly_html(fragment: str) -> list[dict[str, Any]]:
@@ -91,7 +92,7 @@ def parse_event_anchor(block: str) -> tuple[str, str] | None:
     if not parser.url:
         return None
 
-    title = clean_title(" ".join(parser.title_parts))
+    title = clean_title(_compose_title_parts(parser.title_parts))
     if not title:
         return None
     return html.unescape(parser.url).strip(), title
@@ -128,7 +129,6 @@ def parse_detail_datetime(value: str) -> tuple[str | None, str | None]:
             return parsed.date().isoformat(), parsed.strftime("%H:%M")
         except ValueError:
             continue
-
     return None, None
 
 
@@ -159,14 +159,48 @@ def match_or_empty(pattern: re.Pattern[str], text: str, group: str) -> str:
     return match.group(group) if match else ""
 
 
+def _compose_title_parts(parts: list[str]) -> str:
+    """Compose visible anchor fragments without duplicating accessibility labels."""
+    cleaned = [clean_text(part) for part in parts]
+    candidates = [part for part in cleaned if part]
+    if not candidates:
+        return ""
+
+    # Prefer the longest fragment when shorter fragments are already represented in it.
+    # LibCal commonly emits a visible title plus accessible-label fragments in the same
+    # anchor. Those fragments must not be concatenated into a synthetic title.
+    ordered = sorted(enumerate(candidates), key=lambda item: (-len(item[1]), item[0]))
+    kept: list[tuple[int, str]] = []
+    for original_index, candidate in ordered:
+        candidate_words = _word_tuple(candidate)
+        if any(_fragment_is_redundant(candidate_words, _word_tuple(existing)) for _, existing in kept):
+            continue
+        kept.append((original_index, candidate))
+
+    kept.sort(key=lambda item: item[0])
+    return " ".join(value for _, value in kept)
+
+
+def _fragment_is_redundant(fragment: tuple[str, ...], container: tuple[str, ...]) -> bool:
+    if not fragment or len(fragment) > len(container):
+        return False
+    if len(fragment) <= 2:
+        return all(word in container for word in fragment)
+    width = len(fragment)
+    return any(container[index : index + width] == fragment for index in range(len(container) - width + 1))
+
+
+def _word_tuple(value: str) -> tuple[str, ...]:
+    return tuple(_WORD_RE.findall(value.casefold()))
+
+
 def clean_title(value: str | None) -> str | None:
     """Normalize title text and remove adjacent duplicated accessibility prefixes."""
     title = clean_text(value)
     if not title:
         return None
 
-    # Some LibCal anchors emit the same accessible-label prefix twice without a
-    # separator, e.g. ``Family Movies ofFamily Movies of the 1990s``.
+    # Compatibility backstop for already-flattened fixture or legacy input.
     folded = title.casefold()
     for length in range(len(title) // 2, 7, -1):
         if folded[:length] == folded[length : length * 2]:
@@ -176,12 +210,13 @@ def clean_title(value: str | None) -> str | None:
 
 
 def clean_text(value: str | None) -> str | None:
-    """Strip HTML tags and normalize whitespace."""
+    """Strip HTML tags, decode entities, and normalize whitespace."""
     if value is None:
         return None
     text = html.unescape(value)
     text = _TextExtractor.extract(text)
     text = html.unescape(text)
+    text = text.replace("\u00a0", " ").replace("\u200b", "")
     text = re.sub(r"\s+", " ", text).strip()
     return text or None
 
