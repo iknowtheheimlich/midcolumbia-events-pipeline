@@ -46,9 +46,9 @@ def enrich_event_time_semantics(event: dict[str, Any]) -> dict[str, Any]:
 
     if all_day:
         copied["all_day"] = True
-        copied["start_time"] = None
+        copied["start_time"] = "All day"
         copied["end_time"] = None
-        reasons.append("clock_times_removed")
+        reasons.append("clock_times_replaced_with_all_day")
     else:
         copied["all_day"] = False
         if end in _END_OF_DAY_VALUES:
