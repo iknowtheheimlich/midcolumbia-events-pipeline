@@ -1,6 +1,7 @@
 """Evidence-based resolution of source records describing the same occurrence.
 
 Attempt_43_OccurrenceResolution
+Attempt_49_OccurrenceResolutionTuning
 
 The resolver merges provenance, not programs. Separate legitimate sessions remain
 separate occurrences for downstream Program Intelligence.
@@ -11,11 +12,40 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from difflib import SequenceMatcher
+import re
 from typing import Any, Iterable
 
 from adapters.registry import SOURCE_REGISTRY
 from src.explainable_intelligence import add_decision
 from src.deduplicate import normalize_text
+
+
+_WORD_RE = re.compile(r"[a-z0-9]+")
+_PROMOTIONAL_WORDS = {
+    "live",
+    "featuring",
+    "presents",
+    "presenting",
+    "hosted",
+    "normal",
+}
+_VENUE_NOISE = {
+    "the",
+    "estate",
+    "vineyards",
+    "vineyard",
+    "winery",
+    "cellars",
+    "distillery",
+    "tasting",
+    "room",
+    "cocktail",
+    "lounge",
+    "bar",
+    "grill",
+    "company",
+    "co",
+}
 
 
 @dataclass(frozen=True)
@@ -97,11 +127,10 @@ def compare_occurrences(left: dict[str, Any], right: dict[str, Any]) -> Occurren
     if left_eventbrite and left_eventbrite == right_eventbrite:
         return OccurrenceEvidence(1.0, ("same_eventbrite_id", "same_date"))
 
-    left_venue = normalize_text(left.get("venue_id") or left.get("venue"))
-    right_venue = normalize_text(right.get("venue_id") or right.get("venue"))
-    if left_venue and left_venue == right_venue:
-        confidence += 0.30
-        reasons.append("same_venue")
+    venue_match = _venue_match_reason(left, right)
+    if venue_match:
+        confidence += 0.32
+        reasons.append(venue_match)
     else:
         return OccurrenceEvidence(confidence, tuple(reasons + ["different_venue"]))
 
@@ -110,19 +139,27 @@ def compare_occurrences(left: dict[str, Any], right: dict[str, Any]) -> Occurren
         confidence += 0.25
         reasons.append("start_time_within_10m")
     elif time_delta is None:
+        # Missing time is not positive evidence. A merge can still succeed only with
+        # exceptionally strong title and venue evidence.
         reasons.append("missing_start_time")
     else:
         return OccurrenceEvidence(confidence, tuple(reasons + ["different_start_time"]))
 
-    title_score = _title_similarity(left, right)
-    if title_score >= 0.90:
-        confidence += 0.25
-        reasons.append(f"title_similarity={title_score:.2f}")
-    elif title_score >= 0.75:
+    title_score, title_reason = _title_similarity(left, right)
+    if title_score >= 0.92:
+        confidence += 0.28
+        reasons.append(f"{title_reason}={title_score:.2f}")
+    elif title_score >= 0.80:
+        confidence += 0.22
+        reasons.append(f"{title_reason}={title_score:.2f}")
+    elif title_score >= 0.70 and time_delta is not None and time_delta <= 10:
         confidence += 0.18
-        reasons.append(f"title_similarity={title_score:.2f}")
+        reasons.append(f"{title_reason}={title_score:.2f}")
     else:
-        return OccurrenceEvidence(confidence, tuple(reasons + [f"title_similarity={title_score:.2f}"]))
+        return OccurrenceEvidence(
+            confidence,
+            tuple(reasons + [f"{title_reason}={title_score:.2f}"]),
+        )
 
     return OccurrenceEvidence(min(confidence, 1.0), tuple(reasons))
 
@@ -138,7 +175,7 @@ def _merge_cluster(group: list[dict[str, Any]], evidence: OccurrenceEvidence | N
         source = str(event.get("source") or "").strip()
         if source and source not in sources:
             sources.append(source)
-        for url in _urls(event):
+        for url in sorted(_urls(event)):
             if url not in urls:
                 urls.append(url)
         provenance.extend(event.get("occurrence_provenance") or [_summarize(event)])
@@ -169,14 +206,98 @@ def _source_priority(event: dict[str, Any]) -> tuple[int, int]:
     return priority, richness
 
 
-def _title_similarity(left: dict[str, Any], right: dict[str, Any]) -> float:
-    a = normalize_text(left.get("title"))
-    b = normalize_text(right.get("title"))
+def _title_similarity(left: dict[str, Any], right: dict[str, Any]) -> tuple[float, str]:
+    raw_a = normalize_text(left.get("title"))
+    raw_b = normalize_text(right.get("title"))
+    if not raw_a or not raw_b:
+        return 0.0, "title_similarity"
+    if raw_a == raw_b:
+        return 1.0, "exact_title"
+
+    a = _identity_title(raw_a, left)
+    b = _identity_title(raw_b, right)
+    if a == b:
+        return 1.0, "normalized_title"
+
+    sequence = SequenceMatcher(None, a, b).ratio()
+    token_score = _token_similarity(a, b)
+    score = max(sequence, token_score)
+    reason = "title_token_similarity" if token_score >= sequence else "title_similarity"
+    return score, reason
+
+
+def _identity_title(value: str, event: dict[str, Any]) -> str:
+    text = value.casefold()
+    text = re.sub(r"\b(?:live|normal)\b", " ", text)
+    text = re.sub(r"\bhosted\s+by\b", " ", text)
+    text = re.sub(r"\b(?:at|@)\s+.+$", " ", text)
+
+    venue_phrases = {
+        normalize_text(event.get(field))
+        for field in ("venue", "venue_registry_name", "parent_venue", "venue_parent")
+    }
+    for venue in sorted((item for item in venue_phrases if item), key=len, reverse=True):
+        text = re.sub(rf"\b(?:at|@)\s+{re.escape(venue.casefold())}\b.*$", " ", text)
+
+    words = [word for word in _WORD_RE.findall(text) if word not in _PROMOTIONAL_WORDS]
+    return " ".join(words)
+
+
+def _token_similarity(left: str, right: str) -> float:
+    a = set(_WORD_RE.findall(left))
+    b = set(_WORD_RE.findall(right))
     if not a or not b:
         return 0.0
-    if a == b:
-        return 1.0
-    return SequenceMatcher(None, a, b).ratio()
+    overlap = len(a & b)
+    containment = overlap / min(len(a), len(b))
+    jaccard = overlap / len(a | b)
+    return max(jaccard, containment * 0.96)
+
+
+def _venue_match_reason(left: dict[str, Any], right: dict[str, Any]) -> str | None:
+    left_ids = _venue_ids(left)
+    right_ids = _venue_ids(right)
+    if left_ids & right_ids:
+        return "same_venue_id"
+
+    left_names = _venue_names(left)
+    right_names = _venue_names(right)
+    if left_names & right_names:
+        return "same_canonical_venue"
+    return None
+
+
+def _venue_ids(event: dict[str, Any]) -> set[str]:
+    fields = ("venue_id", "parent_venue_id", "venue_parent_id")
+    return {
+        normalize_text(event.get(field))
+        for field in fields
+        if normalize_text(event.get(field))
+    }
+
+
+def _venue_names(event: dict[str, Any]) -> set[str]:
+    fields = (
+        "venue_registry_name",
+        "venue",
+        "parent_venue",
+        "venue_parent",
+        "organization",
+    )
+    names: set[str] = set()
+    for field in fields:
+        value = normalize_text(event.get(field))
+        if not value:
+            continue
+        normalized = _normalize_venue_name(value)
+        if normalized:
+            names.add(normalized)
+    return names
+
+
+def _normalize_venue_name(value: str) -> str:
+    words = [word for word in _WORD_RE.findall(value.casefold()) if word not in _VENUE_NOISE]
+    return " ".join(words)
 
 
 def _time_delta_minutes(left: Any, right: Any) -> int | None:
