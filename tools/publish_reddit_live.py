@@ -1,17 +1,7 @@
 """Harvest enabled sources and generate dual weekly Reddit artifacts.
 
-Attempt_32_LiveProductionPublisher
-Attempt_35_DualPublisher
-Attempt_36_SourceRegistry
-Attempt_38_CategoryIntelligence
-Attempt_41_ProgramIntelligence
-Attempt_43_OccurrenceResolution
-Attempt_44_PipelineInspector
-Attempt_46_TimeSemantics
-Attempt_52_ReviewTrainer
-
-This command is the production path. It does not read tracked event fixtures
-except where an enabled migration bridge explicitly defines that behavior.
+This command is the production path. It does not read tracked event fixtures except
+where an enabled migration bridge explicitly defines that behavior.
 """
 
 from __future__ import annotations
@@ -22,30 +12,16 @@ from pathlib import Path
 
 from adapters.harvest import HarvestOptions, harvest_adapter
 from adapters.registry import SOURCE_REGISTRY
+from src.harvest_health import assess_harvest_health, degraded_artifact_path
 from src.pipeline import PipelineResult, SourceBatch, run_pipeline
 from src.pipeline_inspector import DEFAULT_INSPECTOR_PATH, write_pipeline_inspector
 from src.program_intelligence import group_editorial_programs
 from src.publisher_audit import default_audit_path, write_publisher_audit
-from src.publisher_editorial import (
-    EditorialEvent,
-    community_events,
-    main_events,
-    rejected_events,
-    review_events,
-)
+from src.publisher_editorial import EditorialEvent, community_events, main_events, rejected_events, review_events
 from src.publishing_contract import PublishingProfile
-from src.reddit_renderer import (
-    default_community_artifact_path,
-    default_main_artifact_path,
-    render_program_line,
-    write_reddit_artifact,
-)
+from src.reddit_renderer import default_community_artifact_path, default_main_artifact_path, render_program_line, write_reddit_artifact
 from src.review_trainer import DEFAULT_REVIEW_TRAINING_PATH, write_review_training_artifact
-from src.source_metrics import (
-    DEFAULT_SOURCE_METRICS_PATH,
-    build_source_metrics,
-    write_source_metrics,
-)
+from src.source_metrics import DEFAULT_SOURCE_METRICS_PATH, build_source_metrics, write_source_metrics
 from src.venue_registry import VenueRegistry
 
 DEFAULT_REGISTRY = Path("generated/venue_registry/registry.json")
@@ -53,12 +29,7 @@ DEFAULT_REGISTRY = Path("generated/venue_registry/registry.json")
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--week-start",
-        type=_parse_date,
-        required=True,
-        help="First included date in YYYY-MM-DD format",
-    )
+    parser.add_argument("--week-start", type=_parse_date, required=True, help="First included date in YYYY-MM-DD format")
     parser.add_argument("--days", type=int, default=7)
     parser.add_argument("--months", type=int, default=2)
     parser.add_argument("--registry", type=Path, default=DEFAULT_REGISTRY)
@@ -68,22 +39,11 @@ def main() -> int:
     parser.add_argument("--output-audit", type=Path)
     parser.add_argument("--output-source-metrics", type=Path)
     parser.add_argument("--output-review-training", type=Path)
-    parser.add_argument(
-        "--review-corrections",
-        type=Path,
-        help="Optional curated JSON corrections keyed by review fingerprint",
-    )
-    parser.add_argument(
-        "--inspect-title",
-        help="Write an HTML trace for records containing this title or text",
-    )
+    parser.add_argument("--review-corrections", type=Path, help="Optional curated JSON corrections keyed by review fingerprint")
+    parser.add_argument("--allow-degraded", action="store_true", help="Permit normal artifact paths despite failed live-source coverage")
+    parser.add_argument("--inspect-title", help="Write an HTML trace for records containing this title or text")
     parser.add_argument("--output-inspector", type=Path)
-    parser.add_argument(
-        "--source",
-        action="append",
-        choices=SOURCE_REGISTRY.names(),
-        help="Limit harvesting to configured source names, including disabled sources",
-    )
+    parser.add_argument("--source", action="append", choices=SOURCE_REGISTRY.names(), help="Limit harvesting to configured source names")
     args = parser.parse_args()
 
     if args.days < 1:
@@ -95,41 +55,28 @@ def main() -> int:
     if args.review_corrections and not args.review_corrections.exists():
         parser.error(f"review corrections not found: {args.review_corrections}")
     if not args.registry.exists():
-        parser.error(
-            f"venue registry not found: {args.registry}. "
-            "Run python -m tools.import_venue_registry first."
-        )
+        parser.error(f"venue registry not found: {args.registry}. Run python -m tools.import_venue_registry first.")
 
-    selected_adapters = (
-        [SOURCE_REGISTRY.get(name) for name in args.source]
-        if args.source
-        else SOURCE_REGISTRY.enabled()
-    )
+    selected_adapters = [SOURCE_REGISTRY.get(name) for name in args.source] if args.source else SOURCE_REGISTRY.enabled()
     source_names = [adapter.source_name for adapter in selected_adapters]
     options = HarvestOptions(fetch_raw=True, months=args.months)
     harvest_results = [harvest_adapter(adapter, options) for adapter in selected_adapters]
+    health = assess_harvest_health(selected_adapters, harvest_results)
+    blocked = health.degraded and not args.allow_degraded
 
-    batches = [
-        SourceBatch(source_name=result.source_name, events=result.normalized_events)
-        for result in harvest_results
-    ]
-    venue_registry = VenueRegistry.from_json(args.registry)
+    batches = [SourceBatch(source_name=result.source_name, events=result.normalized_events) for result in harvest_results]
     pipeline = run_pipeline(
         batches,
         deduplicate=True,
         resolve_cross_source_occurrences=True,
-        venue_registry=venue_registry,
+        venue_registry=VenueRegistry.from_json(args.registry),
         enrich_geography=True,
         screen_content=True,
         enrich_categories=True,
         enrich_time_semantics=True,
     )
 
-    weekly_projection = [
-        event
-        for event in pipeline.publisher_projection
-        if _in_week(event.start_date, args.week_start, args.days)
-    ]
+    weekly_projection = [event for event in pipeline.publisher_projection if _in_week(event.start_date, args.week_start, args.days)]
     editorial = _weekly_editorial_events(pipeline, args.week_start, args.days)
     main_publishable = main_events(editorial)
     community_publishable = community_events(editorial)
@@ -144,19 +91,15 @@ def main() -> int:
     audit_output = args.output_audit or default_audit_path()
     metrics_output = args.output_source_metrics or DEFAULT_SOURCE_METRICS_PATH
     review_training_output = args.output_review_training or DEFAULT_REVIEW_TRAINING_PATH
+    if blocked:
+        main_output = degraded_artifact_path(main_output)
+        community_output = degraded_artifact_path(community_output)
+        audit_output = degraded_artifact_path(audit_output)
+        metrics_output = degraded_artifact_path(metrics_output)
 
     write_reddit_artifact(main_programs, main_output, category_order=profile.category_order)
-    write_reddit_artifact(
-        community_programs,
-        community_output,
-        category_order=profile.category_order,
-    )
+    write_reddit_artifact(community_programs, community_output, category_order=profile.category_order)
     write_publisher_audit(editorial, audit_output, category_order=profile.category_order)
-    write_review_training_artifact(
-        review,
-        review_training_output,
-        corrections_path=args.review_corrections,
-    )
 
     source_metrics = build_source_metrics(
         selected_adapters,
@@ -167,16 +110,16 @@ def main() -> int:
     )
     write_source_metrics(source_metrics, metrics_output)
 
+    if not blocked:
+        write_review_training_artifact(review, review_training_output, corrections_path=args.review_corrections)
+
     inspector_output: Path | None = None
     if args.inspect_title:
         inspector_output = args.output_inspector or DEFAULT_INSPECTOR_PATH
-        collected = [
-            event
-            for result in harvest_results
-            for event in result.normalized_events
-        ]
+        if blocked:
+            inspector_output = degraded_artifact_path(inspector_output)
+        collected = [event for result in harvest_results for event in result.normalized_events]
         programs = [*main_programs, *community_programs]
-        rendered_lines = [render_program_line(program) for program in programs]
         write_pipeline_inspector(
             args.inspect_title,
             {
@@ -189,9 +132,12 @@ def main() -> int:
                 "Program projection": programs,
             },
             inspector_output,
-            rendered_lines=rendered_lines,
+            rendered_lines=[render_program_line(program) for program in programs],
         )
 
+    print(f"Production status: {health.status}{' (override)' if health.degraded and args.allow_degraded else ''}")
+    for item in health.failed_required_sources:
+        print(f"  {item.source_name}: {item.status} - {item.reason or 'live coverage unavailable'}")
     print(f"Sources: {len(harvest_results)} ({', '.join(source_names)})")
     print(f"Harvested events: {len(pipeline.all_events)}")
     print(f"Content rejected: {len(pipeline.content_rejected_events)}")
@@ -205,27 +151,20 @@ def main() -> int:
     print(f"Community artifact: {community_output}")
     print(f"Audit artifact: {audit_output}")
     print(f"Source metrics: {metrics_output}")
-    print(f"Review training: {review_training_output}")
+    if blocked:
+        print("Review training: skipped (degraded harvest)")
+    else:
+        print(f"Review training: {review_training_output}")
     if inspector_output is not None:
         print(f"Pipeline inspector: {inspector_output}")
-
     for result in harvest_results:
         if result.error:
             print(f"Warning: {result.source_name}: {result.error}")
+    return 2 if blocked else 0
 
-    return 0
 
-
-def _weekly_editorial_events(
-    pipeline: PipelineResult,
-    week_start: date,
-    days: int,
-) -> list[EditorialEvent]:
-    return [
-        event
-        for event in pipeline.editorial_projection
-        if _in_week(event.start_date, week_start, days)
-    ]
+def _weekly_editorial_events(pipeline: PipelineResult, week_start: date, days: int) -> list[EditorialEvent]:
+    return [event for event in pipeline.editorial_projection if _in_week(event.start_date, week_start, days)]
 
 
 def _in_week(value: str, week_start: date, days: int) -> bool:
