@@ -9,6 +9,7 @@ shown to humans and gives every presentation consumer the same name, URL, and ci
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 import json
 from pathlib import Path
 import re
@@ -57,17 +58,20 @@ class VenuePresentationProfile:
         return cls(rules, int(payload.get("profile_version", 1)))
 
     def present(self, event: dict[str, Any]) -> VenuePresentation:
-        canonical = _first_text(
-            event,
-            "venue_registry_name",
-            "venue",
-        ) or "Unknown Venue"
+        canonical = _first_text(event, "venue_registry_name", "venue") or "Unknown Venue"
         candidates = [
             _first_text(event, "venue_registry_name"),
             _first_text(event, "venue"),
             _first_text(event, "parent_venue", "venue_parent"),
         ]
-        rule = next((self.rules.get(_key(value)) for value in candidates if value and _key(value) in self.rules), None)
+        rule = next(
+            (
+                self.rules.get(_key(value))
+                for value in candidates
+                if value and _key(value) in self.rules
+            ),
+            None,
+        )
 
         if rule is not None:
             return VenuePresentation(
@@ -94,11 +98,16 @@ class VenuePresentationProfile:
         )
 
 
+@lru_cache(maxsize=1)
+def default_profile() -> VenuePresentationProfile:
+    return VenuePresentationProfile.load()
+
+
 def present_event(
     event: dict[str, Any],
     profile: VenuePresentationProfile | None = None,
 ) -> VenuePresentation:
-    return (profile or VenuePresentationProfile.load()).present(event)
+    return (profile or default_profile()).present(event)
 
 
 def _key(value: Any) -> str:
