@@ -114,9 +114,14 @@ def write_event_knowledge_graph(
 
 def _event_node(event: dict[str, Any]) -> GraphNode:
     title = _clean(event.get("title")) or "Untitled event"
-    identity = event.get("source_event_id") or event.get("url") or "|".join(
-        [_clean(event.get("source")), title, _clean(event.get("start_date")), _clean(event.get("start_time"))]
-    )
+    source = _clean(event.get("source"))
+    source_event_id = _clean(event.get("source_event_id"))
+    if source_event_id:
+        identity = f"{source}|{source_event_id}"
+    else:
+        identity = event.get("url") or "|".join(
+            [source, title, _clean(event.get("start_date")), _clean(event.get("start_time"))]
+        )
     return GraphNode(
         node_id=_stable_id("event", identity),
         node_type="EVENT",
