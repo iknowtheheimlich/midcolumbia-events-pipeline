@@ -3,6 +3,7 @@
 Attempt_40_EditorialStyleIntelligence
 Attempt_50_VenuePresentationProfile
 Attempt_60_TitleCanonicalization
+Attempt_61_MusicTitleCanonicalizer
 
 Canonical source fields remain unchanged. Title cleanup remains editorial policy; venue
 cleanup is a compatibility path used only when no authoritative venue presentation exists.
@@ -32,18 +33,38 @@ _MUSIC_LEADING_PROMO_RE = re.compile(
     r"^(?:(?:free\s+)?live(?:\s+music)?[!,:\s-]*(?:with|w/)?\s+)",
     re.IGNORECASE,
 )
-_MUSIC_ACTION_SUFFIX_RE = re.compile(
-    r"^(.+?)\s+(?:rocks?|rocking|performs?|performing|plays?|playing)\b.*$",
+_MUSIC_SERIES_PREFIX_RE = re.compile(
+    r"^(?:.+?\s+)?concert\s+series\s*[-:|]\s*",
     re.IGNORECASE,
 )
-_MUSIC_LIVE_VENUE_SUFFIX_RE = re.compile(
-    r"\s*[,|:-]?\s*live\s+(?:at|@)\s+.+?[!.,]*$",
+_MUSIC_GENRE_PREFIX_RE = re.compile(
+    r"^(?:live\s+)?(?:reggae|jazz|blues|rock|country|acoustic)\s+(?:with|featuring)\s+",
+    re.IGNORECASE,
+)
+_MUSIC_ACTION_SUFFIX_RE = re.compile(
+    r"^(.+?)\s+(?:rocks?|rocking|performs?|performing|plays?|playing)\b.*$",
     re.IGNORECASE,
 )
 _MUSIC_PROMO_SENTENCE_RE = re.compile(
     r"\s*!\s*(?:thirsty\s+thursday|friday\s+night|saturday\s+night|sunday\s+funday).*$",
     re.IGNORECASE,
 )
+_MUSIC_TRAILING_PROMO_RE = re.compile(
+    r"\s+(?:sunday\s+funday|summer\s+concert\s+series|concert\s+series|in\s+concert)\s*$",
+    re.IGNORECASE,
+)
+_MUSIC_TRAILING_VENUE_RE = re.compile(r"\s+(?:at|@)\s+.+$", re.IGNORECASE)
+_MUSIC_BILLING_SEPARATOR_RE = re.compile(
+    r"\s+(?:featuring|feat\.?|w/)\s+",
+    re.IGNORECASE,
+)
+_MUSIC_LIVE_TOKEN_RE = re.compile(r"(?:\s*,?\s*\bLIVE\b\s*)", re.IGNORECASE)
+_MUSIC_TRIBUTE_DESCRIPTOR_RE = re.compile(
+    r"\s*\([^)]*tribute[^)]*\)",
+    re.IGNORECASE,
+)
+_MUSIC_KNOWN_PROMO_DESCRIPTOR_RE = re.compile(r"\s+Saxxidelic\s*$", re.IGNORECASE)
+_MUSIC_SHOW_DESCRIPTOR_RE = re.compile(r"\s+Beach\s+Boys\s+Show\s*$", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -144,32 +165,32 @@ def _display_title(
         ).strip()
 
     if _key(category) == _MUSIC_CATEGORY:
-        cleaned = _canonicalize_music_title(cleaned, venue)
+        cleaned = _canonicalize_music_title(cleaned)
 
-    return _clean(cleaned).strip(" !,|:-–—") or title
+    return _clean(cleaned).strip(" !,|:\"'–—") or title
 
 
-def _canonicalize_music_title(title: str, venue: str) -> str:
-    """Reduce promotional music copy to the performer billing."""
-    cleaned = _MUSIC_LEADING_PROMO_RE.sub("", title).strip()
+def _canonicalize_music_title(title: str) -> str:
+    """Reduce promotional music copy to stable performer billing."""
+    cleaned = _clean(title)
+    cleaned = _MUSIC_SERIES_PREFIX_RE.sub("", cleaned).strip()
+    cleaned = _MUSIC_LEADING_PROMO_RE.sub("", cleaned).strip()
+    cleaned = _MUSIC_GENRE_PREFIX_RE.sub("", cleaned).strip()
     cleaned = _MUSIC_PROMO_SENTENCE_RE.sub("", cleaned).strip()
-    cleaned = _MUSIC_LIVE_VENUE_SUFFIX_RE.sub("", cleaned).strip()
-
-    if venue:
-        escaped = re.escape(venue)
-        cleaned = re.sub(
-            rf"\s+(?:at|@)\s+{escaped}\s*[!.,]*$",
-            "",
-            cleaned,
-            flags=re.IGNORECASE,
-        ).strip()
+    cleaned = _MUSIC_TRIBUTE_DESCRIPTOR_RE.sub("", cleaned).strip()
+    cleaned = _MUSIC_LIVE_TOKEN_RE.sub(" ", cleaned).strip()
+    cleaned = _MUSIC_TRAILING_PROMO_RE.sub("", cleaned).strip()
+    cleaned = _MUSIC_TRAILING_VENUE_RE.sub("", cleaned).strip()
 
     action_match = _MUSIC_ACTION_SUFFIX_RE.match(cleaned)
     if action_match:
         cleaned = action_match.group(1).strip()
 
-    cleaned = re.sub(r"\s+(?:featuring|feat\.?|w/)\s+", " / ", cleaned, flags=re.IGNORECASE)
-    return cleaned
+    cleaned = _MUSIC_KNOWN_PROMO_DESCRIPTOR_RE.sub("", cleaned).strip()
+    cleaned = _MUSIC_SHOW_DESCRIPTOR_RE.sub("", cleaned).strip()
+    cleaned = _MUSIC_BILLING_SEPARATOR_RE.sub(" / ", cleaned)
+    cleaned = re.sub(r"\s*/\s*", " / ", cleaned)
+    return _clean(cleaned)
 
 
 def _key(value: Any) -> str:
