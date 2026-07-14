@@ -1,6 +1,7 @@
 """Deterministic human-correction artifacts for editorial review items.
 
 Attempt_52_ReviewTrainer
+Attempt_69_ReviewTrainingExport
 
 This module records review decisions; it does not invent classifier policy. Corrections
 remain explicit data that can be promoted into focused rules and regression cases.
@@ -26,6 +27,8 @@ class ReviewTrainingRecord:
     title: str
     source: str
     source_event_id: str | None
+    publication_url: str
+    publication_disposition: str
     start_date: str
     start_time: str | None
     venue: str
@@ -60,7 +63,7 @@ def write_review_training_artifact(
     corrections = load_corrections(corrections_path) if corrections_path else {}
     records = build_review_training_records(events, corrections)
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "record_count": len(records),
         "records": [record.to_dict() for record in records],
     }
@@ -103,6 +106,8 @@ def _record(
         title=event.title,
         source=event.source,
         source_event_id=event.source_event_id,
+        publication_url=event.publication_url,
+        publication_disposition=event.publication_disposition,
         start_date=event.start_date,
         start_time=event.display_start_time,
         venue=event.display_venue,
