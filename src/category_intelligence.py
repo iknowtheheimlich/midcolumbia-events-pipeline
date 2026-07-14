@@ -45,6 +45,12 @@ def _rule(category: str, confidence: float, label: str, pattern: str) -> Categor
 # evidence that should outrank a conflicting source category or hospitality venue context.
 _EXPLICIT_TITLE_RULES: tuple[CategoryRule, ...] = (
     _rule(
+        "Karaoke/Open Mic",
+        0.99,
+        "karaoke_or_open_mic",
+        r"\b(?:karaoke|open[ -]?mic)\b",
+    ),
+    _rule(
         "Classes/Workshops",
         0.99,
         "explicit_class_or_workshop",
