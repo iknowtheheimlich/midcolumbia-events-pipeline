@@ -17,7 +17,7 @@ from typing import Any, Callable
 from urllib.parse import urlsplit, urlunsplit
 
 from adapters.contract import CanonicalEvent
-from adapters.harvest import HarvestResult, generated_raw_path, request_json, save_raw_fixture
+from adapters.harvest import HarvestResult, generated_raw_path, request_text, save_raw_fixture
 from adapters.registry import AdapterInfo
 
 SEARCH_URL = "https://allevents.in/api/index.php/events/web/qs/search_with_filters"
@@ -39,11 +39,12 @@ def harvest_allevents_api(
     *,
     week_start: date,
     days: int,
-    fetch_json: Callable[..., Any] = request_json,
+    fetch_json: Callable[..., Any] | None = None,
 ) -> HarvestResult:
     """Fetch and normalize the browser-equivalent date inventory."""
     responses: dict[str, Any] = {}
     failures: list[str] = []
+    fetch_json = fetch_json or _fetch_api_json
 
     for day_offset in range(days):
         target = week_start + timedelta(days=day_offset)
@@ -76,6 +77,21 @@ def harvest_allevents_api(
         normalized_events=normalized,
         error=" | ".join(failures) if failures else None,
     )
+
+
+def _fetch_api_json(url: str, *, body: bytes, headers: dict[str, str]) -> Any:
+    """Decode AllEvents JSON after transport whitespace or a UTF-8 BOM.
+
+    When decoding still fails, include a bounded response prefix so production errors
+    identify the actual server response instead of repeating an opaque character offset.
+    """
+    text = request_text(url, body=body, headers=headers)
+    cleaned = text.lstrip("\ufeff \t\r\n")
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError as exc:
+        prefix = cleaned[:160].replace("\r", "\\r").replace("\n", "\\n")
+        raise RuntimeError(f"AllEvents returned non-JSON response prefix: {prefix!r}") from exc
 
 
 def normalize_api_responses(responses: dict[str, Any]) -> list[CanonicalEvent]:
@@ -162,6 +178,7 @@ def _api_headers() -> dict[str, str]:
         "Content-Type": "application/json;charset=UTF-8",
         "Origin": "https://allevents.in",
         "Referer": "https://allevents.in/kennewick",
+        "yt": "application/json; charset=UTF-8",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/142 Safari/537.36",
     }
 
