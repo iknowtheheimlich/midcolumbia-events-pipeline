@@ -9,7 +9,7 @@ returned records into the existing canonical event shape.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone, tzinfo
 import html
 import json
 import re
@@ -179,17 +179,31 @@ def _epoch_datetime(value: Any, offset_value: Any) -> datetime | None:
         stamp = int(str(value))
     except (TypeError, ValueError):
         return None
-    offset = _timezone_offset(offset_value)
+    offset = _timezone_offset(offset_value, stamp)
     return datetime.fromtimestamp(stamp, timezone.utc).astimezone(offset)
 
 
-def _timezone_offset(value: Any) -> timezone:
+def _timezone_offset(value: Any, stamp: int) -> tzinfo:
     match = _OFFSET_RE.match(str(value or ""))
-    if not match:
-        return timezone.utc
-    direction = 1 if match.group("sign") == "+" else -1
-    delta = timedelta(hours=int(match.group("hours")), minutes=int(match.group("minutes")))
-    return timezone(direction * delta)
+    if match:
+        direction = 1 if match.group("sign") == "+" else -1
+        delta = timedelta(hours=int(match.group("hours")), minutes=int(match.group("minutes")))
+        return timezone(direction * delta)
+    return _pacific_offset(stamp)
+
+
+def _pacific_offset(stamp: int) -> timezone:
+    """Return the applicable Pacific offset under current US DST rules."""
+    instant = datetime.fromtimestamp(stamp, timezone.utc)
+    year = instant.year
+    march_first = date(year, 3, 1)
+    first_sunday_march = 1 + ((6 - march_first.weekday()) % 7)
+    second_sunday_march = first_sunday_march + 7
+    november_first = date(year, 11, 1)
+    first_sunday_november = 1 + ((6 - november_first.weekday()) % 7)
+    dst_start_utc = datetime(year, 3, second_sunday_march, 10, tzinfo=timezone.utc)
+    dst_end_utc = datetime(year, 11, first_sunday_november, 9, tzinfo=timezone.utc)
+    return timezone(timedelta(hours=-7 if dst_start_utc <= instant < dst_end_utc else -8))
 
 
 def _ticket_details(row: dict[str, Any]) -> tuple[str | None, str | None]:
