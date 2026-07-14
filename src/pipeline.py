@@ -101,15 +101,15 @@ def run_pipeline(
     screen_content: bool = False,
     enrich_categories: bool = False,
     enrich_time_semantics: bool = False,
-    enrich_completeness: bool = True,
+    enrich_completeness: bool = False,
 ) -> PipelineResult:
     """Run source batches through shared enrichment and publisher preparation.
 
     ``deduplicate`` retains the established conservative exact-key contract.
     ``resolve_cross_source_occurrences`` is an additive identity stage that runs
     after exact deduplication. Production enables both; legacy callers keep their
-    historical counts and semantics. Time semantics remains opt-in. Completeness is
-    additive metadata and is enabled by default because it does not alter identity.
+    historical counts and semantics. Time semantics and completeness remain opt-in
+    so existing fixture contracts do not change under legacy callers.
     """
     all_events = combine_source_batches(
         source_batches,
@@ -157,7 +157,7 @@ def combine_source_batches(
     enrich_geography: bool = False,
     enrich_categories: bool = False,
     enrich_time_semantics: bool = False,
-    enrich_completeness: bool = True,
+    enrich_completeness: bool = False,
 ) -> list[dict[str, Any]]:
     """Combine batches and optionally apply shared enrichment layers."""
     combined: list[dict[str, Any]] = []
