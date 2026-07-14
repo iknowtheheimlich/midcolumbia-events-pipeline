@@ -25,8 +25,10 @@ def build_supplemental_detail_rows(
             continue
         enriched = enrich_event_supplemental_details(event)
         cost = enriched.get("cost")
+        cost_source = enriched.get("cost_source")
         schedule_items = enriched.get("schedule_items") or []
-        if not cost and not schedule_items:
+        schedule_source = enriched.get("schedule_source")
+        if not cost_source and not schedule_source:
             continue
         rows.append(
             {
@@ -36,9 +38,9 @@ def build_supplemental_detail_rows(
                 "source": str(enriched.get("source") or ""),
                 "url": str(enriched.get("external_url") or enriched.get("url") or ""),
                 "cost": cost,
-                "cost_source": enriched.get("cost_source"),
+                "cost_source": cost_source,
                 "schedule_items": schedule_items,
-                "schedule_source": enriched.get("schedule_source"),
+                "schedule_source": schedule_source,
             }
         )
     return sorted(rows, key=lambda row: (row["start_date"], row["title"].casefold()))
