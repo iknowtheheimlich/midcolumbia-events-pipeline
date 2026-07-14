@@ -11,6 +11,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from time import perf_counter
 
+from adapters.allevents.api import harvest_allevents_api
 from adapters.harvest import HarvestOptions, harvest_adapter
 from adapters.registry import SOURCE_REGISTRY
 from src.completeness_audit import DEFAULT_COMPLETENESS_AUDIT_PATH, write_completeness_audit
@@ -79,7 +80,10 @@ def main() -> int:
     harvest_durations_ms: dict[str, int] = {}
     for adapter in selected_adapters:
         started = perf_counter()
-        result = harvest_adapter(adapter, options)
+        if adapter.source_name == "AllEvents":
+            result = harvest_allevents_api(adapter, week_start=args.week_start, days=args.days)
+        else:
+            result = harvest_adapter(adapter, options)
         harvest_durations_ms[result.source_name] = round((perf_counter() - started) * 1000)
         harvest_results.append(result)
 
