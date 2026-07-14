@@ -27,6 +27,7 @@ from src.publisher_editorial import EditorialEvent, community_events, main_event
 from src.publishing_contract import PublishingProfile
 from src.reddit_renderer import default_community_artifact_path, default_main_artifact_path, render_program_line, write_reddit_artifact
 from src.review_trainer import DEFAULT_REVIEW_TRAINING_PATH, write_review_training_artifact
+from src.source_attribution import build_source_attribution
 from src.source_metrics import DEFAULT_SOURCE_METRICS_PATH, build_source_metrics, write_source_metrics
 from src.venue_registry import VenueRegistry
 
@@ -66,6 +67,7 @@ def main() -> int:
 
     selected_adapters = [SOURCE_REGISTRY.get(name) for name in args.source] if args.source else SOURCE_REGISTRY.enabled()
     source_names = [adapter.source_name for adapter in selected_adapters]
+    publication_footnote = build_source_attribution(selected_adapters)
     options = HarvestOptions(fetch_raw=True, months=args.months)
     harvest_results = []
     harvest_durations_ms: dict[str, int] = {}
@@ -116,8 +118,18 @@ def main() -> int:
         audit_output = degraded_artifact_path(audit_output)
         metrics_output = degraded_artifact_path(metrics_output)
 
-    write_reddit_artifact(main_programs, main_output, category_order=profile.category_order)
-    write_reddit_artifact(community_programs, community_output, category_order=profile.category_order)
+    write_reddit_artifact(
+        main_programs,
+        main_output,
+        footnote=publication_footnote,
+        category_order=profile.category_order,
+    )
+    write_reddit_artifact(
+        community_programs,
+        community_output,
+        footnote=publication_footnote,
+        category_order=profile.category_order,
+    )
     write_publisher_audit(editorial, audit_output, category_order=profile.category_order)
 
     source_metrics = build_source_metrics(
