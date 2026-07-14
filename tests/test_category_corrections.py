@@ -16,15 +16,15 @@ def event(**overrides):
     return values
 
 
-def test_visual_art_title_corrects_conflicting_music_category() -> None:
+def test_participatory_visual_art_corrects_conflicting_music_category() -> None:
     decision = classify_event(
         event(
             title="Spring Flowers Painting with Glass | Fused Glass db Studio",
             category="Music/Comedy",
         )
     )
-    assert decision.category == "Art/Theater"
-    assert decision.reason == "correction_rule=explicit_visual_art_activity"
+    assert decision.category == "Classes/Workshops"
+    assert decision.reason == "title_rule=participatory_visual_art"
 
 
 def test_explicit_class_corrects_conflicting_music_source_category() -> None:
@@ -35,7 +35,7 @@ def test_explicit_class_corrects_conflicting_music_source_category() -> None:
         )
     )
     assert decision.category == "Classes/Workshops"
-    assert decision.reason == "correction_rule=explicit_class_or_workshop"
+    assert decision.reason == "title_rule=explicit_class_or_workshop"
 
 
 def test_winemaker_event_corrects_conflicting_music_category() -> None:
@@ -46,7 +46,7 @@ def test_winemaker_event_corrects_conflicting_music_category() -> None:
         )
     )
     assert decision.category == "Food & Drink"
-    assert decision.reason == "correction_rule=explicit_food_or_winemaker_event"
+    assert decision.reason == "title_rule=explicit_food_or_winemaker_event"
 
 
 def test_unrelated_existing_category_is_still_preserved() -> None:
