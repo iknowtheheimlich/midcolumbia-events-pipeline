@@ -5,7 +5,7 @@ Attempt_50_VenuePresentationProfile
 Attempt_60_TitleCanonicalization
 Attempt_61_MusicTitleCanonicalizer
 Attempt_63_PerformerIdentityCanonicalization
-Attempt_64_IdentityParserHygiene
+Attempt_65_RegistryResidualTitleHygiene
 
 Canonical source fields remain unchanged. Title cleanup remains editorial policy; venue
 cleanup is a compatibility path used only when no authoritative venue presentation exists.
@@ -30,7 +30,6 @@ _TERMINAL_DATE_RE = re.compile(
     r"(?:\s*(?:::|[-–—])?\s*)?(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}(?:st|nd|rd|th)?\s*$",
     re.IGNORECASE,
 )
-_REPEATED_TITLE_PREFIX_RE = re.compile(r"^(.{8,80}?)\1", re.IGNORECASE)
 _MUSIC_CATEGORY = "music/comedy"
 _MUSIC_LEADING_PROMO_RE = re.compile(
     r"^(?:(?:free\s+)?live(?:\s+music)?[!,:\s-]*(?:with|w/)?\s+)",
@@ -71,8 +70,15 @@ _MUSIC_SHOW_DESCRIPTOR_RE = re.compile(r"\s+Beach\s+Boys\s+Show\s*$", re.IGNOREC
 _PERFORMER_ALIASES = {
     "engelwood heights": "Englewood Heights",
 }
-_PERFORMER_GROUP_ALIASES = {
+_PERFORMER_BILLING_ALIASES = {
     frozenset({"free agent", "zac grooms"}): ("Free Agent", "Zac Grooms"),
+}
+_VENUE_HYGIENE_ALIASES = {
+    "ice harbor breweryice": "Ice Harbor Brewery",
+}
+_TITLE_HYGIENE_ALIASES = {
+    'frichette winery "all white party': "Frichette Winery All White Party",
+    "live music on the point": "Live Music on the Point",
 }
 
 
@@ -118,7 +124,8 @@ def derive_display_fields(
     active = profile or EditorialStyleProfile.load()
     original_title = _clean(title)
     original_venue = _clean(venue)
-    display_venue = original_venue if preserve_venue else _display_venue(original_venue, city, active)
+    hygienic_venue = _VENUE_HYGIENE_ALIASES.get(_key(original_venue), original_venue)
+    display_venue = hygienic_venue if preserve_venue else _display_venue(hygienic_venue, city, active)
     display_title = _display_title(original_title, display_venue, category, active)
 
     reasons: list[str] = []
@@ -155,9 +162,11 @@ def _display_title(
     category: str | None,
     profile: EditorialStyleProfile,
 ) -> str:
-    cleaned = _clean_accessibility_fragments(title)
+    cleaned = _TITLE_HYGIENE_ALIASES.get(_key(title), title)
+    protected_music_title = _key(cleaned) == "live music on the point"
+
     for prefix in sorted(profile.strip_prefixes, key=len, reverse=True):
-        if cleaned.casefold().startswith(prefix.casefold()):
+        if cleaned.casefold().startswith(prefix.casefold()) and not protected_music_title:
             cleaned = cleaned[len(prefix):].lstrip(" :-–—")
             break
 
@@ -173,22 +182,10 @@ def _display_title(
             flags=re.IGNORECASE,
         ).strip()
 
-    if _key(category) == _MUSIC_CATEGORY:
+    if _key(category) == _MUSIC_CATEGORY and not protected_music_title:
         cleaned = _canonicalize_music_title(cleaned)
 
     return _clean(cleaned).strip(" !,|:\"'–—") or title
-
-
-def _clean_accessibility_fragments(title: str) -> str:
-    """Remove repeated LibCal accessibility fragments without rewriting normal titles."""
-    cleaned = _clean(title)
-    match = _REPEATED_TITLE_PREFIX_RE.match(cleaned)
-    if match:
-        cleaned = cleaned[len(match.group(1)):].lstrip(" :-–—|")
-
-    if cleaned.casefold().startswith("family movies of ") and cleaned.casefold().endswith(" the"):
-        cleaned = cleaned[:-4].rstrip()
-    return cleaned
 
 
 def _canonicalize_music_title(title: str) -> str:
@@ -210,14 +207,15 @@ def _canonicalize_music_title(title: str) -> str:
     cleaned = _MUSIC_KNOWN_PROMO_DESCRIPTOR_RE.sub("", cleaned).strip()
     cleaned = _MUSIC_SHOW_DESCRIPTOR_RE.sub("", cleaned).strip()
     cleaned = _MUSIC_BILLING_SEPARATOR_RE.sub(" / ", cleaned)
+    cleaned = re.sub(r"\bw\s*/\s*", " / ", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\s*/\s*", " / ", cleaned)
     cleaned = _clean(cleaned)
 
-    parts = [part.strip() for part in cleaned.split(" / ")]
-    canonical_parts = [_PERFORMER_ALIASES.get(_key(part), part) for part in parts if part]
-    group_key = frozenset(_key(part) for part in canonical_parts)
-    if group_key in _PERFORMER_GROUP_ALIASES:
-        canonical_parts = list(_PERFORMER_GROUP_ALIASES[group_key])
+    parts = [part.strip() for part in cleaned.split(" / ") if part.strip()]
+    canonical_parts = [_PERFORMER_ALIASES.get(_key(part), part) for part in parts]
+    billing_alias = _PERFORMER_BILLING_ALIASES.get(frozenset(_key(part) for part in canonical_parts))
+    if billing_alias and len(canonical_parts) == len(billing_alias):
+        canonical_parts = list(billing_alias)
     return " / ".join(canonical_parts)
 
 
