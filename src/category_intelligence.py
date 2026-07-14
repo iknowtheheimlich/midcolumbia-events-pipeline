@@ -3,10 +3,12 @@
 Attempt_38_CategoryIntelligence
 Attempt_48_CategoryRuleHardening
 Attempt_62_CategoryCorrectionWithinTaxonomy
+Attempt_63_PerformerIdentityCanonicalization
 
 This layer classifies what an event is. It does not decide how Reddit renders it.
 Narrow, deterministic title signals run before source categories and venue context so
-participatory activities and explicit food events are not misclassified by their venue.
+participatory activities, explicit food events, and explicit live performances are not
+misclassified by their source category or venue.
 """
 
 from __future__ import annotations
@@ -59,6 +61,12 @@ _EXPLICIT_TITLE_RULES: tuple[CategoryRule, ...] = (
         0.99,
         "explicit_food_or_winemaker_event",
         r"\b(?:visiting winemaker|winemaker night|winemaker takeover|farm to fork|wine en blanc|paella|pairing)\b",
+    ),
+    _rule(
+        "Music/Comedy",
+        0.99,
+        "explicit_live_performance",
+        r"\b(?:live\s+(?:at|@)|in concert|live music)\b|\bsaxxidelic\b",
     ),
 )
 
