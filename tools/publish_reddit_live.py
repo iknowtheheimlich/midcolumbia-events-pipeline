@@ -130,6 +130,7 @@ def main() -> int:
         community_output = degraded_artifact_path(community_output)
         audit_output = degraded_artifact_path(audit_output)
         metrics_output = degraded_artifact_path(metrics_output)
+        review_training_output = degraded_artifact_path(review_training_output)
         supplemental_output = degraded_artifact_path(supplemental_output)
         completeness_output = degraded_artifact_path(completeness_output)
         graph_output = degraded_artifact_path(graph_output)
@@ -154,9 +155,7 @@ def main() -> int:
         editorial_events=editorial,
     )
     write_source_metrics(source_metrics, metrics_output)
-
-    if not blocked:
-        write_review_training_artifact(review, review_training_output, corrections_path=args.review_corrections)
+    write_review_training_artifact(review, review_training_output, corrections_path=args.review_corrections)
 
     inspector_output: Path | None = None
     if args.inspect_title:
@@ -200,12 +199,7 @@ def main() -> int:
     print(f"Event knowledge graph: {graph_output}")
     print(f"Source metrics: {metrics_output}")
     print(f"Harvest telemetry: {telemetry_output}")
-    if blocked:
-        print("Review training: skipped (degraded harvest)")
-    else:
-        print(f"Review training: {review_training_output}")
-    if inspector_output is not None:
-        print(f"Pipeline inspector: {inspector_output}")
+    print(f"Review training: {review_training_output}")
     for result in harvest_results:
         if result.error:
             print(f"Warning: {result.source_name}: {result.error}")
