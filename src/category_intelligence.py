@@ -2,10 +2,11 @@
 
 Attempt_38_CategoryIntelligence
 Attempt_48_CategoryRuleHardening
+Attempt_62_CategoryCorrectionWithinTaxonomy
 
 This layer classifies what an event is. It does not decide how Reddit renders it.
-Existing valid semantic categories are preserved; deterministic rules enrich only
-missing categories and always emit confidence plus an explanation.
+Existing valid semantic categories are normally preserved. Narrow, deterministic title
+signals may correct a conflicting source category without expanding the taxonomy.
 """
 
 from __future__ import annotations
@@ -36,6 +37,30 @@ class CategoryRule:
 
 def _rule(category: str, confidence: float, label: str, pattern: str) -> CategoryRule:
     return CategoryRule(category, confidence, label, re.compile(pattern, re.IGNORECASE))
+
+
+# These rules are deliberately narrow. They exist only to correct a conflicting source
+# category when the title itself identifies the event type with little ambiguity.
+_CORRECTION_RULES: tuple[CategoryRule, ...] = (
+    _rule(
+        "Classes/Workshops",
+        0.99,
+        "explicit_class_or_workshop",
+        r"\b(?:class(?:es)?|workshop|lesson|training|build-it|build it|diy)\b|\b(?:intro|intermediate) to\b",
+    ),
+    _rule(
+        "Art/Theater",
+        0.99,
+        "explicit_visual_art_activity",
+        r"\b(?:painting with glass|fused glass|suncatcher|resin art|paint night)\b",
+    ),
+    _rule(
+        "Food & Drink",
+        0.99,
+        "explicit_food_or_winemaker_event",
+        r"\b(?:visiting winemaker|winemaker night|winemaker takeover|farm to fork|wine en blanc|paella|pairing)\b",
+    ),
+)
 
 
 # Title rules are intentionally ordered from most specific to broadest. Title evidence
@@ -89,19 +114,35 @@ _SOURCE_CATEGORY_MAP = {
 }
 
 
+def _correction_for(title: str, current_category: str | None) -> CategoryDecision | None:
+    if not current_category:
+        return None
+    for rule in _CORRECTION_RULES:
+        if rule.category != current_category and rule.pattern.search(title):
+            return CategoryDecision(rule.category, rule.confidence, f"correction_rule={rule.label}")
+    return None
+
+
 def classify_event(event: dict[str, Any], profile: PublishingProfile | None = None) -> CategoryDecision:
     active_profile = profile or PublishingProfile.load()
+    title = _text(event.get("title")) or ""
+
     existing = active_profile.normalize_category(_text(event.get("category")))
     if existing:
+        correction = _correction_for(title, existing)
+        if correction:
+            return correction
         return CategoryDecision(existing, 1.0, "existing_semantic_category")
 
     source_category = _text(event.get("source_category"))
     if source_category:
         mapped = _SOURCE_CATEGORY_MAP.get(source_category.casefold())
         if mapped:
+            correction = _correction_for(title, mapped)
+            if correction:
+                return correction
             return CategoryDecision(mapped, 0.88, f"source_category={source_category}")
 
-    title = _text(event.get("title")) or ""
     for rule in _TITLE_RULES:
         if rule.pattern.search(title):
             return CategoryDecision(rule.category, rule.confidence, f"title_rule={rule.label}")
@@ -114,8 +155,6 @@ def classify_event(event: dict[str, Any], profile: PublishingProfile | None = No
             return CategoryDecision(rule.category, rule.confidence, f"context_rule={rule.label}")
 
     description = _text(event.get("description")) or ""
-    # Description fallback is deliberately limited to specific phrases. Broad terms such
-    # as "class", "play", and "faith" are not safe in promotional prose.
     description_rules = (
         _rule("Lectures/Talks", 0.86, "description_lecture", r"\b(?:lecture|presentation about|historian|history of)\b"),
         _rule("Food & Drink", 0.85, "description_food_drink", r"\b(?:guided tasting|pairing flight|multi-course dinner)\b"),
