@@ -2,25 +2,28 @@
 
 Attempt_59_AllEventsStructuredAPI
 
-The browser's date inventory is served by a JSON endpoint rather than the static city
-HTML. This module queries that endpoint for the publication week and normalizes the
-returned records into the existing canonical event shape.
+The browser's date inventory is served by a session-gated JSON endpoint rather than
+the static city HTML. This module bootstraps a fresh anonymous browser session,
+queries that endpoint for the publication week, and normalizes the returned records.
 """
 
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone, tzinfo
 import html
+from http.cookiejar import CookieJar
 import json
 import re
 from typing import Any, Callable
+import urllib.request
 from urllib.parse import urlsplit, urlunsplit
 
 from adapters.contract import CanonicalEvent
-from adapters.harvest import HarvestResult, generated_raw_path, request_text, save_raw_fixture
+from adapters.harvest import HarvestResult, generated_raw_path, save_raw_fixture
 from adapters.registry import AdapterInfo
 
 SEARCH_URL = "https://allevents.in/api/index.php/events/web/qs/search_with_filters"
+BOOTSTRAP_URL = "https://allevents.in/kennewick?ref=cityselect"
 _SPACE_RE = re.compile(r"\s+")
 _TAG_RE = re.compile(r"<[^>]+>")
 _OFFSET_RE = re.compile(r"^(?P<sign>[+-])(?P<hours>\d{2}):(?P<minutes>\d{2})$")
@@ -44,7 +47,7 @@ def harvest_allevents_api(
     """Fetch and normalize the browser-equivalent date inventory."""
     responses: dict[str, Any] = {}
     failures: list[str] = []
-    fetch_json = fetch_json or _fetch_api_json
+    fetch_json = fetch_json or _build_session_fetcher()
 
     for day_offset in range(days):
         target = week_start + timedelta(days=day_offset)
@@ -79,13 +82,25 @@ def harvest_allevents_api(
     )
 
 
-def _fetch_api_json(url: str, *, body: bytes, headers: dict[str, str]) -> Any:
-    """Decode AllEvents JSON after transport whitespace or a UTF-8 BOM.
+def _build_session_fetcher() -> Callable[..., Any]:
+    """Create an anonymous cookie-preserving session matching the browser flow."""
+    cookie_jar = CookieJar()
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cookie_jar))
+    bootstrap_request = urllib.request.Request(BOOTSTRAP_URL, headers=_bootstrap_headers())
+    with opener.open(bootstrap_request, timeout=30) as response:
+        response.read()
 
-    When decoding still fails, include a bounded response prefix so production errors
-    identify the actual server response instead of repeating an opaque character offset.
-    """
-    text = request_text(url, body=body, headers=headers)
+    def fetch_json(url: str, *, body: bytes, headers: dict[str, str]) -> Any:
+        request = urllib.request.Request(url, data=body, headers=headers, method="POST")
+        with opener.open(request, timeout=30) as response:
+            charset = response.headers.get_content_charset() or "utf-8"
+            text = response.read().decode(charset, errors="replace")
+        return _decode_api_json(text)
+
+    return fetch_json
+
+
+def _decode_api_json(text: str) -> Any:
     cleaned = text.lstrip("\ufeff \t\r\n")
     try:
         return json.loads(cleaned)
@@ -175,12 +190,28 @@ def _request_payload(target: date, city: dict[str, str]) -> dict[str, Any]:
 def _api_headers() -> dict[str, str]:
     return {
         "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9",
         "Content-Type": "application/json;charset=UTF-8",
         "Origin": "https://allevents.in",
-        "Referer": "https://allevents.in/kennewick",
+        "Referer": BOOTSTRAP_URL,
+        "X-Requested-With": "XMLHttpRequest",
         "yt": "application/json; charset=UTF-8",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/142 Safari/537.36",
+        "User-Agent": _user_agent(),
     }
+
+
+def _bootstrap_headers() -> dict[str, str]:
+    return {
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+        "User-Agent": _user_agent(),
+    }
+
+
+def _user_agent() -> str:
+    return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/142 Safari/537.36"
 
 
 def _search_results(response: Any) -> list[dict[str, Any]]:
