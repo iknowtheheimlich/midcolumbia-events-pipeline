@@ -50,10 +50,49 @@ def test_title_prefix_and_terminal_date_are_display_only() -> None:
     assert reason == "title_cleanup"
 
 
+def test_music_action_copy_reduces_to_performer_name() -> None:
+    title, _, reason = derive_display_fields(
+        "Live! Dutch Donley rocks the patio",
+        "Example Winery",
+        "Richland",
+        category="Music/Comedy",
+        profile=profile(),
+    )
+
+    assert title == "Dutch Donley"
+    assert reason == "title_cleanup"
+
+
+def test_music_venue_and_promotional_sentence_are_removed() -> None:
+    title, _, reason = derive_display_fields(
+        "Free Agent featuring Zac Grooms @ Paper Street Brewing! Thirsty Thursday!",
+        "Paper Street Brewing",
+        "Richland",
+        category="Music/Comedy",
+        profile=profile(),
+    )
+
+    assert title == "Free Agent / Zac Grooms"
+    assert reason == "title_cleanup"
+
+
+def test_non_music_action_words_are_not_truncated() -> None:
+    title, _, reason = derive_display_fields(
+        "Workshop: Playing with Resin",
+        "Tri-City Lumber",
+        "Kennewick",
+        category="Classes/Workshops",
+        profile=profile(),
+    )
+
+    assert title == "Workshop: Playing with Resin"
+    assert reason == "unchanged"
+
+
 def test_editorial_event_preserves_canonical_title(monkeypatch) -> None:
     monkeypatch.setattr(
         "src.publisher_editorial.derive_display_fields",
-        lambda title, venue, city: ("Summer Thursdays", "Columbia Gardens", "title_cleanup"),
+        lambda title, venue, city, **kwargs: ("Summer Thursdays", "Columbia Gardens", "title_cleanup"),
     )
     event = PublisherEvent(
         title="Summer Thursdays at Columbia Gardens",
