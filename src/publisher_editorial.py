@@ -7,6 +7,7 @@ Attempt_38_CategoryIntelligence
 Attempt_40_EditorialStyleIntelligence
 Attempt_42_ExplainableIntelligence
 Attempt_50_VenuePresentationProfile
+Attempt_60_TitleCanonicalization
 """
 
 from __future__ import annotations
@@ -89,6 +90,7 @@ def apply_editorial_rules(
         event.title,
         base_venue,
         style_city,
+        category=event.category,
     )
     display_organization = _display_organization(event, display_venue)
     semantic_category = active_profile.normalize_category(event.category)
