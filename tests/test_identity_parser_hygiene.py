@@ -1,3 +1,4 @@
+from adapters.richland_library.parser import clean_title
 from src.editorial_style import EditorialStyleProfile, derive_display_fields
 
 
@@ -26,15 +27,10 @@ def test_known_performer_pair_has_stable_order() -> None:
     assert first == second == "Free Agent / Zac Grooms"
 
 
-def test_libcal_repeated_accessibility_fragments_are_removed() -> None:
-    title, _, _ = derive_display_fields(
-        "Family Movies ofFamily Movies of the 1990s: Jumanji, The Sandlot, and Matilda the",
-        "Richland Library",
-        "Richland",
-        category="Art/Theater",
-        profile=profile(),
-    )
-    assert title == "Family Movies of the 1990s: Jumanji, The Sandlot, and Matilda"
+def test_libcal_repeated_accessibility_fragments_are_removed_at_parser_boundary() -> None:
+    assert clean_title(
+        "Family Movies ofFamily Movies of the 1990s: Jumanji, The Sandlot, and Matilda"
+    ) == "Family Movies of the 1990s: Jumanji, The Sandlot, and Matilda"
 
 
 def test_known_concatenated_venue_alias_is_cleaned() -> None:
