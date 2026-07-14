@@ -2,6 +2,7 @@
 
 Attempt_40_EditorialStyleIntelligence
 Attempt_50_VenuePresentationProfile
+Attempt_60_TitleCanonicalization
 
 Canonical source fields remain unchanged. Title cleanup remains editorial policy; venue
 cleanup is a compatibility path used only when no authoritative venue presentation exists.
@@ -24,6 +25,23 @@ _ADDRESS_RE = re.compile(
 )
 _TERMINAL_DATE_RE = re.compile(
     r"(?:\s*(?:::|[-–—])?\s*)?(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}(?:st|nd|rd|th)?\s*$",
+    re.IGNORECASE,
+)
+_MUSIC_CATEGORY = "music/comedy"
+_MUSIC_LEADING_PROMO_RE = re.compile(
+    r"^(?:(?:free\s+)?live(?:\s+music)?[!,:\s-]*(?:with|w/)?\s+)",
+    re.IGNORECASE,
+)
+_MUSIC_ACTION_SUFFIX_RE = re.compile(
+    r"^(.+?)\s+(?:rocks?|rocking|performs?|performing|plays?|playing)\b.*$",
+    re.IGNORECASE,
+)
+_MUSIC_LIVE_VENUE_SUFFIX_RE = re.compile(
+    r"\s*[,|:-]?\s*live\s+(?:at|@)\s+.+?[!.,]*$",
+    re.IGNORECASE,
+)
+_MUSIC_PROMO_SENTENCE_RE = re.compile(
+    r"\s*!\s*(?:thirsty\s+thursday|friday\s+night|saturday\s+night|sunday\s+funday).*$",
     re.IGNORECASE,
 )
 
@@ -62,6 +80,7 @@ def derive_display_fields(
     venue: str,
     city: str | None,
     *,
+    category: str | None = None,
     profile: EditorialStyleProfile | None = None,
     preserve_venue: bool = False,
 ) -> tuple[str, str, str]:
@@ -70,7 +89,7 @@ def derive_display_fields(
     original_title = _clean(title)
     original_venue = _clean(venue)
     display_venue = original_venue if preserve_venue else _display_venue(original_venue, city, active)
-    display_title = _display_title(original_title, display_venue, active)
+    display_title = _display_title(original_title, display_venue, category, active)
 
     reasons: list[str] = []
     if display_venue != original_venue:
@@ -100,7 +119,12 @@ def _display_venue(venue: str, city: str | None, profile: EditorialStyleProfile)
     return cleaned
 
 
-def _display_title(title: str, venue: str, profile: EditorialStyleProfile) -> str:
+def _display_title(
+    title: str,
+    venue: str,
+    category: str | None,
+    profile: EditorialStyleProfile,
+) -> str:
     cleaned = title
     for prefix in sorted(profile.strip_prefixes, key=len, reverse=True):
         if cleaned.casefold().startswith(prefix.casefold()):
@@ -119,7 +143,24 @@ def _display_title(title: str, venue: str, profile: EditorialStyleProfile) -> st
             flags=re.IGNORECASE,
         ).strip()
 
-    return cleaned or title
+    if _key(category) == _MUSIC_CATEGORY:
+        cleaned = _canonicalize_music_title(cleaned)
+
+    return _clean(cleaned).strip(" !,|:-–—") or title
+
+
+def _canonicalize_music_title(title: str) -> str:
+    """Reduce promotional music copy to the performer billing."""
+    cleaned = _MUSIC_LEADING_PROMO_RE.sub("", title).strip()
+    cleaned = _MUSIC_PROMO_SENTENCE_RE.sub("", cleaned).strip()
+    cleaned = _MUSIC_LIVE_VENUE_SUFFIX_RE.sub("", cleaned).strip()
+
+    action_match = _MUSIC_ACTION_SUFFIX_RE.match(cleaned)
+    if action_match:
+        cleaned = action_match.group(1).strip()
+
+    cleaned = re.sub(r"\s+(?:featuring|feat\.?|w/)\s+", " / ", cleaned, flags=re.IGNORECASE)
+    return cleaned
 
 
 def _key(value: Any) -> str:
