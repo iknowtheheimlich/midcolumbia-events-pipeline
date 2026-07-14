@@ -4,6 +4,7 @@ Attempt_40_EditorialStyleIntelligence
 Attempt_50_VenuePresentationProfile
 Attempt_60_TitleCanonicalization
 Attempt_61_MusicTitleCanonicalizer
+Attempt_63_PerformerIdentityCanonicalization
 
 Canonical source fields remain unchanged. Title cleanup remains editorial policy; venue
 cleanup is a compatibility path used only when no authoritative venue presentation exists.
@@ -53,9 +54,9 @@ _MUSIC_TRAILING_PROMO_RE = re.compile(
     r"\s+(?:sunday\s+funday|summer\s+concert\s+series|concert\s+series|in\s+concert)\s*$",
     re.IGNORECASE,
 )
-_MUSIC_TRAILING_VENUE_RE = re.compile(r"\s+(?:at|@)\s+.+$", re.IGNORECASE)
+_MUSIC_TRAILING_VENUE_RE = re.compile(r"\s+(?:at\s+|@\s*).+$", re.IGNORECASE)
 _MUSIC_BILLING_SEPARATOR_RE = re.compile(
-    r"\s+(?:featuring|feat\.?|w/)\s+",
+    r"\s+(?:featuring|feat\.?|w\s*/|with)\s+",
     re.IGNORECASE,
 )
 _MUSIC_LIVE_TOKEN_RE = re.compile(r"(?:\s*,?\s*\bLIVE\b\s*)", re.IGNORECASE)
@@ -65,6 +66,9 @@ _MUSIC_TRIBUTE_DESCRIPTOR_RE = re.compile(
 )
 _MUSIC_KNOWN_PROMO_DESCRIPTOR_RE = re.compile(r"\s+Saxxidelic\s*$", re.IGNORECASE)
 _MUSIC_SHOW_DESCRIPTOR_RE = re.compile(r"\s+Beach\s+Boys\s+Show\s*$", re.IGNORECASE)
+_PERFORMER_ALIASES = {
+    "engelwood heights": "Englewood Heights",
+}
 
 
 @dataclass(frozen=True)
@@ -158,7 +162,7 @@ def _display_title(
     if profile.deconflict_title_venue and venue:
         escaped = re.escape(venue)
         cleaned = re.sub(
-            rf"\s+(?:at|@)\s+{escaped}\s*[!.,]*$",
+            rf"\s+(?:at|@)\s*{escaped}\s*[!.,]*$",
             "",
             cleaned,
             flags=re.IGNORECASE,
@@ -190,7 +194,11 @@ def _canonicalize_music_title(title: str) -> str:
     cleaned = _MUSIC_SHOW_DESCRIPTOR_RE.sub("", cleaned).strip()
     cleaned = _MUSIC_BILLING_SEPARATOR_RE.sub(" / ", cleaned)
     cleaned = re.sub(r"\s*/\s*", " / ", cleaned)
-    return _clean(cleaned)
+    cleaned = _clean(cleaned)
+
+    parts = [part.strip() for part in cleaned.split(" / ")]
+    canonical_parts = [_PERFORMER_ALIASES.get(_key(part), part) for part in parts if part]
+    return " / ".join(canonical_parts)
 
 
 def _key(value: Any) -> str:
