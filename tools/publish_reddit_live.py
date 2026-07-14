@@ -14,6 +14,7 @@ from time import perf_counter
 from adapters.harvest import HarvestOptions, harvest_adapter
 from adapters.registry import SOURCE_REGISTRY
 from src.completeness_audit import DEFAULT_COMPLETENESS_AUDIT_PATH, write_completeness_audit
+from src.event_knowledge_graph import DEFAULT_EVENT_GRAPH_PATH, write_event_knowledge_graph
 from src.harvest_health import assess_harvest_health, degraded_artifact_path
 from src.harvest_telemetry import (
     DEFAULT_HARVEST_TELEMETRY_PATH,
@@ -51,6 +52,7 @@ def main() -> int:
     parser.add_argument("--output-harvest-telemetry", type=Path)
     parser.add_argument("--output-supplemental-details", type=Path)
     parser.add_argument("--output-completeness-audit", type=Path)
+    parser.add_argument("--output-event-graph", type=Path)
     parser.add_argument("--review-corrections", type=Path, help="Optional curated JSON corrections keyed by review fingerprint")
     parser.add_argument("--allow-degraded", action="store_true", help="Permit normal artifact paths despite failed live-source coverage")
     parser.add_argument("--inspect-title", help="Write an HTML trace for records containing this title or text")
@@ -118,6 +120,7 @@ def main() -> int:
     review_training_output = args.output_review_training or DEFAULT_REVIEW_TRAINING_PATH
     supplemental_output = args.output_supplemental_details or DEFAULT_SUPPLEMENTAL_DETAIL_PATH
     completeness_output = args.output_completeness_audit or DEFAULT_COMPLETENESS_AUDIT_PATH
+    graph_output = args.output_event_graph or DEFAULT_EVENT_GRAPH_PATH
     if blocked:
         main_output = degraded_artifact_path(main_output)
         community_output = degraded_artifact_path(community_output)
@@ -125,6 +128,7 @@ def main() -> int:
         metrics_output = degraded_artifact_path(metrics_output)
         supplemental_output = degraded_artifact_path(supplemental_output)
         completeness_output = degraded_artifact_path(completeness_output)
+        graph_output = degraded_artifact_path(graph_output)
 
     write_reddit_artifact(main_programs, main_output, footnote=publication_footnote, category_order=profile.category_order)
     write_reddit_artifact(community_programs, community_output, footnote=publication_footnote, category_order=profile.category_order)
@@ -136,6 +140,7 @@ def main() -> int:
         week_start=args.week_start,
         days=args.days,
     )
+    write_event_knowledge_graph(pipeline.deduplicated_publisher_ready_events, graph_output)
 
     source_metrics = build_source_metrics(
         selected_adapters,
@@ -188,6 +193,7 @@ def main() -> int:
     print(f"Audit artifact: {audit_output}")
     print(f"Supplemental details: {supplemental_output}")
     print(f"Completeness audit: {completeness_output}")
+    print(f"Event knowledge graph: {graph_output}")
     print(f"Source metrics: {metrics_output}")
     print(f"Harvest telemetry: {telemetry_output}")
     if blocked:
