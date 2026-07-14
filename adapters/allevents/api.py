@@ -1,10 +1,12 @@
 """Structured AllEvents inventory collector.
 
 Attempt_59_AllEventsStructuredAPI
+Attempt_67_AllEventsWallClockTime
 
 The browser's date inventory is served by a session-gated JSON endpoint rather than
-the static city HTML. This module bootstraps a fresh anonymous browser session,
-queries that endpoint for the publication week, and normalizes the returned records.
+the static city HTML. Some records contain true Unix UTC epochs while others encode
+local wall-clock values as if they were UTC. The normalizer repairs only narrow,
+explainable daytime-event anomalies and preserves ordinary UTC conversion otherwise.
 """
 
 from __future__ import annotations
@@ -27,6 +29,19 @@ BOOTSTRAP_URL = "https://allevents.in/kennewick?ref=cityselect"
 _SPACE_RE = re.compile(r"\s+")
 _TAG_RE = re.compile(r"<[^>]+>")
 _OFFSET_RE = re.compile(r"^(?P<sign>[+-])(?P<hours>\d{2}):(?P<minutes>\d{2})$")
+_OVERNIGHT_CUE_RE = re.compile(
+    r"\b(?:midnight|overnight|late[ -]?night|after[ -]?party|sunrise|24[ -]?hour)\b",
+    re.IGNORECASE,
+)
+_DAYTIME_EVENT_CUE_RE = re.compile(
+    r"\b(?:market|5k|10k|half marathon|marathon|santa|family|camp|fair|festival|"
+    r"brunch|lunch|class|workshop|movie|bingo|tea party|volleyball|fundraiser)\b",
+    re.IGNORECASE,
+)
+_EMBEDDED_DAYTIME_RE = re.compile(
+    r"\b(?:[6-9]|1[01])(?:\s*(?::\d{2})?\s*(?:a\.?m\.?)?|\s*[-–]\s*(?:[7-9]|1[0-2]))\b",
+    re.IGNORECASE,
+)
 
 CITY_QUERIES: tuple[dict[str, str], ...] = (
     {"city": "Kennewick", "latitude": "46.2086683", "longitude": "-119.1199480"},
@@ -83,7 +98,6 @@ def harvest_allevents_api(
 
 
 def _build_session_fetcher() -> Callable[..., Any]:
-    """Create an anonymous cookie-preserving session matching the browser flow."""
     cookie_jar = CookieJar()
     opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cookie_jar))
     bootstrap_request = urllib.request.Request(BOOTSTRAP_URL, headers=_bootstrap_headers())
@@ -110,7 +124,6 @@ def _decode_api_json(text: str) -> Any:
 
 
 def normalize_api_responses(responses: dict[str, Any]) -> list[CanonicalEvent]:
-    """Normalize and deduplicate API records returned by overlapping city searches."""
     events: list[CanonicalEvent] = []
     seen: set[tuple[str, str, str]] = set()
     for response in responses.values():
@@ -134,12 +147,11 @@ def normalize_api_event(row: dict[str, Any]) -> CanonicalEvent | None:
     title = _clean(row.get("eventname_raw") or row.get("eventname"))
     source_id = _clean(row.get("event_id"))
     url = _clean(row.get("event_url") or row.get("share_url"))
-    offset = row.get("timezone")
-    start = _epoch_datetime(row.get("start_time"), offset)
+    start, time_reason = _api_datetime(row, "start_time", title or "")
     if not title or not source_id or not url or start is None:
         return None
 
-    end = _epoch_datetime(row.get("end_time"), offset)
+    end, end_reason = _api_datetime(row, "end_time", title)
     venue_data = row.get("venue") if isinstance(row.get("venue"), dict) else {}
     venue = _clean(venue_data.get("venue") or row.get("location")) or "Online"
     ticket_url, cost = _ticket_details(row)
@@ -166,8 +178,52 @@ def normalize_api_event(row: dict[str, Any]) -> CanonicalEvent | None:
         "image_url": _clean(row.get("banner_url") or row.get("thumb_url_large") or row.get("thumb_url")),
         "source_category": _clean(row.get("label")),
         "recurring_event_details": row.get("recurring_event_details"),
+        "source_time_reason": time_reason if time_reason == end_reason else f"start={time_reason};end={end_reason}",
     }
     return {key: value for key, value in event.items() if value not in (None, "", [], {})}
+
+
+def _api_datetime(row: dict[str, Any], field: str, title: str) -> tuple[datetime | None, str]:
+    value = row.get(field)
+    try:
+        stamp = int(str(value))
+    except (TypeError, ValueError):
+        return None, "missing_or_invalid_epoch"
+
+    offset = _timezone_offset(row.get("timezone"), stamp)
+    utc_instant = datetime.fromtimestamp(stamp, timezone.utc)
+    local_instant = utc_instant.astimezone(offset)
+    evidence = " ".join(
+        str(value or "")
+        for value in (title, row.get("description"), row.get("location"))
+    )
+
+    if _is_wall_clock_epoch(utc_instant, local_instant, offset, evidence):
+        wall_clock = utc_instant.replace(tzinfo=offset)
+        return wall_clock, "wall_clock_epoch_repaired"
+    return local_instant, "utc_epoch_converted"
+
+
+def _is_wall_clock_epoch(
+    utc_instant: datetime,
+    local_instant: datetime,
+    offset: tzinfo,
+    evidence: str,
+) -> bool:
+    """Detect the narrow AllEvents defect where local clock time is stored as UTC.
+
+    We repair only negative-offset records that convert into 12–4:59 AM while the raw
+    UTC clock is a plausible daytime hour, and only when the event text identifies a
+    normally daytime program or embeds a daytime range. Explicit overnight cues win.
+    """
+    offset_delta = offset.utcoffset(utc_instant)
+    if offset_delta is None or offset_delta >= timedelta(0):
+        return False
+    if not (0 <= local_instant.hour < 5 and 6 <= utc_instant.hour <= 12):
+        return False
+    if _OVERNIGHT_CUE_RE.search(evidence):
+        return False
+    return bool(_DAYTIME_EVENT_CUE_RE.search(evidence) or _EMBEDDED_DAYTIME_RE.search(evidence))
 
 
 def _request_payload(target: date, city: dict[str, str]) -> dict[str, Any]:
@@ -222,6 +278,7 @@ def _search_results(response: Any) -> list[dict[str, Any]]:
 
 
 def _epoch_datetime(value: Any, offset_value: Any) -> datetime | None:
+    """Compatibility helper retained for callers and tests expecting strict UTC epochs."""
     try:
         stamp = int(str(value))
     except (TypeError, ValueError):
@@ -240,7 +297,6 @@ def _timezone_offset(value: Any, stamp: int) -> tzinfo:
 
 
 def _pacific_offset(stamp: int) -> timezone:
-    """Return the applicable Pacific offset under current US DST rules."""
     instant = datetime.fromtimestamp(stamp, timezone.utc)
     year = instant.year
     march_first = date(year, 3, 1)
