@@ -9,23 +9,21 @@ returned records into the existing canonical event shape.
 
 from __future__ import annotations
 
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 import html
 import json
-from pathlib import Path
 import re
 from typing import Any, Callable
 from urllib.parse import urlsplit, urlunsplit
-from zoneinfo import ZoneInfo
 
 from adapters.contract import CanonicalEvent
 from adapters.harvest import HarvestResult, generated_raw_path, request_json, save_raw_fixture
 from adapters.registry import AdapterInfo
 
 SEARCH_URL = "https://allevents.in/api/index.php/events/web/qs/search_with_filters"
-LOCAL_TIMEZONE = ZoneInfo("America/Los_Angeles")
 _SPACE_RE = re.compile(r"\s+")
 _TAG_RE = re.compile(r"<[^>]+>")
+_OFFSET_RE = re.compile(r"^(?P<sign>[+-])(?P<hours>\d{2}):(?P<minutes>\d{2})$")
 
 CITY_QUERIES: tuple[dict[str, str], ...] = (
     {"city": "Kennewick", "latitude": "46.2086683", "longitude": "-119.1199480"},
@@ -51,11 +49,10 @@ def harvest_allevents_api(
         target = week_start + timedelta(days=day_offset)
         for city in CITY_QUERIES:
             key = f"{target.isoformat()}|{city['city']}"
-            payload = _request_payload(target, city)
             try:
                 response = fetch_json(
                     SEARCH_URL,
-                    body=json.dumps(payload).encode("utf-8"),
+                    body=json.dumps(_request_payload(target, city)).encode("utf-8"),
                     headers=_api_headers(),
                 )
                 if not isinstance(response, dict) or int(response.get("error", 0)) != 0:
@@ -106,25 +103,23 @@ def normalize_api_event(row: dict[str, Any]) -> CanonicalEvent | None:
     title = _clean(row.get("eventname_raw") or row.get("eventname"))
     source_id = _clean(row.get("event_id"))
     url = _clean(row.get("event_url") or row.get("share_url"))
-    start = _epoch_datetime(row.get("start_time"))
+    offset = row.get("timezone")
+    start = _epoch_datetime(row.get("start_time"), offset)
     if not title or not source_id or not url or start is None:
         return None
 
-    end = _epoch_datetime(row.get("end_time"))
+    end = _epoch_datetime(row.get("end_time"), offset)
     venue_data = row.get("venue") if isinstance(row.get("venue"), dict) else {}
     venue = _clean(venue_data.get("venue") or row.get("location")) or "Online"
-    city = _clean(venue_data.get("city"))
-    state = _clean(venue_data.get("state"))
-    address = _clean(venue_data.get("street") or venue_data.get("full_address") or row.get("location"))
     ticket_url, cost = _ticket_details(row)
 
     event: CanonicalEvent = {
         "title": title,
         "description": _clean_description(row.get("description")),
         "venue": venue,
-        "city": city,
-        "state": state,
-        "address": address,
+        "city": _clean(venue_data.get("city")),
+        "state": _clean(venue_data.get("state")),
+        "address": _clean(venue_data.get("street") or venue_data.get("full_address") or row.get("location")),
         "latitude": _clean(venue_data.get("latitude")),
         "longitude": _clean(venue_data.get("longitude")),
         "start_date": start.date().isoformat(),
@@ -163,10 +158,11 @@ def _request_payload(target: date, city: dict[str, str]) -> dict[str, Any]:
 
 def _api_headers() -> dict[str, str]:
     return {
-        "Accept": "application/json, text/plain, */*",
-        "Content-Type": "application/json;charset=UTF-8",
+        "Accept": "*/*",
+        "Content-Type": "text/plain;charset=UTF-8",
         "Origin": "https://allevents.in",
         "Referer": "https://allevents.in/kennewick",
+        "yt": "application/json; charset=UTF-8",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/142 Safari/537.36",
     }
 
@@ -178,19 +174,28 @@ def _search_results(response: Any) -> list[dict[str, Any]]:
     return [dict(row) for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
 
 
-def _epoch_datetime(value: Any) -> datetime | None:
+def _epoch_datetime(value: Any, offset_value: Any) -> datetime | None:
     try:
         stamp = int(str(value))
     except (TypeError, ValueError):
         return None
-    return datetime.fromtimestamp(stamp, timezone.utc).astimezone(LOCAL_TIMEZONE)
+    offset = _timezone_offset(offset_value)
+    return datetime.fromtimestamp(stamp, timezone.utc).astimezone(offset)
+
+
+def _timezone_offset(value: Any) -> timezone:
+    match = _OFFSET_RE.match(str(value or ""))
+    if not match:
+        return timezone.utc
+    direction = 1 if match.group("sign") == "+" else -1
+    delta = timedelta(hours=int(match.group("hours")), minutes=int(match.group("minutes")))
+    return timezone(direction * delta)
 
 
 def _ticket_details(row: dict[str, Any]) -> tuple[str | None, str | None]:
-    candidates = [row.get("tickets"), row.get("ticket")]
     ticket_url: str | None = None
     cost: str | None = None
-    for candidate in candidates:
+    for candidate in (row.get("tickets"), row.get("ticket")):
         if not isinstance(candidate, dict):
             continue
         ticket_url = ticket_url or _clean(candidate.get("ticket_url") or candidate.get("url") or candidate.get("link"))
@@ -204,8 +209,7 @@ def _clean_description(value: Any) -> str | None:
     text = _clean(value)
     if not text:
         return None
-    text = _TAG_RE.sub(" ", html.unescape(text))
-    return _SPACE_RE.sub(" ", text).strip() or None
+    return _SPACE_RE.sub(" ", _TAG_RE.sub(" ", html.unescape(text))).strip() or None
 
 
 def _clean_url(value: Any) -> str | None:
