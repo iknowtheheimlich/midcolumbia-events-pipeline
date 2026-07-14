@@ -8,6 +8,7 @@ from typing import Any
 from src.category_intelligence import enrich_event_category
 from src.content_classifier import screen_events
 from src.deduplicate import DeduplicationResult, deduplicate_events
+from src.event_completeness import enrich_event_completeness
 from src.geography import enrich_event_geography
 from src.intelligence import attach_intelligence
 from src.occurrence_resolution import resolve_occurrences
@@ -100,14 +101,15 @@ def run_pipeline(
     screen_content: bool = False,
     enrich_categories: bool = False,
     enrich_time_semantics: bool = False,
+    enrich_completeness: bool = True,
 ) -> PipelineResult:
     """Run source batches through shared enrichment and publisher preparation.
 
     ``deduplicate`` retains the established conservative exact-key contract.
     ``resolve_cross_source_occurrences`` is an additive identity stage that runs
     after exact deduplication. Production enables both; legacy callers keep their
-    historical counts and semantics. Time semantics is likewise opt-in so old
-    fixture contracts do not change under existing callers.
+    historical counts and semantics. Time semantics remains opt-in. Completeness is
+    additive metadata and is enabled by default because it does not alter identity.
     """
     all_events = combine_source_batches(
         source_batches,
@@ -115,6 +117,7 @@ def run_pipeline(
         enrich_geography=enrich_geography,
         enrich_categories=enrich_categories,
         enrich_time_semantics=enrich_time_semantics,
+        enrich_completeness=enrich_completeness,
     )
 
     content_rejected: list[dict[str, Any]] = []
@@ -154,6 +157,7 @@ def combine_source_batches(
     enrich_geography: bool = False,
     enrich_categories: bool = False,
     enrich_time_semantics: bool = False,
+    enrich_completeness: bool = True,
 ) -> list[dict[str, Any]]:
     """Combine batches and optionally apply shared enrichment layers."""
     combined: list[dict[str, Any]] = []
@@ -196,6 +200,8 @@ def combine_source_batches(
                     float(copied.get("category_confidence") or 0.0),
                     str(copied.get("category_reason") or "no_category_rule_matched"),
                 )
+            if enrich_completeness:
+                copied = enrich_event_completeness(copied)
             combined.append(copied)
 
     return combined
