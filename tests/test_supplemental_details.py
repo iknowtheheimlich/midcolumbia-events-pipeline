@@ -68,6 +68,21 @@ def test_weekly_audit_filters_and_surfaces_recovered_details():
     assert len(rows[0]["schedule_items"]) == 2
 
 
+def test_weekly_audit_omits_structured_cost_without_recovery():
+    rows = build_supplemental_detail_rows(
+        [
+            {
+                "title": "Already Structured",
+                "start_date": "2026-07-14",
+                "cost": "$20",
+                "description": "General event description without supplemental assignments.",
+            }
+        ],
+        week_start=date(2026, 7, 13),
+    )
+    assert rows == []
+
+
 def test_audit_render_includes_cost_schedule_and_url():
     text = render_supplemental_detail_audit(
         [
