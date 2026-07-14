@@ -76,6 +76,78 @@ def test_music_venue_and_promotional_sentence_are_removed() -> None:
     assert reason == "title_cleanup"
 
 
+def test_music_live_at_venue_reduces_to_performer() -> None:
+    title, _, _ = derive_display_fields(
+        "Rachel Montgomery LIVE at Solar Spirits",
+        "Solar Spirits",
+        "Richland",
+        category="Music/Comedy",
+        profile=profile(),
+    )
+
+    assert title == "Rachel Montgomery"
+
+
+def test_music_at_venue_with_series_copy_reduces_to_performer() -> None:
+    title, _, _ = derive_display_fields(
+        "Colorblind at Sam's Saloon Summer Concert Series",
+        "Sam's Saloon",
+        "Kennewick",
+        category="Music/Comedy",
+        profile=profile(),
+    )
+
+    assert title == "Colorblind"
+
+
+def test_music_series_prefix_reduces_to_performer() -> None:
+    title, _, _ = derive_display_fields(
+        "Clover Island Concert Series - Englewood Heights",
+        "Clover Island Inn",
+        "Kennewick",
+        category="Music/Comedy",
+        profile=profile(),
+    )
+
+    assert title == "Englewood Heights"
+
+
+def test_music_genre_prefix_and_multiple_performers_are_normalized() -> None:
+    title, _, _ = derive_display_fields(
+        "Live Reggae with Dozey Dubs and Northwest Breeze",
+        "The Emerald of Siam",
+        "Richland",
+        category="Music/Comedy",
+        profile=profile(),
+    )
+
+    assert title == "Dozey Dubs and Northwest Breeze"
+
+
+def test_music_known_branding_descriptor_is_removed() -> None:
+    title, _, _ = derive_display_fields(
+        "Joshua Peace Saxxidelic, LIVE at Solar Spirits!",
+        "Solar Spirits",
+        "Richland",
+        category="Music/Comedy",
+        profile=profile(),
+    )
+
+    assert title == "Joshua Peace"
+
+
+def test_music_tribute_descriptor_and_support_billing_are_normalized() -> None:
+    title, _, _ = derive_display_fields(
+        "Catch a Wave (Beach Boys Tribute Band) w/ Badlandz at Clover Island Concert Series",
+        "Clover Island Stage",
+        "Kennewick",
+        category="Music/Comedy",
+        profile=profile(),
+    )
+
+    assert title == "Catch a Wave / Badlandz"
+
+
 def test_non_music_action_words_are_not_truncated() -> None:
     title, _, reason = derive_display_fields(
         "Workshop: Playing with Resin",
