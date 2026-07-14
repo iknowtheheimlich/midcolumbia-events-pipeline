@@ -103,6 +103,41 @@ def test_repairs_daytime_race_wall_clock_epoch():
     assert event["source_time_reason"] == "wall_clock_epoch_repaired"
 
 
+def test_description_range_overrides_conflicting_epoch():
+    event = normalize_api_event(
+        _row(
+            event_id="200030322410755",
+            eventname="OFFICIAL FIFA WATCH PARTY",
+            start_time="1784462400",
+            end_time="1784491200",
+            description="Sunday, July 19. 12:00 PM – 8:00 PM. Free family event.",
+        )
+    )
+    assert event is not None
+    assert event["start_time"] == "12:00"
+    assert event["end_time"] == "20:00"
+    assert event["source_time_reason"] == "description_explicit_time_range"
+
+
+def test_description_start_and_end_cues_override_conflicting_epoch():
+    event = normalize_api_event(
+        _row(
+            event_id="200030343620926",
+            eventname="IHB Brews & Tattoos with the Mad Tatter",
+            start_time="1784210400",
+            end_time="1784232000",
+            description=(
+                "The Mad Tatter will start taking clients at 2pm sharp. "
+                "Don't miss out; event ends at 8pm."
+            ),
+        )
+    )
+    assert event is not None
+    assert event["start_time"] == "14:00"
+    assert event["end_time"] == "20:00"
+    assert event["source_time_reason"] == "description_explicit_time_range"
+
+
 def test_preserves_explicit_overnight_event_at_1am():
     event = normalize_api_event(
         _row(
