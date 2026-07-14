@@ -9,10 +9,16 @@ from __future__ import annotations
 import argparse
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from time import perf_counter
 
 from adapters.harvest import HarvestOptions, harvest_adapter
 from adapters.registry import SOURCE_REGISTRY
 from src.harvest_health import assess_harvest_health, degraded_artifact_path
+from src.harvest_telemetry import (
+    DEFAULT_HARVEST_TELEMETRY_PATH,
+    append_harvest_telemetry,
+    build_harvest_telemetry_records,
+)
 from src.pipeline import PipelineResult, SourceBatch, run_pipeline
 from src.pipeline_inspector import DEFAULT_INSPECTOR_PATH, write_pipeline_inspector
 from src.program_intelligence import group_editorial_programs
@@ -39,6 +45,7 @@ def main() -> int:
     parser.add_argument("--output-audit", type=Path)
     parser.add_argument("--output-source-metrics", type=Path)
     parser.add_argument("--output-review-training", type=Path)
+    parser.add_argument("--output-harvest-telemetry", type=Path)
     parser.add_argument("--review-corrections", type=Path, help="Optional curated JSON corrections keyed by review fingerprint")
     parser.add_argument("--allow-degraded", action="store_true", help="Permit normal artifact paths despite failed live-source coverage")
     parser.add_argument("--inspect-title", help="Write an HTML trace for records containing this title or text")
@@ -60,8 +67,20 @@ def main() -> int:
     selected_adapters = [SOURCE_REGISTRY.get(name) for name in args.source] if args.source else SOURCE_REGISTRY.enabled()
     source_names = [adapter.source_name for adapter in selected_adapters]
     options = HarvestOptions(fetch_raw=True, months=args.months)
-    harvest_results = [harvest_adapter(adapter, options) for adapter in selected_adapters]
+    harvest_results = []
+    harvest_durations_ms: dict[str, int] = {}
+    for adapter in selected_adapters:
+        started = perf_counter()
+        result = harvest_adapter(adapter, options)
+        harvest_durations_ms[result.source_name] = round((perf_counter() - started) * 1000)
+        harvest_results.append(result)
+
     health = assess_harvest_health(selected_adapters, harvest_results)
+    telemetry_output = args.output_harvest_telemetry or DEFAULT_HARVEST_TELEMETRY_PATH
+    append_harvest_telemetry(
+        build_harvest_telemetry_records(health, harvest_results, harvest_durations_ms),
+        telemetry_output,
+    )
     blocked = health.degraded and not args.allow_degraded
 
     batches = [SourceBatch(source_name=result.source_name, events=result.normalized_events) for result in harvest_results]
@@ -151,6 +170,7 @@ def main() -> int:
     print(f"Community artifact: {community_output}")
     print(f"Audit artifact: {audit_output}")
     print(f"Source metrics: {metrics_output}")
+    print(f"Harvest telemetry: {telemetry_output}")
     if blocked:
         print("Review training: skipped (degraded harvest)")
     else:
