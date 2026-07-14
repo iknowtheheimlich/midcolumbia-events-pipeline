@@ -84,7 +84,7 @@ def test_category_explanation_survives_projection_and_editorial_layers() -> None
 def test_play_is_not_a_bare_art_theater_trigger() -> None:
     decision = classify_event(event(title="Summer Chess Classes Learn & Play"))
     assert decision.category == "Classes/Workshops"
-    assert decision.reason == "title_rule=class_or_workshop"
+    assert decision.reason == "title_rule=explicit_class_or_workshop"
 
 
 def test_stage_play_remains_art_theater() -> None:
@@ -129,3 +129,43 @@ def test_performer_named_faith_is_not_religious() -> None:
     )
     assert decision.category == "Music/Comedy"
     assert decision.reason == "context_rule=performer_at_hospitality_venue"
+
+
+def test_participatory_visual_art_is_a_class_even_at_a_winery() -> None:
+    decision = classify_event(
+        event(
+            title="Spring Flowers Painting with Glass | Fused Glass db Studio",
+            venue="Barnard Griffin Winery",
+            source_category="Music",
+        )
+    )
+    assert decision.category == "Classes/Workshops"
+    assert decision.reason == "title_rule=participatory_visual_art"
+
+
+def test_suncatcher_is_a_class_not_presented_art() -> None:
+    decision = classify_event(
+        event(title="KIDS! Suncatcher | Fused Glass db Studio", venue="Barnard Griffin Winery")
+    )
+    assert decision.category == "Classes/Workshops"
+    assert decision.reason == "title_rule=participatory_visual_art"
+
+
+def test_visiting_winemaker_outranks_hospitality_music_context() -> None:
+    decision = classify_event(
+        event(
+            title="Visiting Winemaker Night from Frichette at Solar Spirits",
+            venue="Solar Spirits",
+            source_category="Music",
+        )
+    )
+    assert decision.category == "Food & Drink"
+    assert decision.reason == "title_rule=explicit_food_or_winemaker_event"
+
+
+def test_explicit_class_can_correct_conflicting_existing_category() -> None:
+    decision = classify_event(
+        event(title="Adult Intro to Hip Hop Dance Class", category="Music/Comedy")
+    )
+    assert decision.category == "Classes/Workshops"
+    assert decision.reason == "title_rule=explicit_class_or_workshop"
