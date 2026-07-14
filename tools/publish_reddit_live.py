@@ -29,6 +29,7 @@ from src.reddit_renderer import default_community_artifact_path, default_main_ar
 from src.review_trainer import DEFAULT_REVIEW_TRAINING_PATH, write_review_training_artifact
 from src.source_attribution import build_source_attribution
 from src.source_metrics import DEFAULT_SOURCE_METRICS_PATH, build_source_metrics, write_source_metrics
+from src.supplemental_detail_audit import DEFAULT_SUPPLEMENTAL_DETAIL_PATH, write_supplemental_detail_audit
 from src.venue_registry import VenueRegistry
 
 DEFAULT_REGISTRY = Path("generated/venue_registry/registry.json")
@@ -47,6 +48,7 @@ def main() -> int:
     parser.add_argument("--output-source-metrics", type=Path)
     parser.add_argument("--output-review-training", type=Path)
     parser.add_argument("--output-harvest-telemetry", type=Path)
+    parser.add_argument("--output-supplemental-details", type=Path)
     parser.add_argument("--review-corrections", type=Path, help="Optional curated JSON corrections keyed by review fingerprint")
     parser.add_argument("--allow-degraded", action="store_true", help="Permit normal artifact paths despite failed live-source coverage")
     parser.add_argument("--inspect-title", help="Write an HTML trace for records containing this title or text")
@@ -112,11 +114,13 @@ def main() -> int:
     audit_output = args.output_audit or default_audit_path()
     metrics_output = args.output_source_metrics or DEFAULT_SOURCE_METRICS_PATH
     review_training_output = args.output_review_training or DEFAULT_REVIEW_TRAINING_PATH
+    supplemental_output = args.output_supplemental_details or DEFAULT_SUPPLEMENTAL_DETAIL_PATH
     if blocked:
         main_output = degraded_artifact_path(main_output)
         community_output = degraded_artifact_path(community_output)
         audit_output = degraded_artifact_path(audit_output)
         metrics_output = degraded_artifact_path(metrics_output)
+        supplemental_output = degraded_artifact_path(supplemental_output)
 
     write_reddit_artifact(
         main_programs,
@@ -131,6 +135,12 @@ def main() -> int:
         category_order=profile.category_order,
     )
     write_publisher_audit(editorial, audit_output, category_order=profile.category_order)
+    write_supplemental_detail_audit(
+        pipeline.all_events,
+        supplemental_output,
+        week_start=args.week_start,
+        days=args.days,
+    )
 
     source_metrics = build_source_metrics(
         selected_adapters,
@@ -181,6 +191,7 @@ def main() -> int:
     print(f"Main artifact: {main_output}")
     print(f"Community artifact: {community_output}")
     print(f"Audit artifact: {audit_output}")
+    print(f"Supplemental details: {supplemental_output}")
     print(f"Source metrics: {metrics_output}")
     print(f"Harvest telemetry: {telemetry_output}")
     if blocked:
