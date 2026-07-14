@@ -158,11 +158,10 @@ def _request_payload(target: date, city: dict[str, str]) -> dict[str, Any]:
 
 def _api_headers() -> dict[str, str]:
     return {
-        "Accept": "*/*",
-        "Content-Type": "text/plain;charset=UTF-8",
+        "Accept": "application/json, text/plain, */*",
+        "Content-Type": "application/json;charset=UTF-8",
         "Origin": "https://allevents.in",
         "Referer": "https://allevents.in/kennewick",
-        "yt": "application/json; charset=UTF-8",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/142 Safari/537.36",
     }
 
