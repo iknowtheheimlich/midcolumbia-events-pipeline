@@ -151,7 +151,12 @@ def normalize_api_event(row: dict[str, Any]) -> CanonicalEvent | None:
     if not title or not source_id or not url or start is None:
         return None
 
-    end, end_reason = _api_datetime(row, "end_time", title)
+    end, end_reason = _api_datetime(
+        row,
+        "end_time",
+        title,
+        force_wall_clock=time_reason == "wall_clock_epoch_repaired",
+    )
     venue_data = row.get("venue") if isinstance(row.get("venue"), dict) else {}
     venue = _clean(venue_data.get("venue") or row.get("location")) or "Online"
     ticket_url, cost = _ticket_details(row)
@@ -183,7 +188,13 @@ def normalize_api_event(row: dict[str, Any]) -> CanonicalEvent | None:
     return {key: value for key, value in event.items() if value not in (None, "", [], {})}
 
 
-def _api_datetime(row: dict[str, Any], field: str, title: str) -> tuple[datetime | None, str]:
+def _api_datetime(
+    row: dict[str, Any],
+    field: str,
+    title: str,
+    *,
+    force_wall_clock: bool = False,
+) -> tuple[datetime | None, str]:
     value = row.get(field)
     try:
         stamp = int(str(value))
@@ -198,7 +209,12 @@ def _api_datetime(row: dict[str, Any], field: str, title: str) -> tuple[datetime
         for value in (title, row.get("description"), row.get("location"))
     )
 
-    if _is_wall_clock_epoch(utc_instant, local_instant, offset, evidence):
+    if force_wall_clock or _is_wall_clock_epoch(
+        utc_instant,
+        local_instant,
+        offset,
+        evidence,
+    ):
         wall_clock = utc_instant.replace(tzinfo=offset)
         return wall_clock, "wall_clock_epoch_repaired"
     return local_instant, "utc_epoch_converted"
