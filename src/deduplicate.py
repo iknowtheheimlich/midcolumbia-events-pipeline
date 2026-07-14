@@ -6,6 +6,9 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from adapters.registry import SOURCE_REGISTRY
+from src.event_completeness import completeness_rank
+
 
 @dataclass(frozen=True)
 class DeduplicationResult:
@@ -17,7 +20,6 @@ class DeduplicationResult:
 
     @property
     def counts(self) -> dict[str, int]:
-        """Return before/after style counts."""
         duplicate_count = sum(max(0, len(group.get("source_events", [])) - 1) for group in self.duplicate_groups)
         return {
             "deduplicated_events": len(self.events),
@@ -59,6 +61,8 @@ def deduplicate_events(events: list[dict[str, Any]]) -> DeduplicationResult:
             {
                 "dedupe_key": "|".join(key),
                 "canonical_title": merged.get("title"),
+                "canonical_source": merged.get("source"),
+                "canonical_completeness": merged.get("completeness_percent"),
                 "source_events": [summarize_source_event(event) for event in group],
             }
         )
@@ -98,8 +102,8 @@ def is_high_quality_key(event: dict[str, Any]) -> bool:
 
 
 def merge_group(group: list[dict[str, Any]]) -> dict[str, Any]:
-    """Merge exact-key duplicate events while preserving provenance."""
-    primary = dict(group[0])
+    """Merge exact-key duplicates while preserving provenance and best record."""
+    primary = dict(max(group, key=_canonical_rank))
     sources = []
     urls = []
 
@@ -126,7 +130,18 @@ def summarize_source_event(event: dict[str, Any]) -> dict[str, Any]:
         "venue": event.get("venue"),
         "start_date": event.get("start_date"),
         "start_time": event.get("start_time"),
+        "completeness_percent": event.get("completeness_percent"),
     }
+
+
+def _canonical_rank(event: dict[str, Any]) -> tuple[float, int, int]:
+    completeness, populated = completeness_rank(event)
+    source = str(event.get("source") or "")
+    try:
+        priority = SOURCE_REGISTRY.get(source).priority
+    except KeyError:
+        priority = 0
+    return completeness, priority, populated
 
 
 def normalize_text(value: Any) -> str:
