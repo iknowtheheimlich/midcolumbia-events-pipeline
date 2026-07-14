@@ -2,11 +2,13 @@
 
 Attempt_59_AllEventsStructuredAPI
 Attempt_67_AllEventsWallClockTime
+Attempt_68_ExplicitDescriptionTimeEvidence
 
 The browser's date inventory is served by a session-gated JSON endpoint rather than
 the static city HTML. Some records contain true Unix UTC epochs while others encode
-local wall-clock values as if they were UTC. The normalizer repairs only narrow,
-explainable daytime-event anomalies and preserves ordinary UTC conversion otherwise.
+local wall-clock values as if they were UTC. Explicit source-authored AM/PM ranges in
+the event description outrank conflicting epoch values; otherwise the normalizer uses
+narrow wall-clock anomaly repair and ordinary UTC conversion.
 """
 
 from __future__ import annotations
@@ -40,6 +42,23 @@ _DAYTIME_EVENT_CUE_RE = re.compile(
 )
 _EMBEDDED_DAYTIME_RE = re.compile(
     r"\b(?:[6-9]|1[01])(?:\s*(?::\d{2})?\s*(?:a\.?m\.?)?|\s*[-–]\s*(?:[7-9]|1[0-2]))\b",
+    re.IGNORECASE,
+)
+_EXPLICIT_RANGE_RE = re.compile(
+    r"(?<!\d)(?P<start_hour>\d{1,2})(?::(?P<start_minute>\d{2}))?\s*"
+    r"(?P<start_meridiem>a\.?m\.?|p\.?m\.?)\s*(?:[-–—]|to)\s*"
+    r"(?P<end_hour>\d{1,2})(?::(?P<end_minute>\d{2}))?\s*"
+    r"(?P<end_meridiem>a\.?m\.?|p\.?m\.?)\b",
+    re.IGNORECASE,
+)
+_EXPLICIT_START_RE = re.compile(
+    r"\b(?:start(?:s|ing)?|begins?|from|clients?\s+at)\D{0,24}"
+    r"(?P<hour>\d{1,2})(?::(?P<minute>\d{2}))?\s*(?P<meridiem>a\.?m\.?|p\.?m\.?)\b",
+    re.IGNORECASE,
+)
+_EXPLICIT_END_RE = re.compile(
+    r"\b(?:ends?|until|through)\D{0,16}"
+    r"(?P<hour>\d{1,2})(?::(?P<minute>\d{2}))?\s*(?P<meridiem>a\.?m\.?|p\.?m\.?)\b",
     re.IGNORECASE,
 )
 
@@ -147,16 +166,24 @@ def normalize_api_event(row: dict[str, Any]) -> CanonicalEvent | None:
     title = _clean(row.get("eventname_raw") or row.get("eventname"))
     source_id = _clean(row.get("event_id"))
     url = _clean(row.get("event_url") or row.get("share_url"))
-    start, time_reason = _api_datetime(row, "start_time", title or "")
-    if not title or not source_id or not url or start is None:
+    if not title or not source_id or not url:
         return None
 
-    end, end_reason = _api_datetime(
-        row,
-        "end_time",
-        title,
-        force_wall_clock=time_reason == "wall_clock_epoch_repaired",
-    )
+    explicit_times = _explicit_description_times(row)
+    if explicit_times is not None:
+        start, end = explicit_times
+        time_reason = end_reason = "description_explicit_time_range"
+    else:
+        start, time_reason = _api_datetime(row, "start_time", title)
+        if start is None:
+            return None
+        end, end_reason = _api_datetime(
+            row,
+            "end_time",
+            title,
+            force_wall_clock=time_reason == "wall_clock_epoch_repaired",
+        )
+
     venue_data = row.get("venue") if isinstance(row.get("venue"), dict) else {}
     venue = _clean(venue_data.get("venue") or row.get("location")) or "Online"
     ticket_url, cost = _ticket_details(row)
@@ -186,6 +213,69 @@ def normalize_api_event(row: dict[str, Any]) -> CanonicalEvent | None:
         "source_time_reason": time_reason if time_reason == end_reason else f"start={time_reason};end={end_reason}",
     }
     return {key: value for key, value in event.items() if value not in (None, "", [], {})}
+
+
+def _explicit_description_times(row: dict[str, Any]) -> tuple[datetime, datetime] | None:
+    description = _clean_description(row.get("description")) or ""
+    if not description or _OVERNIGHT_CUE_RE.search(description):
+        return None
+
+    range_match = _EXPLICIT_RANGE_RE.search(description)
+    start_parts: tuple[int, int, str] | None = None
+    end_parts: tuple[int, int, str] | None = None
+    if range_match:
+        start_parts = (
+            int(range_match.group("start_hour")),
+            int(range_match.group("start_minute") or 0),
+            range_match.group("start_meridiem"),
+        )
+        end_parts = (
+            int(range_match.group("end_hour")),
+            int(range_match.group("end_minute") or 0),
+            range_match.group("end_meridiem"),
+        )
+    else:
+        start_match = _EXPLICIT_START_RE.search(description)
+        end_match = _EXPLICIT_END_RE.search(description)
+        if not start_match or not end_match:
+            return None
+        start_parts = (
+            int(start_match.group("hour")),
+            int(start_match.group("minute") or 0),
+            start_match.group("meridiem"),
+        )
+        end_parts = (
+            int(end_match.group("hour")),
+            int(end_match.group("minute") or 0),
+            end_match.group("meridiem"),
+        )
+
+    try:
+        stamp = int(str(row.get("start_time")))
+    except (TypeError, ValueError):
+        return None
+    offset = _timezone_offset(row.get("timezone"), stamp)
+    event_date = datetime.fromtimestamp(stamp, timezone.utc).date()
+    start = datetime.combine(event_date, datetime.min.time(), tzinfo=offset).replace(
+        hour=_hour24(start_parts[0], start_parts[2]),
+        minute=start_parts[1],
+    )
+    end = datetime.combine(event_date, datetime.min.time(), tzinfo=offset).replace(
+        hour=_hour24(end_parts[0], end_parts[2]),
+        minute=end_parts[1],
+    )
+    if end <= start:
+        end += timedelta(days=1)
+    return start, end
+
+
+def _hour24(hour: int, meridiem: str) -> int:
+    if not 1 <= hour <= 12:
+        raise ValueError(f"invalid 12-hour clock value: {hour}")
+    normalized = meridiem.casefold().replace(".", "")
+    if normalized == "am":
+        return 0 if hour == 12 else hour
+    return 12 if hour == 12 else hour + 12
 
 
 def _api_datetime(
@@ -226,12 +316,6 @@ def _is_wall_clock_epoch(
     offset: tzinfo,
     evidence: str,
 ) -> bool:
-    """Detect the narrow AllEvents defect where local clock time is stored as UTC.
-
-    We repair only negative-offset records that convert into 12–4:59 AM while the raw
-    UTC clock is a plausible daytime hour, and only when the event text identifies a
-    normally daytime program or embeds a daytime range. Explicit overnight cues win.
-    """
     offset_delta = offset.utcoffset(utc_instant)
     if offset_delta is None or offset_delta >= timedelta(0):
         return False
