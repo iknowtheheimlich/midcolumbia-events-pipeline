@@ -144,16 +144,25 @@ def _display_title(
         ).strip()
 
     if _key(category) == _MUSIC_CATEGORY:
-        cleaned = _canonicalize_music_title(cleaned)
+        cleaned = _canonicalize_music_title(cleaned, venue)
 
     return _clean(cleaned).strip(" !,|:-–—") or title
 
 
-def _canonicalize_music_title(title: str) -> str:
+def _canonicalize_music_title(title: str, venue: str) -> str:
     """Reduce promotional music copy to the performer billing."""
     cleaned = _MUSIC_LEADING_PROMO_RE.sub("", title).strip()
     cleaned = _MUSIC_PROMO_SENTENCE_RE.sub("", cleaned).strip()
     cleaned = _MUSIC_LIVE_VENUE_SUFFIX_RE.sub("", cleaned).strip()
+
+    if venue:
+        escaped = re.escape(venue)
+        cleaned = re.sub(
+            rf"\s+(?:at|@)\s+{escaped}\s*[!.,]*$",
+            "",
+            cleaned,
+            flags=re.IGNORECASE,
+        ).strip()
 
     action_match = _MUSIC_ACTION_SUFFIX_RE.match(cleaned)
     if action_match:
