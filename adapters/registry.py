@@ -24,6 +24,8 @@ class AdapterInfo(AdapterManifest):
 
     enabled: bool = True
     priority: int = 0
+    attribution_label: str | None = None
+    include_in_attribution: bool = True
 
 
 @dataclass(frozen=True)
@@ -79,6 +81,7 @@ def _adapter_from_row(row: Any) -> AdapterInfo:
         raise ValueError(f"source registry entry missing fields: {missing}")
 
     raw_fixture = row.get("raw_fixture_path")
+    attribution_label = str(row.get("attribution_label") or "").strip() or None
     return AdapterInfo(
         source_name=str(row["source_name"]).strip(),
         adapter_package=str(row["adapter_package"]).strip(),
@@ -88,6 +91,8 @@ def _adapter_from_row(row: Any) -> AdapterInfo:
         notes=str(row.get("notes") or "").strip() or None,
         enabled=bool(row.get("enabled", True)),
         priority=int(row.get("priority", 0)),
+        attribution_label=attribution_label,
+        include_in_attribution=bool(row.get("include_in_attribution", True)),
     )
 
 
