@@ -63,6 +63,14 @@ def test_training_records_are_deterministically_sorted() -> None:
     assert [record.title for record in records] == ["Alpha", "Zulu"]
 
 
+def test_training_record_contains_actionable_source_and_review_context() -> None:
+    record = build_review_training_records([event()])[0]
+    assert record.publication_url == "https://example.org/event"
+    assert record.publication_disposition == "REVIEW"
+    assert record.editorial_reason == "missing_or_unknown_category"
+    assert record.category_reason == "no_category_rule_matched"
+
+
 def test_correction_attaches_by_fingerprint(tmp_path: Path) -> None:
     target = event()
     fingerprint = review_fingerprint(target)
@@ -79,8 +87,9 @@ def test_correction_attaches_by_fingerprint(tmp_path: Path) -> None:
         "correct_category": "Food & Drink",
     }
     payload = json.loads(output.read_text(encoding="utf-8"))
-    assert payload["schema_version"] == 1
+    assert payload["schema_version"] == 2
     assert payload["record_count"] == 1
+    assert payload["records"][0]["publication_url"] == "https://example.org/event"
 
 
 def test_invalid_or_duplicate_corrections_fail_loudly(tmp_path: Path) -> None:
