@@ -1,5 +1,5 @@
 {
-  "registry_version": 1,
+  "registry_version": 2,
   "sources": [
     {
       "source_name": "VisitTriCities",
@@ -9,6 +9,8 @@
       "adapter_package": "adapters.visit_tricities",
       "fixture_path": "fixtures/visit_tricities/normalized_events.json",
       "raw_fixture_path": "fixtures/visit_tricities/raw_response.json",
+      "attribution_label": "visittri-cities.com",
+      "include_in_attribution": true,
       "notes": "Algolia-backed event source."
     },
     {
@@ -19,6 +21,8 @@
       "adapter_package": "adapters.tricity_vibe",
       "fixture_path": "fixtures/tricity_vibe/normalized_events.json",
       "raw_fixture_path": "fixtures/tricity_vibe/raw_events.html",
+      "attribution_label": "tricityvibe.com",
+      "include_in_attribution": true,
       "notes": "WordPress-rendered event listing parser."
     },
     {
@@ -29,6 +33,8 @@
       "adapter_package": "adapters.richland_library",
       "fixture_path": "fixtures/richland_library/normalized_events.json",
       "raw_fixture_path": "fixtures/richland_library/raw_events.html",
+      "attribution_label": "Richland Library",
+      "include_in_attribution": true,
       "notes": "LibCal/Springshare-backed source."
     },
     {
@@ -39,6 +45,8 @@
       "adapter_package": "adapters.mid_columbia_libraries",
       "fixture_path": "fixtures/mid_columbia_libraries/normalized_events.json",
       "raw_fixture_path": "fixtures/mid_columbia_libraries/raw_events.html",
+      "attribution_label": "Mid-Columbia Libraries",
+      "include_in_attribution": true,
       "notes": "Mid-Columbia Libraries listing parser."
     },
     {
@@ -49,6 +57,8 @@
       "adapter_package": "adapters.allevents",
       "fixture_path": "fixtures/allevents/normalized_events.json",
       "raw_fixture_path": "fixtures/allevents/raw_pages.json",
+      "attribution_label": "allevents.in",
+      "include_in_attribution": true,
       "notes": "Multi-city JSON-LD collector for AllEvents listings."
     },
     {
@@ -59,6 +69,8 @@
       "adapter_package": "tools.import_legacy_unified_events",
       "fixture_path": "fixtures/legacy/normalized_events.json",
       "raw_fixture_path": null,
+      "attribution_label": null,
+      "include_in_attribution": false,
       "notes": "Bridge for historic unified_events.csv output."
     },
     {
@@ -69,7 +81,9 @@
       "adapter_package": "adapters.richland_active_communities",
       "fixture_path": "fixtures/richland_active_communities/normalized_events.json",
       "raw_fixture_path": "fixtures/richland_active_communities/raw_events.json",
-      "notes": "Reserved for Attempt_38."
+      "attribution_label": "Richland Active Communities",
+      "include_in_attribution": true,
+      "notes": "Reserved for future implementation."
     }
   ]
 }
