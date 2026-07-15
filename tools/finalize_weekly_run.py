@@ -13,6 +13,7 @@ from src.classification_review_batch import export_review_batch
 from src.classification_review_feedback import load_feedback
 from src.corpus_health import analyze_corpus_health, render_corpus_health
 from src.corpus_snapshots import create_corpus_snapshot
+from src.review_backlog_aging import load_backlog, reconcile_backlog, render_backlog_report, write_backlog
 from tools.update_classified_history import load_events
 
 
@@ -21,8 +22,10 @@ def finalize_weekly_run(
     *,
     history_path: Path = Path("history/classified_events.jsonl"),
     review_ledger_path: Path = Path("history/classification_reviews.jsonl"),
+    review_backlog_path: Path = Path("history/review_backlog.json"),
     snapshots_dir: Path = Path("history/snapshots"),
     artifacts_dir: Path = Path("artifacts"),
+    stale_after: int = 3,
     run_reports: bool = True,
 ) -> dict:
     incoming_events = load_events(input_path)
@@ -40,11 +43,23 @@ def finalize_weekly_run(
         render_corpus_health(health), encoding="utf-8"
     )
 
+    backlog, backlog_stats = reconcile_backlog(
+        incoming_events,
+        load_backlog(review_backlog_path),
+        stale_after=max(2, stale_after),
+    )
+    write_backlog(review_backlog_path, backlog)
+    backlog_report_path = artifacts_dir / "review_backlog_report.txt"
+    backlog_report_path.write_text(
+        render_backlog_report(backlog, backlog_stats), encoding="utf-8"
+    )
+
     review_batch_path = artifacts_dir / "classification_review_batch.csv"
     review_batch = export_review_batch(
         incoming_events,
         review_batch_path,
         reviewed_feedback=load_feedback(review_ledger_path),
+        backlog=backlog,
     )
 
     report_failures: list[str] = []
@@ -65,6 +80,10 @@ def finalize_weekly_run(
         "history_path": str(history_path),
         "snapshot_path": str(snapshot_path) if snapshot_path else None,
         "health_report": str(artifacts_dir / "corpus_health_report.txt"),
+        "review_backlog_path": str(review_backlog_path),
+        "review_backlog_report": str(backlog_report_path),
+        "review_backlog_active": backlog_stats.active,
+        "review_backlog_stale": backlog_stats.stale,
         "review_batch_path": str(review_batch_path),
         "review_batch_exported": review_batch.exported,
         "review_batch_skipped_reviewed": review_batch.skipped_already_reviewed,
@@ -77,8 +96,10 @@ def main() -> None:
     parser.add_argument("input", type=Path, help="Final classified JSON or JSONL artifact")
     parser.add_argument("--history", type=Path, default=Path("history/classified_events.jsonl"))
     parser.add_argument("--review-ledger", type=Path, default=Path("history/classification_reviews.jsonl"))
+    parser.add_argument("--review-backlog", type=Path, default=Path("history/review_backlog.json"))
     parser.add_argument("--snapshots-dir", type=Path, default=Path("history/snapshots"))
     parser.add_argument("--artifacts-dir", type=Path, default=Path("artifacts"))
+    parser.add_argument("--stale-after", type=int, default=3)
     parser.add_argument("--skip-reports", action="store_true")
     args = parser.parse_args()
 
@@ -86,11 +107,13 @@ def main() -> None:
         args.input,
         history_path=args.history,
         review_ledger_path=args.review_ledger,
+        review_backlog_path=args.review_backlog,
         snapshots_dir=args.snapshots_dir,
         artifacts_dir=args.artifacts_dir,
+        stale_after=args.stale_after,
         run_reports=not args.skip_reports,
     )
-    print("Attempt 85 Weekly Finalization")
+    print("Attempt 87 Weekly Finalization")
     print("==============================")
     print(f"Incoming classified: {result['incoming']}")
     print(f"Inserted: {result['inserted']}")
@@ -100,6 +123,10 @@ def main() -> None:
     print(f"History path: {result['history_path']}")
     print(f"Snapshot path: {result['snapshot_path'] or 'None (empty initial corpus)'}")
     print(f"Health report: {result['health_report']}")
+    print(
+        f"Review backlog: {result['review_backlog_path']} "
+        f"({result['review_backlog_active']} active; {result['review_backlog_stale']} stale)"
+    )
     print(
         f"Review batch: {result['review_batch_path']} "
         f"({result['review_batch_exported']} events; "
