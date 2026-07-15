@@ -54,7 +54,8 @@ def build_feedback(
         event_id = "derived|" + sha256(seed.encode("utf-8")).hexdigest()[:24]
     timestamp = reviewed_at or datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     original = _text(event.get("category"))
-    feedback_seed = f"{event_id}|{original}|{corrected}|{timestamp}"
+    normalized_reviewer = _text(reviewer) or "human"
+    feedback_seed = f"{event_id}|{original}|{corrected}|{normalized_reviewer}"
     evidence = event.get("category_evidence")
     if not isinstance(evidence, list):
         evidence = []
@@ -70,7 +71,7 @@ def build_feedback(
         venue=_text(event.get("canonical_venue") or event.get("venue_registry_name") or event.get("venue")),
         organizer=_text(event.get("canonical_organizer") or event.get("organizer_registry_name") or event.get("organization") or event.get("organizer") or event.get("host")),
         source=_text(event.get("source")),
-        reviewer=_text(reviewer) or "human",
+        reviewer=normalized_reviewer,
         reviewed_at=timestamp,
     )
 
