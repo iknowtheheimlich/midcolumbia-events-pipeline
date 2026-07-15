@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import date
 import json
 from pathlib import Path
 import subprocess
@@ -14,6 +15,7 @@ from src.classification_review_feedback import load_feedback
 from src.corpus_health import analyze_corpus_health, render_corpus_health
 from src.corpus_snapshots import create_corpus_snapshot
 from src.review_backlog_aging import load_backlog, reconcile_backlog, render_backlog_report, write_backlog
+from src.review_backlog_throughput import analyze_backlog_throughput, append_throughput, render_throughput_report
 from tools.update_classified_history import load_events
 
 
@@ -23,6 +25,7 @@ def finalize_weekly_run(
     history_path: Path = Path("history/classified_events.jsonl"),
     review_ledger_path: Path = Path("history/classification_reviews.jsonl"),
     review_backlog_path: Path = Path("history/review_backlog.json"),
+    throughput_history_path: Path = Path("history/review_backlog_throughput.jsonl"),
     snapshots_dir: Path = Path("history/snapshots"),
     artifacts_dir: Path = Path("artifacts"),
     stale_after: int = 3,
@@ -43,9 +46,10 @@ def finalize_weekly_run(
         render_corpus_health(health), encoding="utf-8"
     )
 
+    prior_backlog = load_backlog(review_backlog_path)
     backlog, backlog_stats = reconcile_backlog(
         incoming_events,
-        load_backlog(review_backlog_path),
+        prior_backlog,
         stale_after=max(2, stale_after),
     )
     write_backlog(review_backlog_path, backlog)
@@ -53,6 +57,11 @@ def finalize_weekly_run(
     backlog_report_path.write_text(
         render_backlog_report(backlog, backlog_stats), encoding="utf-8"
     )
+
+    throughput = analyze_backlog_throughput(prior_backlog, backlog)
+    append_throughput(throughput_history_path, date.today().isoformat(), throughput)
+    throughput_report_path = artifacts_dir / "review_backlog_throughput_report.txt"
+    throughput_report_path.write_text(render_throughput_report(throughput), encoding="utf-8")
 
     review_batch_path = artifacts_dir / "classification_review_batch.csv"
     review_batch = export_review_batch(
@@ -84,6 +93,9 @@ def finalize_weekly_run(
         "review_backlog_report": str(backlog_report_path),
         "review_backlog_active": backlog_stats.active,
         "review_backlog_stale": backlog_stats.stale,
+        "review_backlog_trend": throughput.trend,
+        "review_backlog_net_change": throughput.net_change,
+        "review_backlog_throughput_report": str(throughput_report_path),
         "review_batch_path": str(review_batch_path),
         "review_batch_exported": review_batch.exported,
         "review_batch_skipped_reviewed": review_batch.skipped_already_reviewed,
@@ -97,6 +109,7 @@ def main() -> None:
     parser.add_argument("--history", type=Path, default=Path("history/classified_events.jsonl"))
     parser.add_argument("--review-ledger", type=Path, default=Path("history/classification_reviews.jsonl"))
     parser.add_argument("--review-backlog", type=Path, default=Path("history/review_backlog.json"))
+    parser.add_argument("--throughput-history", type=Path, default=Path("history/review_backlog_throughput.jsonl"))
     parser.add_argument("--snapshots-dir", type=Path, default=Path("history/snapshots"))
     parser.add_argument("--artifacts-dir", type=Path, default=Path("artifacts"))
     parser.add_argument("--stale-after", type=int, default=3)
@@ -108,12 +121,13 @@ def main() -> None:
         history_path=args.history,
         review_ledger_path=args.review_ledger,
         review_backlog_path=args.review_backlog,
+        throughput_history_path=args.throughput_history,
         snapshots_dir=args.snapshots_dir,
         artifacts_dir=args.artifacts_dir,
         stale_after=args.stale_after,
         run_reports=not args.skip_reports,
     )
-    print("Attempt 87 Weekly Finalization")
+    print("Attempt 88 Weekly Finalization")
     print("==============================")
     print(f"Incoming classified: {result['incoming']}")
     print(f"Inserted: {result['inserted']}")
@@ -125,7 +139,8 @@ def main() -> None:
     print(f"Health report: {result['health_report']}")
     print(
         f"Review backlog: {result['review_backlog_path']} "
-        f"({result['review_backlog_active']} active; {result['review_backlog_stale']} stale)"
+        f"({result['review_backlog_active']} active; {result['review_backlog_stale']} stale; "
+        f"{result['review_backlog_trend']} {result['review_backlog_net_change']:+d})"
     )
     print(
         f"Review batch: {result['review_batch_path']} "
