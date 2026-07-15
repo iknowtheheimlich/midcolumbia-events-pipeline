@@ -48,6 +48,16 @@ def test_profile_routes_categories_to_separate_posts():
     assert profile.publication_target(None) == "REVIEW"
 
 
+def test_profile_normalizes_live_source_category_aliases():
+    profile = PublishingProfile.load()
+
+    assert profile.normalize_category("Live Music") == "Music/Comedy"
+    assert profile.normalize_category("Arts & Theater") == "Art/Theater"
+    assert profile.normalize_category("Winery Events") == "Restaurants/Bars/Wineries"
+    assert profile.normalize_category("Kids and Families") == "Community Programs"
+    assert profile.normalize_category("Annual Events") == "Festivals/Fair"
+
+
 def test_explicit_publication_target_overrides_category_default():
     profile = PublishingProfile.load()
 
