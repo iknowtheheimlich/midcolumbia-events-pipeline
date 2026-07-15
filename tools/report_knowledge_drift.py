@@ -6,36 +6,15 @@ import argparse
 import json
 from pathlib import Path
 
+from src.event_io import load_event_records
 from src.knowledge_drift import detect_knowledge_drift
 from src.organizer_category_intelligence import load_organizer_category_hints
 from src.venue_category_intelligence import load_venue_category_hints
 
 
 def load_events(path: Path) -> list[dict]:
-    text = path.read_text(encoding="utf-8")
-    if path.suffix.casefold() == ".jsonl":
-        rows = []
-        for line_number, line in enumerate(text.splitlines(), start=1):
-            stripped = line.strip()
-            if not stripped:
-                continue
-            try:
-                row = json.loads(stripped)
-            except json.JSONDecodeError as exc:
-                raise ValueError(f"Invalid JSONL in {path} at line {line_number}: {exc.msg}") from exc
-            if isinstance(row, dict):
-                rows.append(row)
-        return rows
-
-    payload = json.loads(text)
-    if isinstance(payload, list):
-        return [row for row in payload if isinstance(row, dict)]
-    if isinstance(payload, dict):
-        for key in ("events", "all_events", "publisher_ready_events", "deduplicated_publisher_ready_events"):
-            rows = payload.get(key)
-            if isinstance(rows, list):
-                return [row for row in rows if isinstance(row, dict)]
-    raise ValueError(f"No event list found in {path}")
+    """Backward-compatible alias for the canonical event loader."""
+    return load_event_records(path)
 
 
 def classified_events(events: list[dict]) -> list[dict]:
@@ -94,7 +73,7 @@ def main() -> None:
     parser.add_argument("--report-output", type=Path, default=Path("artifacts/knowledge_drift_report.txt"))
     args = parser.parse_args()
 
-    loaded = load_events(args.input)
+    loaded = load_event_records(args.input)
     eligible = classified_events(loaded)
     results = detect_knowledge_drift(
         eligible,
