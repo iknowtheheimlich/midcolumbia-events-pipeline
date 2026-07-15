@@ -12,7 +12,22 @@ from src.venue_category_intelligence import load_venue_category_hints
 
 
 def load_events(path: Path) -> list[dict]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    text = path.read_text(encoding="utf-8")
+    if path.suffix.casefold() == ".jsonl":
+        rows = []
+        for line_number, line in enumerate(text.splitlines(), start=1):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            try:
+                row = json.loads(stripped)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"Invalid JSONL in {path} at line {line_number}: {exc.msg}") from exc
+            if isinstance(row, dict):
+                rows.append(row)
+        return rows
+
+    payload = json.loads(text)
     if isinstance(payload, list):
         return [row for row in payload if isinstance(row, dict)]
     if isinstance(payload, dict):
@@ -72,7 +87,7 @@ def render_report(results, *, loaded_events: int, classified_event_count: int) -
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("input", type=Path, help="JSON event history with final categories")
+    parser.add_argument("input", type=Path, help="JSON or JSONL event history with final categories")
     parser.add_argument("--recent-limit", type=int, default=20)
     parser.add_argument("--minimum-recent-events", type=int, default=5)
     parser.add_argument("--json-output", type=Path, default=Path("artifacts/knowledge_drift.json"))
