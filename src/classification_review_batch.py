@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, asdict
 import csv
-import json
 from pathlib import Path
 from typing import Any, Iterable
 
 from src.classification_observability import sort_for_category_review
 from src.classification_review_feedback import append_feedback, build_feedback
+from src.event_io import load_event_records
 from src.review_backlog_aging import decision_key
 
 
@@ -122,25 +122,8 @@ def import_review_batch(batch_path: Path, ledger_path: Path, *, reviewer: str = 
 
 
 def load_events(path: Path) -> list[dict[str, Any]]:
-    if path.suffix.casefold() == ".jsonl":
-        rows = []
-        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
-            if not line.strip():
-                continue
-            value = json.loads(line)
-            if not isinstance(value, dict):
-                raise ValueError(f"Expected object at {path}:{line_number}")
-            rows.append(value)
-        return rows
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    if isinstance(payload, list):
-        return [row for row in payload if isinstance(row, dict)]
-    if isinstance(payload, dict):
-        for key in ("events", "items", "records"):
-            value = payload.get(key)
-            if isinstance(value, list):
-                return [row for row in value if isinstance(row, dict)]
-    raise ValueError(f"Unsupported event payload in {path}")
+    """Backward-compatible alias for the canonical event loader."""
+    return load_event_records(path)
 
 
 def _backlog_priority(event: dict[str, Any], backlog: dict[str, dict[str, Any]]) -> tuple[Any, ...]:
