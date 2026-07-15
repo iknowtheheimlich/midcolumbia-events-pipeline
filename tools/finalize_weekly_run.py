@@ -24,6 +24,7 @@ from src.operational_defaults import (
 from src.review_backlog_aging import load_backlog, reconcile_backlog, render_backlog_report, write_backlog
 from src.review_backlog_throughput import analyze_backlog_throughput, append_throughput, render_throughput_report
 from src.review_capacity_planning import analyze_review_capacity, render_capacity_report
+from src.review_operational_metrics import consolidate_review_metrics
 from src.review_sla import apply_review_sla, render_review_sla_report
 from tools.update_classified_history import load_events
 
@@ -99,6 +100,10 @@ def finalize_weekly_run(
         render_capacity_report(capacity), encoding="utf-8"
     )
 
+    metrics = consolidate_review_metrics(backlog_stats, sla_stats, throughput, capacity)
+    metrics_path = artifacts_dir / "review_operational_metrics.json"
+    metrics_path.write_text(json.dumps(metrics.to_dict(), indent=2) + "\n", encoding="utf-8")
+
     review_batch_path = artifacts_dir / "classification_review_batch.csv"
     review_batch = export_review_batch(
         incoming_events,
@@ -127,19 +132,21 @@ def finalize_weekly_run(
         "health_report": str(artifacts_dir / "corpus_health_report.txt"),
         "review_backlog_path": str(review_backlog_path),
         "review_backlog_report": str(backlog_report_path),
-        "review_backlog_active": backlog_stats.active,
-        "review_backlog_stale": backlog_stats.stale,
-        "review_backlog_trend": throughput.trend,
-        "review_backlog_net_change": throughput.net_change,
+        "review_backlog_active": metrics.active,
+        "review_backlog_stale": metrics.stale,
+        "review_backlog_trend": metrics.trend,
+        "review_backlog_net_change": metrics.net_change,
         "review_backlog_throughput_report": str(throughput_report_path),
         "review_sla_report": str(sla_report_path),
-        "review_sla_due_soon": sla_stats.due_soon,
-        "review_sla_overdue": sla_stats.overdue,
-        "review_sla_oldest_days": sla_stats.oldest_days,
+        "review_sla_due_soon": metrics.due_soon,
+        "review_sla_overdue": metrics.overdue,
+        "review_sla_oldest_days": metrics.oldest_days,
         "review_capacity_report": str(capacity_report_path),
-        "review_capacity_status": capacity.status,
-        "review_capacity_net_clearance": capacity.net_clearance,
-        "review_capacity_weeks_to_clear": capacity.weeks_to_clear,
+        "review_capacity_status": metrics.capacity_status,
+        "review_capacity_net_clearance": metrics.net_clearance,
+        "review_capacity_weeks_to_clear": metrics.weeks_to_clear,
+        "review_operational_metrics": str(metrics_path),
+        "review_metrics": metrics.to_dict(),
         "review_batch_path": str(review_batch_path),
         "review_batch_exported": review_batch.exported,
         "review_batch_skipped_reviewed": review_batch.skipped_already_reviewed,
@@ -193,7 +200,7 @@ def main() -> None:
         run_reports=not args.skip_reports,
     )
 
-    print("Attempt 93 Weekly Finalization")
+    print("Attempt 94 Weekly Finalization")
     print("==============================")
     print(f"Incoming classified: {result['incoming']}")
     print(f"Inserted: {result['inserted']}")
@@ -218,6 +225,7 @@ def main() -> None:
         f"Review capacity: {result['review_capacity_status']}; "
         f"net clearance={result['review_capacity_net_clearance']:+.1f}/week; ETA={eta_text}"
     )
+    print(f"Review metrics: {result['review_operational_metrics']}")
     print(
         f"Review batch: {result['review_batch_path']} "
         f"({result['review_batch_exported']} events; "
