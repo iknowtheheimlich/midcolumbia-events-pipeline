@@ -17,6 +17,31 @@ from typing import Any
 DEFAULT_PROFILE_PATH = Path("config/reddit_publishing_profile.json")
 VALID_PUBLICATION_TARGETS = {"MAIN", "COMMUNITY", "BOTH", "SUPPRESS", "REVIEW"}
 
+CATEGORY_ALIASES = {
+    "live music": "Music/Comedy",
+    "music & concerts": "Music/Comedy",
+    "arts & theater": "Art/Theater",
+    "food & drink": "Food & Drink",
+    "winery events": "Restaurants/Bars/Wineries",
+    "sports & recreation": "Sports",
+    "annual events": "Festivals/Fair",
+    "community events": "Events/Hangouts",
+    "history & heritage": "Tours",
+    "kids & family": "Community Programs",
+    "kids and families": "Community Programs",
+    "adult": "Community Programs",
+    "all ages": "Community Programs",
+    "all ages kids and families": "Community Programs",
+    "middle school high school adult": "Community Programs",
+    "high school adult": "Community Programs",
+    "all ages middle school high school adult": "Community Programs",
+    "middle school high school": "Community Programs",
+    "all ages kids and families middle school high school adult": "Community Programs",
+    "kids and families middle school": "Community Programs",
+    "all ages adult": "Community Programs",
+    "other": "Events/Hangouts",
+}
+
 
 @dataclass(frozen=True)
 class PublishingProfile:
@@ -74,8 +99,13 @@ class PublishingProfile:
     def normalize_category(self, value: str | None) -> str | None:
         if not value or not value.strip():
             return None
+        text = value.strip()
         lookup = {category.casefold(): category for category in self.category_order}
-        return lookup.get(value.strip().casefold())
+        direct = lookup.get(text.casefold())
+        if direct is not None:
+            return direct
+        alias = CATEGORY_ALIASES.get(text.casefold())
+        return alias if alias in self.category_order else None
 
     def publication_target(self, category: str | None, explicit_target: str | None = None) -> str:
         if explicit_target and explicit_target.strip():
