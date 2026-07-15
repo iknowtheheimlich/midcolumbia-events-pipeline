@@ -20,11 +20,16 @@ def test_recurring_library_program_titles_classify_as_community_programs() -> No
         "Library Gaming Guild",
         "Meet Our Therapy Dogs",
         "Love on a Leash",
-        "Community Program: Book Talk",
     ):
         decision = classify_event(event(title))
         assert decision.category == "Community Programs"
         assert decision.reason == "title_rule=library_or_community_program"
+
+
+def test_book_talk_uses_existing_lecture_category() -> None:
+    decision = classify_event(event("Community Program: Book Talk"))
+    assert decision.category == "Lectures/Talks"
+    assert decision.reason == "title_rule=lecture_or_history_talk"
 
 
 def test_library_source_audience_categories_map_into_existing_taxonomy() -> None:
