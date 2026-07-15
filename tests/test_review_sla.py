@@ -1,0 +1,68 @@
+from pathlib import Path
+
+from src.review_sla import apply_review_sla, render_review_sla_report
+from tools.finalize_weekly_run import finalize_weekly_run
+
+
+def backlog(first_seen: str = "2026-07-01", appearances: int = 1) -> dict:
+    return {
+        "1|Sports": {
+            "event_id": "1",
+            "title": "Example",
+            "category": "Sports",
+            "confidence": 0.4,
+            "first_seen": first_seen,
+            "last_seen": "2026-07-15",
+            "appearances": appearances,
+            "status": "recurring",
+        }
+    }
+
+
+def test_due_soon_by_age() -> None:
+    enriched, stats = apply_review_sla(backlog(first_seen="2026-07-08"), as_of="2026-07-15")
+    assert enriched["1|Sports"]["sla_status"] == "due_soon"
+    assert stats.due_soon == 1
+
+
+def test_overdue_by_age() -> None:
+    enriched, stats = apply_review_sla(backlog(first_seen="2026-07-01"), as_of="2026-07-15")
+    assert enriched["1|Sports"]["sla_status"] == "overdue"
+    assert stats.overdue == 1
+    assert stats.oldest_days == 14
+
+
+def test_overdue_by_appearances() -> None:
+    enriched, stats = apply_review_sla(
+        backlog(first_seen="2026-07-14", appearances=4),
+        as_of="2026-07-15",
+    )
+    assert enriched["1|Sports"]["sla_status"] == "overdue"
+    assert stats.overdue == 1
+
+
+def test_report_lists_overdue() -> None:
+    enriched, stats = apply_review_sla(backlog(), as_of="2026-07-15")
+    report = render_review_sla_report(enriched, stats)
+    assert "Overdue: 1" in report
+    assert "Example | Sports | overdue" in report
+
+
+def test_finalizer_writes_sla_report(tmp_path: Path) -> None:
+    input_path = tmp_path / "events.json"
+    input_path.write_text(
+        '[{"event_id":"1","title":"Example","category":"Sports","category_confidence":0.4,"category_needs_review":true}]',
+        encoding="utf-8",
+    )
+    result = finalize_weekly_run(
+        input_path,
+        history_path=tmp_path / "history.jsonl",
+        review_ledger_path=tmp_path / "reviews.jsonl",
+        review_backlog_path=tmp_path / "backlog.json",
+        throughput_history_path=tmp_path / "throughput.jsonl",
+        snapshots_dir=tmp_path / "snapshots",
+        artifacts_dir=tmp_path / "artifacts",
+        run_reports=False,
+    )
+    assert Path(result["review_sla_report"]).exists()
+    assert result["review_sla_overdue"] == 0

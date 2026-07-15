@@ -16,6 +16,7 @@ from src.corpus_health import analyze_corpus_health, render_corpus_health
 from src.corpus_snapshots import create_corpus_snapshot
 from src.review_backlog_aging import load_backlog, reconcile_backlog, render_backlog_report, write_backlog
 from src.review_backlog_throughput import analyze_backlog_throughput, append_throughput, render_throughput_report
+from src.review_sla import apply_review_sla, render_review_sla_report
 from tools.update_classified_history import load_events
 
 
@@ -29,6 +30,9 @@ def finalize_weekly_run(
     snapshots_dir: Path = Path("history/snapshots"),
     artifacts_dir: Path = Path("artifacts"),
     stale_after: int = 3,
+    due_after_days: int = 7,
+    overdue_after_days: int = 14,
+    overdue_after_appearances: int = 4,
     run_reports: bool = True,
 ) -> dict:
     incoming_events = load_events(input_path)
@@ -39,24 +43,22 @@ def finalize_weekly_run(
 
     health = analyze_corpus_health(merged)
     artifacts_dir.mkdir(parents=True, exist_ok=True)
-    (artifacts_dir / "corpus_health.json").write_text(
-        json.dumps(health.to_dict(), indent=2) + "\n", encoding="utf-8"
-    )
-    (artifacts_dir / "corpus_health_report.txt").write_text(
-        render_corpus_health(health), encoding="utf-8"
-    )
+    (artifacts_dir / "corpus_health.json").write_text(json.dumps(health.to_dict(), indent=2) + "\n", encoding="utf-8")
+    (artifacts_dir / "corpus_health_report.txt").write_text(render_corpus_health(health), encoding="utf-8")
 
     prior_backlog = load_backlog(review_backlog_path)
-    backlog, backlog_stats = reconcile_backlog(
-        incoming_events,
-        prior_backlog,
-        stale_after=max(2, stale_after),
+    backlog, backlog_stats = reconcile_backlog(incoming_events, prior_backlog, stale_after=max(2, stale_after))
+    backlog, sla_stats = apply_review_sla(
+        backlog,
+        due_after_days=max(1, due_after_days),
+        overdue_after_days=max(due_after_days + 1, overdue_after_days),
+        overdue_after_appearances=max(2, overdue_after_appearances),
     )
     write_backlog(review_backlog_path, backlog)
     backlog_report_path = artifacts_dir / "review_backlog_report.txt"
-    backlog_report_path.write_text(
-        render_backlog_report(backlog, backlog_stats), encoding="utf-8"
-    )
+    backlog_report_path.write_text(render_backlog_report(backlog, backlog_stats), encoding="utf-8")
+    sla_report_path = artifacts_dir / "review_sla_report.txt"
+    sla_report_path.write_text(render_review_sla_report(backlog, sla_stats), encoding="utf-8")
 
     throughput = analyze_backlog_throughput(prior_backlog, backlog)
     append_throughput(throughput_history_path, date.today().isoformat(), throughput)
@@ -96,6 +98,10 @@ def finalize_weekly_run(
         "review_backlog_trend": throughput.trend,
         "review_backlog_net_change": throughput.net_change,
         "review_backlog_throughput_report": str(throughput_report_path),
+        "review_sla_report": str(sla_report_path),
+        "review_sla_due_soon": sla_stats.due_soon,
+        "review_sla_overdue": sla_stats.overdue,
+        "review_sla_oldest_days": sla_stats.oldest_days,
         "review_batch_path": str(review_batch_path),
         "review_batch_exported": review_batch.exported,
         "review_batch_skipped_reviewed": review_batch.skipped_already_reviewed,
@@ -113,6 +119,9 @@ def main() -> None:
     parser.add_argument("--snapshots-dir", type=Path, default=Path("history/snapshots"))
     parser.add_argument("--artifacts-dir", type=Path, default=Path("artifacts"))
     parser.add_argument("--stale-after", type=int, default=3)
+    parser.add_argument("--due-after-days", type=int, default=7)
+    parser.add_argument("--overdue-after-days", type=int, default=14)
+    parser.add_argument("--overdue-after-appearances", type=int, default=4)
     parser.add_argument("--skip-reports", action="store_true")
     args = parser.parse_args()
 
@@ -125,9 +134,12 @@ def main() -> None:
         snapshots_dir=args.snapshots_dir,
         artifacts_dir=args.artifacts_dir,
         stale_after=args.stale_after,
+        due_after_days=args.due_after_days,
+        overdue_after_days=args.overdue_after_days,
+        overdue_after_appearances=args.overdue_after_appearances,
         run_reports=not args.skip_reports,
     )
-    print("Attempt 88 Weekly Finalization")
+    print("Attempt 89 Weekly Finalization")
     print("==============================")
     print(f"Incoming classified: {result['incoming']}")
     print(f"Inserted: {result['inserted']}")
@@ -141,6 +153,10 @@ def main() -> None:
         f"Review backlog: {result['review_backlog_path']} "
         f"({result['review_backlog_active']} active; {result['review_backlog_stale']} stale; "
         f"{result['review_backlog_trend']} {result['review_backlog_net_change']:+d})"
+    )
+    print(
+        f"Review SLA: {result['review_sla_overdue']} overdue; "
+        f"{result['review_sla_due_soon']} due soon; oldest={result['review_sla_oldest_days']}d"
     )
     print(
         f"Review batch: {result['review_batch_path']} "
