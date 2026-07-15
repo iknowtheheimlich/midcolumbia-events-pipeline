@@ -28,6 +28,19 @@ DEFAULT_EXCLUDED_VENUE_TYPES = {
     "winery",
 }
 
+# Conservative corrections for recurring upstream venue-name corruption. These
+# aliases affect discovery grouping only; they do not mutate source records.
+_VENUE_NAME_ALIASES = {
+    normalize_venue_key("Fiction @ J Book Walter"): "J. Bookwalter Winery",
+}
+
+# Institutional facilities may contain words such as "park" without being an
+# open multipurpose park venue. Evaluate these phrases before broad name rules.
+_INSTITUTIONAL_FACILITY_RE = re.compile(
+    r"\b(?:visitor|interpretive|education|discovery) center\b|\b(?:museum|planetarium)\b",
+    re.IGNORECASE,
+)
+
 _VENUE_NAME_TYPE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("winery", re.compile(r"\b(?:winery|vineyard|cellars?)\b", re.IGNORECASE)),
     ("brewery", re.compile(r"\b(?:brewery|brewing|brewpub)\b", re.IGNORECASE)),
@@ -82,6 +95,7 @@ def discover_venue_intelligence(
         category = _text(event.get("category"))
         if not venue_name or not category:
             continue
+        venue_name = canonicalize_discovery_venue_name(venue_name)
         key = normalize_venue_key(venue_name)
         if not key:
             continue
@@ -140,10 +154,18 @@ def discover_venue_intelligence(
     return sorted(candidates, key=lambda item: (rank[item.recommendation], -item.confidence, item.venue_name.casefold()))
 
 
+def canonicalize_discovery_venue_name(venue_name: str | None) -> str:
+    """Apply narrow, reviewed aliases before discovery grouping and inference."""
+    text = _text(venue_name) or ""
+    return _VENUE_NAME_ALIASES.get(normalize_venue_key(text), text)
+
+
 def infer_venue_type(venue_name: str | None) -> str | None:
     """Infer obvious multipurpose venue types when registry metadata is absent."""
     text = _text(venue_name)
     if not text:
+        return None
+    if _INSTITUTIONAL_FACILITY_RE.search(text):
         return None
     for venue_type, pattern in _VENUE_NAME_TYPE_PATTERNS:
         if pattern.search(text):
