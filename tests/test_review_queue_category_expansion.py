@@ -73,7 +73,7 @@ def test_live_music_source_category_maps_to_music_comedy() -> None:
     assert source.category == "Music/Comedy"
     assert source.reason == "source_category=Live Music"
     assert legacy.category == "Music/Comedy"
-    assert legacy.reason == "source_category=Live Music"
+    assert legacy.reason == "existing_semantic_category"
 
 
 def test_educational_review_titles_use_lectures_talks() -> None:
