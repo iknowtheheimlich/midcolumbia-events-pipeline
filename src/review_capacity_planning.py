@@ -7,6 +7,7 @@ from statistics import mean
 from typing import Any, Iterable
 
 from src.operational_defaults import CAPACITY_LOOKBACK_RUNS
+from src.plaintext_report import PlaintextReport
 
 
 @dataclass(frozen=True)
@@ -40,12 +41,16 @@ def analyze_review_capacity(
 def render_capacity_report(plan: ReviewCapacityPlan) -> str:
     eta = "not currently clearing" if plan.weeks_to_clear is None else f"{plan.weeks_to_clear:.1f} weeks"
     return (
-        "Attempt 90 Review Capacity Planning\n"
-        "===================================\n\n"
-        f"Active backlog: {plan.active_backlog}\n"
-        f"Average opened/week: {plan.average_opened:.1f}\n"
-        f"Average resolved/week: {plan.average_resolved:.1f}\n"
-        f"Net clearance/week: {plan.net_clearance:+.1f}\n"
-        f"Estimated time to clear: {eta}\n"
-        f"Status: {plan.status}\n"
+        PlaintextReport("Attempt 90 Review Capacity Planning")
+        .lines(
+            (
+                f"Active backlog: {plan.active_backlog}",
+                f"Average opened/week: {plan.average_opened:.1f}",
+                f"Average resolved/week: {plan.average_resolved:.1f}",
+                f"Net clearance/week: {plan.net_clearance:+.1f}",
+                f"Estimated time to clear: {eta}",
+                f"Status: {plan.status}",
+            )
+        )
+        .render()
     )
