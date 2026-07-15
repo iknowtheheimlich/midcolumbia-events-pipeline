@@ -6,11 +6,10 @@ Attempt_62_CategoryCorrectionWithinTaxonomy
 Attempt_63_PerformerIdentityCanonicalization
 Attempt_71_ReviewQueueCategoryExpansion
 Attempt_72_CategoryCompletionPass1
+Attempt_73_VenueCategoryIntelligence
 
-This layer classifies what an event is. It does not decide how Reddit renders it.
-Narrow, deterministic title signals run before source categories and venue context so
-participatory activities, explicit food events, and explicit live performances are not
-misclassified by their source category or venue.
+This layer classifies what an event is. Venue intelligence supplies a prior; it
+never overrides stronger title or source evidence.
 """
 
 from __future__ import annotations
@@ -20,6 +19,7 @@ import re
 from typing import Any, Iterable
 
 from src.publishing_contract import PublishingProfile
+from src.venue_category_intelligence import venue_category_hint
 
 _SPACE_RE = re.compile(r"\s+")
 
@@ -43,15 +43,8 @@ def _rule(category: str, confidence: float, label: str, pattern: str) -> Categor
     return CategoryRule(category, confidence, label, re.compile(pattern, re.IGNORECASE))
 
 
-# These rules are deliberately narrow and run first. They represent explicit event-type
-# evidence that should outrank a conflicting source category or hospitality venue context.
 _EXPLICIT_TITLE_RULES: tuple[CategoryRule, ...] = (
-    _rule(
-        "Karaoke/Open Mic",
-        0.99,
-        "karaoke_or_open_mic",
-        r"\b(?:karaoke|open[ -]?mic)\b",
-    ),
+    _rule("Karaoke/Open Mic", 0.99, "karaoke_or_open_mic", r"\b(?:karaoke|open[ -]?mic)\b"),
     _rule(
         "Classes/Workshops",
         0.99,
@@ -79,9 +72,6 @@ _EXPLICIT_TITLE_RULES: tuple[CategoryRule, ...] = (
 )
 
 
-# Title rules are intentionally ordered from most specific to broadest. Title evidence
-# outranks descriptions because source prose routinely mentions unrelated classes,
-# performances, food, and venues.
 _TITLE_RULES: tuple[CategoryRule, ...] = (
     _rule("Estate/Yard/Garage Sales", 0.99, "estate_or_yard_sale", r"\b(?:estate|yard|garage|rummage) sale\b"),
     _rule("Karaoke/Open Mic", 0.99, "karaoke_or_open_mic", r"\b(?:karaoke|open[ -]?mic)\b"),
@@ -109,16 +99,11 @@ _TITLE_RULES: tuple[CategoryRule, ...] = (
     ),
     _rule("Music/Comedy", 0.95, "music_or_comedy_title", r"\b(?:live music|concert|jazz|reggae|band|trio|singer|comed(?:y|ian)|music by|harpist|saxxidelic)\b"),
     _rule("Classes/Workshops", 0.94, "class_or_workshop", r"\b(?:class(?:es)?|workshop|lesson|training|build-it|build it|diy)\b|\b(?:intro|intermediate) to\b"),
-    _rule(
-        "Events/Hangouts",
-        0.90,
-        "community_promotion_day",
-        r"\b(?:cow appreciation day|national hot dog day|customer appreciation|anniversary celebration)\b",
-    ),
+    _rule("Events/Hangouts", 0.90, "community_promotion_day", r"\b(?:cow appreciation day|national hot dog day|customer appreciation|anniversary celebration)\b"),
     _rule("Events/Hangouts", 0.82, "social_event", r"\b(?:social|meet[ -]?up|hang ?out|watch party|community night|gathering|speed friending)\b"),
 )
 
-# Context rules require multiple signals and are evaluated only after the title rules.
+
 _CONTEXT_RULES: tuple[CategoryRule, ...] = (
     _rule(
         "Music/Comedy",
@@ -176,12 +161,24 @@ def classify_event(event: dict[str, Any], profile: PublishingProfile | None = No
         if rule.pattern.search(title):
             return CategoryDecision(rule.category, rule.confidence, f"title_rule={rule.label}")
 
+    venue_hint = venue_category_hint(event)
+    if venue_hint is not None:
+        return CategoryDecision(
+            venue_hint.category,
+            venue_hint.confidence,
+            f"venue_hint={venue_hint.venue_name};strength={venue_hint.strength}",
+        )
+
     venue = _text(event.get("venue")) or ""
     organization = _text(event.get("organization") or event.get("organizer") or event.get("host")) or ""
     title_venue = f"{title} | {venue} | {organization}"
     for rule in _CONTEXT_RULES:
         if rule.pattern.search(title_venue):
             return CategoryDecision(rule.category, rule.confidence, f"context_rule={rule.label}")
+
+    venue_type = _text(event.get("venue_type") or event.get("registry_venue_type"))
+    if venue_type and venue_type.casefold() in {"library", "school"}:
+        return CategoryDecision("Community Programs", 0.76, f"venue_type={venue_type}")
 
     description = _text(event.get("description")) or ""
     description_rules = (
@@ -193,10 +190,6 @@ def classify_event(event: dict[str, Any], profile: PublishingProfile | None = No
     for rule in description_rules:
         if rule.pattern.search(description):
             return CategoryDecision(rule.category, rule.confidence, f"description_rule={rule.label}")
-
-    venue_type = _text(event.get("venue_type") or event.get("registry_venue_type"))
-    if venue_type and venue_type.casefold() in {"library", "school"}:
-        return CategoryDecision("Community Programs", 0.76, f"venue_type={venue_type}")
 
     return CategoryDecision(None, 0.0, "no_category_rule_matched")
 
