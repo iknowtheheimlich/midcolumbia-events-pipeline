@@ -23,20 +23,34 @@ def load_events(path: Path) -> list[dict]:
     raise ValueError(f"No event list found in {path}")
 
 
-def render_report(results) -> str:
+def classified_events(events: list[dict]) -> list[dict]:
+    return [row for row in events if str(row.get("category") or "").strip()]
+
+
+def render_report(results, *, loaded_events: int, classified_event_count: int) -> str:
     statuses = ("DRIFT", "WATCH", "STABLE", "INSUFFICIENT")
     counts = {status: sum(item.status == status for item in results) for status in statuses}
     lines = [
         "Attempt 76 Knowledge Drift Detection",
         "====================================",
         "",
-        f"Hints analyzed: {len(results)}",
+        f"Events loaded: {loaded_events}",
+        f"Classified events eligible: {classified_event_count}",
+        f"Canonical hints analyzed: {len(results)}",
         f"Drift: {counts['DRIFT']}",
         f"Watch: {counts['WATCH']}",
         f"Stable: {counts['STABLE']}",
         f"Insufficient evidence: {counts['INSUFFICIENT']}",
         "",
     ]
+    if classified_event_count == 0:
+        lines.extend([
+            "INPUT NOT SUITABLE FOR DRIFT ANALYSIS",
+            "-------------------------------------",
+            "",
+            "No events contain a final category. Use accumulated classified history, not a raw or pre-enrichment fixture.",
+            "",
+        ])
     for status in statuses:
         title = "INSUFFICIENT EVIDENCE" if status == "INSUFFICIENT" else status
         lines.extend([title, "-" * len(title), ""])
@@ -65,8 +79,10 @@ def main() -> None:
     parser.add_argument("--report-output", type=Path, default=Path("artifacts/knowledge_drift_report.txt"))
     args = parser.parse_args()
 
+    loaded = load_events(args.input)
+    eligible = classified_events(loaded)
     results = detect_knowledge_drift(
-        load_events(args.input),
+        eligible,
         venue_hints=load_venue_category_hints(),
         organizer_hints=load_organizer_category_hints(),
         recent_limit=args.recent_limit,
@@ -75,7 +91,7 @@ def main() -> None:
     args.json_output.parent.mkdir(parents=True, exist_ok=True)
     args.report_output.parent.mkdir(parents=True, exist_ok=True)
     args.json_output.write_text(json.dumps([item.to_dict() for item in results], indent=2) + "\n", encoding="utf-8")
-    report = render_report(results)
+    report = render_report(results, loaded_events=len(loaded), classified_event_count=len(eligible))
     args.report_output.write_text(report, encoding="utf-8")
     print(report, end="")
 
