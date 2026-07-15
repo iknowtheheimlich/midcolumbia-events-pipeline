@@ -9,6 +9,11 @@ from src.classified_history import load_jsonl, merge_classified_history, write_j
 from src.event_io import load_event_records
 
 
+def load_events(path: Path) -> list[dict]:
+    """Backward-compatible alias for the canonical event loader."""
+    return load_event_records(path)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("input", type=Path, help="JSON or JSONL containing final classified events")
