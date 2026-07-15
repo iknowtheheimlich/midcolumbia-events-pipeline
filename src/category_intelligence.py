@@ -4,6 +4,7 @@ Attempt_38_CategoryIntelligence
 Attempt_48_CategoryRuleHardening
 Attempt_62_CategoryCorrectionWithinTaxonomy
 Attempt_63_PerformerIdentityCanonicalization
+Attempt_71_ReviewQueueCategoryExpansion
 
 This layer classifies what an event is. It does not decide how Reddit renders it.
 Narrow, deterministic title signals run before source categories and venue context so
@@ -60,7 +61,7 @@ _EXPLICIT_TITLE_RULES: tuple[CategoryRule, ...] = (
         "Classes/Workshops",
         0.99,
         "participatory_visual_art",
-        r"\b(?:painting with glass|fused glass|suncatcher|resin art|paint night)\b",
+        r"\b(?:painting with glass|fused glass|suncatcher|resin art|paint night|paint a ceramic|cartoon creation)\b",
     ),
     _rule(
         "Food & Drink",
@@ -88,16 +89,21 @@ _TITLE_RULES: tuple[CategoryRule, ...] = (
     _rule("Fundraisers", 0.97, "fundraiser", r"\b(?:fundrais(?:er|ing)|benefit concert|donor party|charity)\b"),
     _rule("Tours", 0.97, "tour", r"\b(?:guided|walking|museum|b reactor) tour\b|\batomic explorations\b"),
     _rule("Sports", 0.97, "sports_competition", r"\b(?:baseball|basketball|football|soccer|volleyball|run club|5k|10k|tournament|classic|showdown|game vs\.?|dust devils)\b"),
-    _rule("Lectures/Talks", 0.97, "lecture_or_history_talk", r"\b(?:lecture|author talk|history talk|historical presentation|speaker series|black paratroopers)\b"),
+    _rule("Lectures/Talks", 0.97, "lecture_or_history_talk", r"\b(?:lecture|author talk|book talk|history talk|historical presentation|speaker series|black paratroopers|town hall|supplier connect)\b"),
     _rule("Food & Drink", 0.97, "food_or_drink_experience", r"\b(?:wine|beer|cocktail|cake|chip|cheese|food) pairings?\b|\b(?:paella|farm to fork|wine en blanc|winemaker takeover|tasting dinner|tea party)\b"),
-    _rule("Art/Theater", 0.97, "film_or_theater", r"\b(?:movie|movies|film|cinema|stage play|theatrical|theatre|theater|musical|improv comedy|art show|gallery|exhibition)\b"),
+    _rule("Art/Theater", 0.97, "film_or_theater", r"\b(?:movie|movies|film|cinema|stage play|theatrical|theatre|theater|musical|improv comedy|art show|gallery|exhibition|auditions?)\b"),
     _rule("Festivals/Fair", 0.96, "festival_or_fair", r"\b(?:festival|fest|fair|parade|celebration)\b"),
-    _rule("Faith Based", 0.96, "religious_program", r"\b(?:church service|worship|bible study|ministry|prayer group|faith service)\b"),
+    _rule("Faith Based", 0.96, "religious_program", r"\b(?:church service|worship|bible study|ministry|prayer group|faith service|vacation bible school|vbs|ward youth activity)\b"),
     _rule("School District Event", 0.96, "school_district", r"\b(?:school board|school district|pta|graduation|school open house)\b"),
-    _rule("Community Programs", 0.95, "library_or_community_program", r"\b(?:story ?time|lego club|pok[eé]mon club|book club|therapy dog|library board|advisory board|lawn games|steamkids|teen program|baby play)\b"),
+    _rule(
+        "Community Programs",
+        0.95,
+        "library_or_community_program",
+        r"\b(?:story[ -]?time|lego club|pok[eé]mon club|book club|therapy dogs?|library board|advisory board|lawn games|steamkids|teen program|baby play|music together|library gaming guild|love on a leash|community program)\b",
+    ),
     _rule("Music/Comedy", 0.95, "music_or_comedy_title", r"\b(?:live music|concert|jazz|reggae|band|trio|singer|comed(?:y|ian)|music by|harpist|saxxidelic)\b"),
     _rule("Classes/Workshops", 0.94, "class_or_workshop", r"\b(?:class(?:es)?|workshop|lesson|training|build-it|build it|diy)\b|\b(?:intro|intermediate) to\b"),
-    _rule("Events/Hangouts", 0.82, "social_event", r"\b(?:social|meet[ -]?up|hang ?out|watch party|community night)\b"),
+    _rule("Events/Hangouts", 0.82, "social_event", r"\b(?:social|meet[ -]?up|hang ?out|watch party|community night|gathering)\b"),
 )
 
 # Context rules require multiple signals and are evaluated only after the title rules.
@@ -115,6 +121,7 @@ _CONTEXT_RULES: tuple[CategoryRule, ...] = (
 _SOURCE_CATEGORY_MAP = {
     "music": "Music/Comedy",
     "concerts": "Music/Comedy",
+    "live music": "Music/Comedy",
     "sports": "Sports",
     "art": "Art/Theater",
     "theatre": "Art/Theater",
@@ -125,6 +132,8 @@ _SOURCE_CATEGORY_MAP = {
     "food-drinks": "Food & Drink",
     "food & drink": "Food & Drink",
     "festivals": "Festivals/Fair",
+    "kids and families": "Community Programs",
+    "adult": "Community Programs",
 }
 
 
