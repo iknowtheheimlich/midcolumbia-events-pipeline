@@ -8,6 +8,7 @@ Attempt_63_PerformerIdentityCanonicalization
 Attempt_64_IdentityParserHygiene
 Attempt_65_RegistryResidualTitleHygiene
 Attempt_66_StabilizationRelease
+Attempt_70_EditorialTitleCanonicalization
 
 Canonical source fields remain unchanged. Title cleanup remains editorial policy; venue
 cleanup is a compatibility path used only when no authoritative venue presentation exists.
@@ -72,7 +73,9 @@ _PERFORMER_BILLING_ALIASES = {
     frozenset({"free agent", "zac grooms"}): ("Free Agent", "Zac Grooms"),
 }
 _TITLE_HYGIENE_ALIASES = {
-    'frichette winery "all white party': "Frichette Winery All White Party",
+    'frichette winery "all white party': "Wine en Blanc Soirée",
+    "official fifa watch party la fiesta del futbol ven a celebrar": "FIFA Watch Party",
+    "official fifa watch party la fiesta del futbol ven a celebrar!!": "FIFA Watch Party",
     "live music on the point": "Live Music on the Point",
 }
 
