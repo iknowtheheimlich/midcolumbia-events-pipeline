@@ -14,6 +14,13 @@ from src.classification_review_batch import export_review_batch
 from src.classification_review_feedback import load_feedback
 from src.corpus_health import analyze_corpus_health, render_corpus_health
 from src.corpus_snapshots import create_corpus_snapshot
+from src.operational_defaults import (
+    CAPACITY_LOOKBACK_RUNS,
+    SLA_DUE_AFTER_DAYS,
+    SLA_OVERDUE_AFTER_APPEARANCES,
+    SLA_OVERDUE_AFTER_DAYS,
+    STALE_AFTER_APPEARANCES,
+)
 from src.review_backlog_aging import load_backlog, reconcile_backlog, render_backlog_report, write_backlog
 from src.review_backlog_throughput import analyze_backlog_throughput, append_throughput, render_throughput_report
 from src.review_capacity_planning import analyze_review_capacity, render_capacity_report
@@ -32,20 +39,25 @@ def finalize_weekly_run(
     throughput_history_path: Path = Path("history/review_backlog_throughput.jsonl"),
     snapshots_dir: Path = Path("history/snapshots"),
     artifacts_dir: Path = Path("artifacts"),
-    stale_after: int | None = None,
-    due_after_days: int | None = None,
-    overdue_after_days: int | None = None,
-    overdue_after_appearances: int | None = None,
-    capacity_lookback: int | None = None,
+    stale_after: int = STALE_AFTER_APPEARANCES,
+    due_after_days: int = SLA_DUE_AFTER_DAYS,
+    overdue_after_days: int = SLA_OVERDUE_AFTER_DAYS,
+    overdue_after_appearances: int = SLA_OVERDUE_AFTER_APPEARANCES,
+    capacity_lookback: int = CAPACITY_LOOKBACK_RUNS,
     review_config: ReviewOperationsConfig | None = None,
     run_reports: bool = True,
 ) -> dict:
-    config = (review_config or ReviewOperationsConfig()).with_overrides(
-        stale_after=stale_after,
-        due_after_days=due_after_days,
-        overdue_after_days=overdue_after_days,
-        overdue_after_appearances=overdue_after_appearances,
-        capacity_lookback=capacity_lookback,
+    base_config = review_config or ReviewOperationsConfig()
+    config = base_config.with_overrides(
+        stale_after=None if review_config and stale_after == STALE_AFTER_APPEARANCES else stale_after,
+        due_after_days=None if review_config and due_after_days == SLA_DUE_AFTER_DAYS else due_after_days,
+        overdue_after_days=None if review_config and overdue_after_days == SLA_OVERDUE_AFTER_DAYS else overdue_after_days,
+        overdue_after_appearances=(
+            None
+            if review_config and overdue_after_appearances == SLA_OVERDUE_AFTER_APPEARANCES
+            else overdue_after_appearances
+        ),
+        capacity_lookback=None if review_config and capacity_lookback == CAPACITY_LOOKBACK_RUNS else capacity_lookback,
     )
     incoming_events = load_events(input_path)
     existing = load_jsonl(history_path)
@@ -200,11 +212,15 @@ def main() -> None:
         throughput_history_path=args.throughput_history,
         snapshots_dir=args.snapshots_dir,
         artifacts_dir=args.artifacts_dir,
-        stale_after=args.stale_after,
-        due_after_days=args.due_after_days,
-        overdue_after_days=args.overdue_after_days,
-        overdue_after_appearances=args.overdue_after_appearances,
-        capacity_lookback=args.capacity_lookback,
+        stale_after=STALE_AFTER_APPEARANCES if args.stale_after is None else args.stale_after,
+        due_after_days=SLA_DUE_AFTER_DAYS if args.due_after_days is None else args.due_after_days,
+        overdue_after_days=SLA_OVERDUE_AFTER_DAYS if args.overdue_after_days is None else args.overdue_after_days,
+        overdue_after_appearances=(
+            SLA_OVERDUE_AFTER_APPEARANCES
+            if args.overdue_after_appearances is None
+            else args.overdue_after_appearances
+        ),
+        capacity_lookback=CAPACITY_LOOKBACK_RUNS if args.capacity_lookback is None else args.capacity_lookback,
         review_config=load_review_operations_config(args.review_config),
         run_reports=not args.skip_reports,
     )
