@@ -31,7 +31,8 @@ def test_finalizer_writes_capacity_report_and_status(tmp_path: Path) -> None:
         run_reports=False,
     )
 
-    assert result["review_capacity_status"] == "balanced"
+    assert result["review_capacity_status"] == "over_capacity"
+    assert result["review_capacity_net_clearance"] < 0
     assert result["review_capacity_weeks_to_clear"] is None
     assert Path(result["review_capacity_report"]).exists()
 
