@@ -6,6 +6,8 @@ from dataclasses import asdict, dataclass
 from statistics import mean
 from typing import Any, Iterable
 
+from src.operational_defaults import CAPACITY_LOOKBACK_RUNS
+
 
 @dataclass(frozen=True)
 class ReviewCapacityPlan:
@@ -24,7 +26,7 @@ def analyze_review_capacity(
     history: Iterable[dict[str, Any]],
     *,
     active_backlog: int,
-    lookback: int = 4,
+    lookback: int = CAPACITY_LOOKBACK_RUNS,
 ) -> ReviewCapacityPlan:
     rows = [row for row in history if isinstance(row, dict)][-max(1, lookback):]
     opened = mean(float(row.get("opened", 0)) for row in rows) if rows else 0.0
