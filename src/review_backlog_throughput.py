@@ -7,6 +7,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from src.plaintext_report import PlaintextReport
+
 
 @dataclass(frozen=True)
 class BacklogThroughput:
@@ -60,14 +62,18 @@ def append_throughput(path: Path, run_date: str, metrics: BacklogThroughput) -> 
 
 def render_throughput_report(metrics: BacklogThroughput) -> str:
     return (
-        "Attempt 88 Review Backlog Throughput\n"
-        "====================================\n\n"
-        f"Prior active: {metrics.prior_active}\n"
-        f"Current active: {metrics.current_active}\n"
-        f"Opened: {metrics.opened}\n"
-        f"Carried: {metrics.carried}\n"
-        f"Resolved: {metrics.resolved}\n"
-        f"Net change: {metrics.net_change:+d}\n"
-        f"Stale: {metrics.stale} ({metrics.stale_share:.1%})\n"
-        f"Trend: {metrics.trend}\n"
+        PlaintextReport("Attempt 88 Review Backlog Throughput")
+        .lines(
+            (
+                f"Prior active: {metrics.prior_active}",
+                f"Current active: {metrics.current_active}",
+                f"Opened: {metrics.opened}",
+                f"Carried: {metrics.carried}",
+                f"Resolved: {metrics.resolved}",
+                f"Net change: {metrics.net_change:+d}",
+                f"Stale: {metrics.stale} ({metrics.stale_share:.1%})",
+                f"Trend: {metrics.trend}",
+            )
+        )
+        .render()
     )
