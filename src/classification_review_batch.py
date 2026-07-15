@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 from typing import Any, Iterable
 
-from src.classification_observability import review_sort_key
+from src.classification_observability import sort_for_category_review
 from src.classification_review_feedback import append_feedback, build_feedback
 
 
@@ -51,14 +51,15 @@ class ReviewImportResult:
 
 
 def export_review_batch(events: Iterable[dict[str, Any]], output_path: Path) -> ReviewBatchResult:
-    rows: list[dict[str, Any]] = []
+    reviewable: list[dict[str, Any]] = []
     skipped = 0
     for event in events:
         if not bool(event.get("category_needs_review")):
             skipped += 1
             continue
-        rows.append(_review_row(event))
-    rows.sort(key=review_sort_key)
+        reviewable.append(event)
+
+    rows = [_review_row(event) for event in sort_for_category_review(reviewable)]
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=REVIEW_FIELDS)
