@@ -4,7 +4,7 @@ A local-first event intelligence and publishing pipeline for Mid-Columbia commun
 
 ## Release Status
 
-The pipeline is preparing for **v1.0.0-rc1** after Attempt 98.
+The pipeline is preparing for **v1.0.0** after a validated `v1.0.0-rc1` release candidate.
 
 Current regression baseline:
 
@@ -28,6 +28,22 @@ The current system includes:
 - unified weekly operational dashboard
 - Reddit publishing and editorial formatting contracts
 
+## Installation
+
+Create and activate a virtual environment from the repository root:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements-dev.txt
+python -m playwright install chromium
+```
+
+Runtime dependencies are pinned in `requirements.txt`. Development and test dependencies are pinned in `requirements-dev.txt`, which includes the runtime manifest.
+
+`pydantic_core` is intentionally not pinned directly because it is managed as a transitive dependency of Pydantic.
+
 ## Canonical Weekly Run
 
 From the repository root:
@@ -37,7 +53,7 @@ python -m pytest
 python -m tools.finalize_weekly_run fixtures/real_multi_source/deduplicated_publisher_ready_events.json
 ```
 
-A successful release-candidate run must complete the full test suite and generate the weekly operational artifacts without blocking failures.
+A successful release run must complete the full test suite and generate the weekly operational artifacts without blocking failures.
 
 ## Primary Weekly Artifacts
 
