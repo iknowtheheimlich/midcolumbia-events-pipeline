@@ -47,7 +47,7 @@ def detect_knowledge_drift(
                 event_list,
                 entity_type="venue",
                 hints=venue_hints,
-                fields=("venue_registry_name", "venue", "display_venue"),
+                fields=("venue_registry_name", "canonical_venue", "venue", "display_venue"),
                 normalizer=normalize_venue_name,
                 recent_limit=recent_limit,
                 minimum_recent_events=minimum_recent_events,
@@ -61,7 +61,14 @@ def detect_knowledge_drift(
                 event_list,
                 entity_type="organizer",
                 hints=organizer_hints,
-                fields=("organizer_registry_name", "organization", "organizer", "host", "presented_by"),
+                fields=(
+                    "organizer_registry_name",
+                    "canonical_organizer",
+                    "organization",
+                    "organizer",
+                    "host",
+                    "presented_by",
+                ),
                 normalizer=normalize_organizer_name,
                 recent_limit=recent_limit,
                 minimum_recent_events=minimum_recent_events,
@@ -82,10 +89,15 @@ def _detect_for_type(events, *, entity_type, hints, fields, normalizer, recent_l
             continue
         grouped[normalizer(name)].append(event)
 
-    output: list[DriftResult] = []
+    canonical_hints: dict[str, tuple[str, str]] = {}
     for key, raw_hint in hints.items():
         expected, display = _hint_values(key, raw_hint)
         normalized = normalizer(display or key)
+        if normalized and normalized not in canonical_hints:
+            canonical_hints[normalized] = (expected, display or key)
+
+    output: list[DriftResult] = []
+    for normalized, (expected, display) in canonical_hints.items():
         rows = sorted(grouped.get(normalized, []), key=_event_sort_key, reverse=True)[:recent_limit]
         counts = Counter(_text(row.get("category")) for row in rows)
         counts.pop(None, None)
@@ -105,7 +117,7 @@ def _detect_for_type(events, *, entity_type, hints, fields, normalizer, recent_l
             status, recommendation = "STABLE", "keep"
         output.append(DriftResult(
             entity_type=entity_type,
-            entity_name=display or key,
+            entity_name=display,
             expected_category=expected,
             recent_events=total,
             expected_count=expected_count,
