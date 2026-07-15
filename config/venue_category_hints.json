@@ -1,0 +1,27 @@
+{
+  "Art YOUR Way": {
+    "category_hint": "Classes/Workshops",
+    "category_confidence": 0.96,
+    "hint_strength": "strong"
+  },
+  "CBC Planetarium": {
+    "category_hint": "Lectures/Talks",
+    "category_confidence": 0.94,
+    "hint_strength": "strong"
+  },
+  "Jokers Comedy Club": {
+    "category_hint": "Music/Comedy",
+    "category_confidence": 0.95,
+    "hint_strength": "strong"
+  },
+  "Richland Public Library": {
+    "category_hint": "Community Programs",
+    "category_confidence": 0.63,
+    "hint_strength": "soft"
+  },
+  "Mid-Columbia Libraries": {
+    "category_hint": "Community Programs",
+    "category_confidence": 0.61,
+    "hint_strength": "soft"
+  }
+}
