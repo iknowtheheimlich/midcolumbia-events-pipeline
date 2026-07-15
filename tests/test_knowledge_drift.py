@@ -62,3 +62,35 @@ def test_recent_limit_ignores_old_behavior():
     )[0]
     assert result.recent_events == 10
     assert result.status == "DRIFT"
+
+
+def test_alias_index_is_deduplicated_to_one_canonical_organizer():
+    hint = type("Hint", (), {
+        "category": "Lectures/Talks",
+        "organizer_name": "B Reactor Museum Association",
+    })()
+    hints = {
+        "b reactor museum association": hint,
+        "brma": hint,
+        "b reactor museum assoc": hint,
+    }
+    results = detect_knowledge_drift([], organizer_hints=hints)
+    assert len(results) == 1
+    assert results[0].entity_name == "B Reactor Museum Association"
+
+
+def test_canonical_entity_fields_are_supported():
+    events = [
+        {
+            "canonical_organizer": "WSU Tri-Cities",
+            "category": "Lectures/Talks",
+            "start_date": f"2026-07-{day:02d}",
+        }
+        for day in range(1, 6)
+    ]
+    result = detect_knowledge_drift(
+        events,
+        organizer_hints={"WSU Tri-Cities": {"category_hint": "Lectures/Talks"}},
+    )[0]
+    assert result.status == "STABLE"
+    assert result.recent_events == 5
