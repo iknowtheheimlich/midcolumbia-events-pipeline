@@ -5,6 +5,7 @@ Attempt_48_CategoryRuleHardening
 Attempt_62_CategoryCorrectionWithinTaxonomy
 Attempt_63_PerformerIdentityCanonicalization
 Attempt_71_ReviewQueueCategoryExpansion
+Attempt_72_CategoryCompletionPass1
 
 This layer classifies what an event is. It does not decide how Reddit renders it.
 Narrow, deterministic title signals run before source categories and venue context so
@@ -61,7 +62,7 @@ _EXPLICIT_TITLE_RULES: tuple[CategoryRule, ...] = (
         "Classes/Workshops",
         0.99,
         "participatory_visual_art",
-        r"\b(?:painting with glass|fused glass|suncatcher|resin art|paint night|paint a ceramic|cartoon creation)\b",
+        r"\b(?:painting with glass|fused glass|suncatcher|resin art|paint night|paint party|sip and paint|sip & paint|paint a ceramic|ceramic painting|pottery painting|cartoon creation|alcohol ink|watercolor|mixed media)\b",
     ),
     _rule(
         "Food & Drink",
@@ -89,7 +90,12 @@ _TITLE_RULES: tuple[CategoryRule, ...] = (
     _rule("Fundraisers", 0.97, "fundraiser", r"\b(?:fundrais(?:er|ing)|benefit concert|donor party|charity)\b"),
     _rule("Tours", 0.97, "tour", r"\b(?:guided|walking|museum|b reactor) tour\b|\batomic explorations\b"),
     _rule("Sports", 0.97, "sports_competition", r"\b(?:baseball|basketball|football|soccer|volleyball|run club|5k|10k|tournament|classic|showdown|game vs\.?|dust devils)\b"),
-    _rule("Lectures/Talks", 0.97, "lecture_or_history_talk", r"\b(?:lecture|author talk|book talk|history talk|historical presentation|speaker series|black paratroopers|town hall|supplier connect)\b"),
+    _rule(
+        "Lectures/Talks",
+        0.97,
+        "lecture_or_history_talk",
+        r"\b(?:lecture|author talk|book talk|history talk|historical presentation|speaker series|black paratroopers|town hall|supplier connect|museum association presents|b reactor museum association|ice age floods|go-stem|science caf[eé]|seminar|panel discussion)\b",
+    ),
     _rule("Food & Drink", 0.97, "food_or_drink_experience", r"\b(?:wine|beer|cocktail|cake|chip|cheese|food) pairings?\b|\b(?:paella|farm to fork|wine en blanc|winemaker takeover|tasting dinner|tea party)\b"),
     _rule("Art/Theater", 0.97, "film_or_theater", r"\b(?:movie|movies|film|cinema|stage play|theatrical|theatre|theater|musical|improv comedy|art show|gallery|exhibition|auditions?)\b"),
     _rule("Festivals/Fair", 0.96, "festival_or_fair", r"\b(?:festival|fest|fair|parade|celebration)\b"),
@@ -99,11 +105,17 @@ _TITLE_RULES: tuple[CategoryRule, ...] = (
         "Community Programs",
         0.95,
         "library_or_community_program",
-        r"\b(?:story[ -]?time|lego club|pok[eé]mon club|book club|therapy dogs?|library board|advisory board|lawn games|steamkids|teen program|baby play|music together|library gaming guild|love on a leash|community program|primordial goo|magna-saurus)\b",
+        r"\b(?:story[ -]?time|lego club|pok[eé]mon club|book club|therapy dogs?|library board|advisory board|lawn games|steamkids|teen program|baby play|music together|library gaming guild|love on a leash|community program|primordial goo|magna-saurus|sound bath|breathwork|meditation|recovery dharma|cacao ceremony|new moon gathering|yoga)\b",
     ),
     _rule("Music/Comedy", 0.95, "music_or_comedy_title", r"\b(?:live music|concert|jazz|reggae|band|trio|singer|comed(?:y|ian)|music by|harpist|saxxidelic)\b"),
     _rule("Classes/Workshops", 0.94, "class_or_workshop", r"\b(?:class(?:es)?|workshop|lesson|training|build-it|build it|diy)\b|\b(?:intro|intermediate) to\b"),
-    _rule("Events/Hangouts", 0.82, "social_event", r"\b(?:social|meet[ -]?up|hang ?out|watch party|community night|gathering)\b"),
+    _rule(
+        "Events/Hangouts",
+        0.90,
+        "community_promotion_day",
+        r"\b(?:cow appreciation day|national hot dog day|customer appreciation|anniversary celebration)\b",
+    ),
+    _rule("Events/Hangouts", 0.82, "social_event", r"\b(?:social|meet[ -]?up|hang ?out|watch party|community night|gathering|speed friending)\b"),
 )
 
 # Context rules require multiple signals and are evaluated only after the title rules.
@@ -145,9 +157,14 @@ def classify_event(event: dict[str, Any], profile: PublishingProfile | None = No
         if rule.pattern.search(title):
             return CategoryDecision(rule.category, rule.confidence, f"title_rule={rule.label}")
 
-    existing = active_profile.normalize_category(_text(event.get("category")))
+    raw_category = _text(event.get("category"))
+    existing = active_profile.normalize_category(raw_category)
     if existing:
         return CategoryDecision(existing, 1.0, "existing_semantic_category")
+    if raw_category:
+        mapped = _SOURCE_CATEGORY_MAP.get(raw_category.casefold())
+        if mapped:
+            return CategoryDecision(mapped, 0.88, f"source_category={raw_category}")
 
     source_category = _text(event.get("source_category"))
     if source_category:
@@ -168,9 +185,10 @@ def classify_event(event: dict[str, Any], profile: PublishingProfile | None = No
 
     description = _text(event.get("description")) or ""
     description_rules = (
-        _rule("Lectures/Talks", 0.86, "description_lecture", r"\b(?:lecture|presentation about|historian|history of)\b"),
+        _rule("Lectures/Talks", 0.86, "description_lecture", r"\b(?:lecture|presentation about|historian|history of|science presentation|educational presentation)\b"),
         _rule("Food & Drink", 0.85, "description_food_drink", r"\b(?:guided tasting|pairing flight|multi-course dinner)\b"),
         _rule("Music/Comedy", 0.84, "description_live_performance", r"\b(?:live musical performance|performing live|live band)\b"),
+        _rule("Community Programs", 0.84, "description_wellness_program", r"\b(?:guided meditation|sound bath|breathwork|recovery dharma|cacao ceremony)\b"),
     )
     for rule in description_rules:
         if rule.pattern.search(description):
