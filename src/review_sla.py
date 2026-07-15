@@ -11,6 +11,7 @@ from src.operational_defaults import (
     SLA_OVERDUE_AFTER_APPEARANCES,
     SLA_OVERDUE_AFTER_DAYS,
 )
+from src.plaintext_report import PlaintextReport
 
 
 @dataclass(frozen=True)
@@ -56,26 +57,26 @@ def apply_review_sla(
 
 
 def render_review_sla_report(backlog: dict[str, dict[str, Any]], stats: ReviewSLAStats) -> str:
-    lines = [
-        "Attempt 89 Review SLA",
-        "=====================",
-        "",
-        f"Active: {stats.active}",
-        f"Due soon: {stats.due_soon}",
-        f"Overdue: {stats.overdue}",
-        f"Oldest age: {stats.oldest_days} days",
-        "",
-        "OVERDUE / DUE SOON",
-        "------------------",
-    ]
+    report = (
+        PlaintextReport("Attempt 89 Review SLA")
+        .lines(
+            (
+                f"Active: {stats.active}",
+                f"Due soon: {stats.due_soon}",
+                f"Overdue: {stats.overdue}",
+                f"Oldest age: {stats.oldest_days} days",
+            )
+        )
+        .section("OVERDUE / DUE SOON")
+    )
     rows = [row for row in backlog.values() if row.get("sla_status") != "within_sla"]
     rows.sort(key=lambda row: (0 if row.get("sla_status") == "overdue" else 1, -int(row.get("age_days", 0)), float(row.get("confidence", 0.0))))
     if not rows:
-        lines.append("None")
+        report.line("None")
     else:
-        for row in rows:
-            lines.append(
-                f"{row.get('title', '')} | {row.get('category', '')} | "
-                f"{row.get('sla_status')} | age={row.get('age_days', 0)}d | appearances={row.get('appearances', 0)}"
-            )
-    return "\n".join(lines).rstrip() + "\n"
+        report.lines(
+            f"{row.get('title', '')} | {row.get('category', '')} | "
+            f"{row.get('sla_status')} | age={row.get('age_days', 0)}d | appearances={row.get('appearances', 0)}"
+            for row in rows
+        )
+    return report.render()
