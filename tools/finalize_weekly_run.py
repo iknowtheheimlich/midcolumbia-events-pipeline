@@ -25,6 +25,7 @@ from src.review_backlog_aging import load_backlog, reconcile_backlog, render_bac
 from src.review_backlog_throughput import analyze_backlog_throughput, append_throughput, render_throughput_report
 from src.review_capacity_planning import analyze_review_capacity, render_capacity_report
 from src.review_operational_metrics import consolidate_review_metrics
+from src.review_operations_config import ReviewOperationsConfig, load_review_operations_config
 from src.review_sla import apply_review_sla, render_review_sla_report
 from tools.update_classified_history import load_events
 
@@ -43,8 +44,21 @@ def finalize_weekly_run(
     overdue_after_days: int = SLA_OVERDUE_AFTER_DAYS,
     overdue_after_appearances: int = SLA_OVERDUE_AFTER_APPEARANCES,
     capacity_lookback: int = CAPACITY_LOOKBACK_RUNS,
+    review_config: ReviewOperationsConfig | None = None,
     run_reports: bool = True,
 ) -> dict:
+    base_config = review_config or ReviewOperationsConfig()
+    config = base_config.with_overrides(
+        stale_after=None if review_config and stale_after == STALE_AFTER_APPEARANCES else stale_after,
+        due_after_days=None if review_config and due_after_days == SLA_DUE_AFTER_DAYS else due_after_days,
+        overdue_after_days=None if review_config and overdue_after_days == SLA_OVERDUE_AFTER_DAYS else overdue_after_days,
+        overdue_after_appearances=(
+            None
+            if review_config and overdue_after_appearances == SLA_OVERDUE_AFTER_APPEARANCES
+            else overdue_after_appearances
+        ),
+        capacity_lookback=None if review_config and capacity_lookback == CAPACITY_LOOKBACK_RUNS else capacity_lookback,
+    )
     incoming_events = load_events(input_path)
     existing = load_jsonl(history_path)
     merged, stats = merge_classified_history(existing, incoming_events)
@@ -60,17 +74,20 @@ def finalize_weekly_run(
         render_corpus_health(health), encoding="utf-8"
     )
 
+    config_path = artifacts_dir / "review_operations_config.json"
+    config_path.write_text(json.dumps(config.to_dict(), indent=2) + "\n", encoding="utf-8")
+
     prior_backlog = load_backlog(review_backlog_path)
     backlog, backlog_stats = reconcile_backlog(
         incoming_events,
         prior_backlog,
-        stale_after=max(2, stale_after),
+        stale_after=config.stale_after_appearances,
     )
     backlog, sla_stats = apply_review_sla(
         backlog,
-        due_after_days=max(1, due_after_days),
-        overdue_after_days=max(due_after_days + 1, overdue_after_days),
-        overdue_after_appearances=max(2, overdue_after_appearances),
+        due_after_days=config.sla_due_after_days,
+        overdue_after_days=config.sla_overdue_after_days,
+        overdue_after_appearances=config.sla_overdue_after_appearances,
     )
     write_backlog(review_backlog_path, backlog)
 
@@ -93,7 +110,7 @@ def finalize_weekly_run(
     capacity = analyze_review_capacity(
         _load_jsonl_objects(throughput_history_path),
         active_backlog=len(backlog),
-        lookback=max(1, capacity_lookback),
+        lookback=config.capacity_lookback_runs,
     )
     capacity_report_path = artifacts_dir / "review_capacity_report.txt"
     capacity_report_path.write_text(
@@ -130,6 +147,8 @@ def finalize_weekly_run(
         "history_path": str(history_path),
         "snapshot_path": str(snapshot_path) if snapshot_path else None,
         "health_report": str(artifacts_dir / "corpus_health_report.txt"),
+        "review_operations_config": str(config_path),
+        "review_config": config.to_dict(),
         "review_backlog_path": str(review_backlog_path),
         "review_backlog_report": str(backlog_report_path),
         "review_backlog_active": metrics.active,
@@ -176,11 +195,12 @@ def main() -> None:
     parser.add_argument("--throughput-history", type=Path, default=Path("history/review_backlog_throughput.jsonl"))
     parser.add_argument("--snapshots-dir", type=Path, default=Path("history/snapshots"))
     parser.add_argument("--artifacts-dir", type=Path, default=Path("artifacts"))
-    parser.add_argument("--stale-after", type=int, default=STALE_AFTER_APPEARANCES)
-    parser.add_argument("--due-after-days", type=int, default=SLA_DUE_AFTER_DAYS)
-    parser.add_argument("--overdue-after-days", type=int, default=SLA_OVERDUE_AFTER_DAYS)
-    parser.add_argument("--overdue-after-appearances", type=int, default=SLA_OVERDUE_AFTER_APPEARANCES)
-    parser.add_argument("--capacity-lookback", type=int, default=CAPACITY_LOOKBACK_RUNS)
+    parser.add_argument("--review-config", type=Path, help="JSON review operations configuration")
+    parser.add_argument("--stale-after", type=int)
+    parser.add_argument("--due-after-days", type=int)
+    parser.add_argument("--overdue-after-days", type=int)
+    parser.add_argument("--overdue-after-appearances", type=int)
+    parser.add_argument("--capacity-lookback", type=int)
     parser.add_argument("--skip-reports", action="store_true")
     args = parser.parse_args()
 
@@ -192,15 +212,20 @@ def main() -> None:
         throughput_history_path=args.throughput_history,
         snapshots_dir=args.snapshots_dir,
         artifacts_dir=args.artifacts_dir,
-        stale_after=args.stale_after,
-        due_after_days=args.due_after_days,
-        overdue_after_days=args.overdue_after_days,
-        overdue_after_appearances=args.overdue_after_appearances,
-        capacity_lookback=args.capacity_lookback,
+        stale_after=STALE_AFTER_APPEARANCES if args.stale_after is None else args.stale_after,
+        due_after_days=SLA_DUE_AFTER_DAYS if args.due_after_days is None else args.due_after_days,
+        overdue_after_days=SLA_OVERDUE_AFTER_DAYS if args.overdue_after_days is None else args.overdue_after_days,
+        overdue_after_appearances=(
+            SLA_OVERDUE_AFTER_APPEARANCES
+            if args.overdue_after_appearances is None
+            else args.overdue_after_appearances
+        ),
+        capacity_lookback=CAPACITY_LOOKBACK_RUNS if args.capacity_lookback is None else args.capacity_lookback,
+        review_config=load_review_operations_config(args.review_config),
         run_reports=not args.skip_reports,
     )
 
-    print("Attempt 94 Weekly Finalization")
+    print("Attempt 96 Weekly Finalization")
     print("==============================")
     print(f"Incoming classified: {result['incoming']}")
     print(f"Inserted: {result['inserted']}")
@@ -210,6 +235,7 @@ def main() -> None:
     print(f"History path: {result['history_path']}")
     print(f"Snapshot path: {result['snapshot_path'] or 'None (empty initial corpus)'}")
     print(f"Health report: {result['health_report']}")
+    print(f"Review config: {result['review_operations_config']}")
     print(
         f"Review backlog: {result['review_backlog_path']} "
         f"({result['review_backlog_active']} active; {result['review_backlog_stale']} stale; "
