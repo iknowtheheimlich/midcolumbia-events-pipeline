@@ -20,6 +20,8 @@ def test_recurring_library_program_titles_classify_as_community_programs() -> No
         "Library Gaming Guild",
         "Meet Our Therapy Dogs",
         "Love on a Leash",
+        "Primordial Goo",
+        "Magna-Saurus",
     ):
         decision = classify_event(event(title))
         assert decision.category == "Community Programs"
@@ -47,7 +49,13 @@ def test_repeated_faith_programs_classify_without_new_taxonomy() -> None:
 
 
 def test_participatory_art_review_titles_are_classes() -> None:
-    for title in ("Kiddo and Adult Paint a Ceramic Piece", "Summer Shenanigans: Cartoon Creation"):
+    for title in (
+        "Kiddo and Adult Paint a Ceramic Piece",
+        "Summer Shenanigans: Cartoon Creation",
+        "Make an Alcohol Ink Tile",
+        "Sip & Paint at the Studio",
+        "Pottery Painting Night",
+    ):
         decision = classify_event(event(title))
         assert decision.category == "Classes/Workshops"
         assert decision.reason == "title_rule=participatory_visual_art"
@@ -60,6 +68,50 @@ def test_auditions_are_art_theater() -> None:
 
 
 def test_live_music_source_category_maps_to_music_comedy() -> None:
-    decision = classify_event(event("Blue Heron at Perch Cantina", source_category="Live Music"))
-    assert decision.category == "Music/Comedy"
-    assert decision.reason == "source_category=Live Music"
+    source = classify_event(event("Blue Heron at Perch Cantina", source_category="Live Music"))
+    legacy = classify_event(event("Groove Principal at Wednesdays in West Richland", category="Live Music"))
+    assert source.category == "Music/Comedy"
+    assert source.reason == "source_category=Live Music"
+    assert legacy.category == "Music/Comedy"
+    assert legacy.reason == "source_category=Live Music"
+
+
+def test_educational_review_titles_use_lectures_talks() -> None:
+    for title in (
+        "B Reactor Museum Association Presents: Ice Age Floods",
+        "GO-STEM in Boardman",
+        "Science Cafe: Volcanoes",
+    ):
+        decision = classify_event(event(title))
+        assert decision.category == "Lectures/Talks"
+        assert decision.reason == "title_rule=lecture_or_history_talk"
+
+
+def test_wellness_programs_reuse_community_programs() -> None:
+    for title in (
+        "Sound Bath + Cacao",
+        "Recovery Dharma – Weekly Meditation & Discussion",
+        "Cancer New Moon Gathering",
+        "Community Breathwork",
+    ):
+        decision = classify_event(event(title))
+        assert decision.category == "Community Programs"
+        assert decision.reason == "title_rule=library_or_community_program"
+
+
+def test_community_promotions_reuse_events_hangouts() -> None:
+    for title in (
+        "Cow Appreciation Day 2026",
+        "National Hot Dog Day w/ DSG",
+        "Customer Appreciation Day",
+    ):
+        decision = classify_event(event(title))
+        assert decision.category == "Events/Hangouts"
+        assert decision.reason == "title_rule=community_promotion_day"
+
+
+def test_ambiguous_titles_remain_unclassified() -> None:
+    for title in ("Race #7", "Midnight Coterie", "Romancing the Cryptid"):
+        decision = classify_event(event(title))
+        assert decision.category is None
+        assert decision.reason == "no_category_rule_matched"
