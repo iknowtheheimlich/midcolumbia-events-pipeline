@@ -8,6 +8,7 @@ Attempt_71_ReviewQueueCategoryExpansion
 Attempt_72_CategoryCompletionPass1
 Attempt_73_VenueCategoryIntelligence
 Attempt_75_OrganizerCategoryIntelligence
+Attempt_80_ClassificationConfidenceExplainability
 
 This layer classifies what an event is. Organizer and venue intelligence supply priors;
 neither overrides stronger title or source evidence. Organizer evidence precedes venue
@@ -20,6 +21,7 @@ from dataclasses import dataclass
 import re
 from typing import Any, Iterable
 
+from src.classification_observability import attach_classification_observability
 from src.organizer_category_intelligence import organizer_category_hint
 from src.publishing_contract import PublishingProfile
 from src.venue_category_intelligence import venue_category_hint
@@ -212,7 +214,7 @@ def enrich_event_category(event: dict[str, Any], profile: PublishingProfile | No
         copied["category"] = decision.category
     copied["category_confidence"] = decision.confidence
     copied["category_reason"] = decision.reason
-    return copied
+    return attach_classification_observability(copied)
 
 
 def enrich_event_categories(events: Iterable[dict[str, Any]], profile: PublishingProfile | None = None) -> list[dict[str, Any]]:
