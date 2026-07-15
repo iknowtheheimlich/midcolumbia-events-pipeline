@@ -6,6 +6,12 @@ from dataclasses import dataclass, asdict
 from datetime import date
 from typing import Any
 
+from src.operational_defaults import (
+    SLA_DUE_AFTER_DAYS,
+    SLA_OVERDUE_AFTER_APPEARANCES,
+    SLA_OVERDUE_AFTER_DAYS,
+)
+
 
 @dataclass(frozen=True)
 class ReviewSLAStats:
@@ -22,9 +28,9 @@ def apply_review_sla(
     backlog: dict[str, dict[str, Any]],
     *,
     as_of: str | None = None,
-    due_after_days: int = 7,
-    overdue_after_days: int = 14,
-    overdue_after_appearances: int = 4,
+    due_after_days: int = SLA_DUE_AFTER_DAYS,
+    overdue_after_days: int = SLA_OVERDUE_AFTER_DAYS,
+    overdue_after_appearances: int = SLA_OVERDUE_AFTER_APPEARANCES,
 ) -> tuple[dict[str, dict[str, Any]], ReviewSLAStats]:
     today = date.fromisoformat(as_of or date.today().isoformat())
     enriched: dict[str, dict[str, Any]] = {}

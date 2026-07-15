@@ -1,0 +1,7 @@
+"""Shared operational defaults for review backlog workflows."""
+
+STALE_AFTER_APPEARANCES = 3
+SLA_DUE_AFTER_DAYS = 7
+SLA_OVERDUE_AFTER_DAYS = 14
+SLA_OVERDUE_AFTER_APPEARANCES = 4
+CAPACITY_LOOKBACK_RUNS = 4

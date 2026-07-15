@@ -6,6 +6,7 @@ import argparse
 import json
 from pathlib import Path
 
+from src.operational_defaults import CAPACITY_LOOKBACK_RUNS
 from src.review_backlog_aging import load_backlog
 from src.review_capacity_planning import analyze_review_capacity, render_capacity_report
 
@@ -26,7 +27,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--throughput-history", type=Path, default=Path("history/review_backlog_throughput.jsonl"))
     parser.add_argument("--backlog", type=Path, default=Path("history/review_backlog.json"))
-    parser.add_argument("--lookback", type=int, default=4)
+    parser.add_argument("--lookback", type=int, default=CAPACITY_LOOKBACK_RUNS)
     parser.add_argument("--report", type=Path, default=Path("artifacts/review_capacity_report.txt"))
     args = parser.parse_args()
 

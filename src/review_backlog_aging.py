@@ -8,6 +8,8 @@ import json
 from pathlib import Path
 from typing import Any, Iterable
 
+from src.operational_defaults import STALE_AFTER_APPEARANCES
+
 
 @dataclass(frozen=True)
 class BacklogStats:
@@ -39,7 +41,7 @@ def reconcile_backlog(
     prior: dict[str, dict[str, Any]],
     *,
     seen_on: str | None = None,
-    stale_after: int = 3,
+    stale_after: int = STALE_AFTER_APPEARANCES,
 ) -> tuple[dict[str, dict[str, Any]], BacklogStats]:
     today = seen_on or date.today().isoformat()
     current: dict[str, dict[str, Any]] = {}

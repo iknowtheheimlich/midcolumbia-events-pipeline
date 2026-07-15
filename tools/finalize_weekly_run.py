@@ -14,6 +14,13 @@ from src.classification_review_batch import export_review_batch
 from src.classification_review_feedback import load_feedback
 from src.corpus_health import analyze_corpus_health, render_corpus_health
 from src.corpus_snapshots import create_corpus_snapshot
+from src.operational_defaults import (
+    CAPACITY_LOOKBACK_RUNS,
+    SLA_DUE_AFTER_DAYS,
+    SLA_OVERDUE_AFTER_APPEARANCES,
+    SLA_OVERDUE_AFTER_DAYS,
+    STALE_AFTER_APPEARANCES,
+)
 from src.review_backlog_aging import load_backlog, reconcile_backlog, render_backlog_report, write_backlog
 from src.review_backlog_throughput import analyze_backlog_throughput, append_throughput, render_throughput_report
 from src.review_capacity_planning import analyze_review_capacity, render_capacity_report
@@ -30,11 +37,11 @@ def finalize_weekly_run(
     throughput_history_path: Path = Path("history/review_backlog_throughput.jsonl"),
     snapshots_dir: Path = Path("history/snapshots"),
     artifacts_dir: Path = Path("artifacts"),
-    stale_after: int = 3,
-    due_after_days: int = 7,
-    overdue_after_days: int = 14,
-    overdue_after_appearances: int = 4,
-    capacity_lookback: int = 4,
+    stale_after: int = STALE_AFTER_APPEARANCES,
+    due_after_days: int = SLA_DUE_AFTER_DAYS,
+    overdue_after_days: int = SLA_OVERDUE_AFTER_DAYS,
+    overdue_after_appearances: int = SLA_OVERDUE_AFTER_APPEARANCES,
+    capacity_lookback: int = CAPACITY_LOOKBACK_RUNS,
     run_reports: bool = True,
 ) -> dict:
     incoming_events = load_events(input_path)
@@ -162,11 +169,11 @@ def main() -> None:
     parser.add_argument("--throughput-history", type=Path, default=Path("history/review_backlog_throughput.jsonl"))
     parser.add_argument("--snapshots-dir", type=Path, default=Path("history/snapshots"))
     parser.add_argument("--artifacts-dir", type=Path, default=Path("artifacts"))
-    parser.add_argument("--stale-after", type=int, default=3)
-    parser.add_argument("--due-after-days", type=int, default=7)
-    parser.add_argument("--overdue-after-days", type=int, default=14)
-    parser.add_argument("--overdue-after-appearances", type=int, default=4)
-    parser.add_argument("--capacity-lookback", type=int, default=4)
+    parser.add_argument("--stale-after", type=int, default=STALE_AFTER_APPEARANCES)
+    parser.add_argument("--due-after-days", type=int, default=SLA_DUE_AFTER_DAYS)
+    parser.add_argument("--overdue-after-days", type=int, default=SLA_OVERDUE_AFTER_DAYS)
+    parser.add_argument("--overdue-after-appearances", type=int, default=SLA_OVERDUE_AFTER_APPEARANCES)
+    parser.add_argument("--capacity-lookback", type=int, default=CAPACITY_LOOKBACK_RUNS)
     parser.add_argument("--skip-reports", action="store_true")
     args = parser.parse_args()
 
@@ -186,7 +193,7 @@ def main() -> None:
         run_reports=not args.skip_reports,
     )
 
-    print("Attempt 91 Weekly Finalization")
+    print("Attempt 93 Weekly Finalization")
     print("==============================")
     print(f"Incoming classified: {result['incoming']}")
     print(f"Inserted: {result['inserted']}")
