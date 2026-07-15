@@ -99,7 +99,7 @@ _TITLE_RULES: tuple[CategoryRule, ...] = (
         "Community Programs",
         0.95,
         "library_or_community_program",
-        r"\b(?:story[ -]?time|lego club|pok[eé]mon club|book club|therapy dogs?|library board|advisory board|lawn games|steamkids|teen program|baby play|music together|library gaming guild|love on a leash|community program)\b",
+        r"\b(?:story[ -]?time|lego club|pok[eé]mon club|book club|therapy dogs?|library board|advisory board|lawn games|steamkids|teen program|baby play|music together|library gaming guild|love on a leash|community program|primordial goo|magna-saurus)\b",
     ),
     _rule("Music/Comedy", 0.95, "music_or_comedy_title", r"\b(?:live music|concert|jazz|reggae|band|trio|singer|comed(?:y|ian)|music by|harpist|saxxidelic)\b"),
     _rule("Classes/Workshops", 0.94, "class_or_workshop", r"\b(?:class(?:es)?|workshop|lesson|training|build-it|build it|diy)\b|\b(?:intro|intermediate) to\b"),
