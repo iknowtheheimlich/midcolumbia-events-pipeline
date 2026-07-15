@@ -10,9 +10,13 @@ from typing import Any, Iterable
 
 from src.classification_observability import sort_for_category_review
 from src.classification_review_feedback import append_feedback, build_feedback
+from src.review_backlog_aging import decision_key
 
 
 REVIEW_FIELDS = (
+    "review_status",
+    "appearances",
+    "first_seen",
     "event_id",
     "title",
     "category",
@@ -56,6 +60,7 @@ def export_review_batch(
     output_path: Path,
     *,
     reviewed_feedback: Iterable[dict[str, Any]] = (),
+    backlog: dict[str, dict[str, Any]] | None = None,
 ) -> ReviewBatchResult:
     reviewed_keys = {
         (_text(row.get("event_id")) or "", _text(row.get("original_category")) or "")
@@ -75,7 +80,10 @@ def export_review_batch(
             continue
         reviewable.append(event)
 
-    rows = [_review_row(event) for event in sort_for_category_review(reviewable)]
+    backlog = backlog or {}
+    ordered = sort_for_category_review(reviewable)
+    ordered.sort(key=lambda event: _backlog_priority(event, backlog))
+    rows = [_review_row(event, backlog.get(decision_key(event), {})) for event in ordered]
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=REVIEW_FIELDS)
@@ -135,8 +143,22 @@ def load_events(path: Path) -> list[dict[str, Any]]:
     raise ValueError(f"Unsupported event payload in {path}")
 
 
-def _review_row(event: dict[str, Any]) -> dict[str, Any]:
+def _backlog_priority(event: dict[str, Any], backlog: dict[str, dict[str, Any]]) -> tuple[Any, ...]:
+    row = backlog.get(decision_key(event), {})
+    rank = {"stale": 0, "recurring": 1, "new": 2}.get(str(row.get("status") or "new"), 2)
+    return (
+        rank,
+        -int(row.get("appearances", 1)),
+        float(event.get("category_confidence") or 0.0),
+        str(event.get("title") or "").casefold(),
+    )
+
+
+def _review_row(event: dict[str, Any], backlog_row: dict[str, Any]) -> dict[str, Any]:
     return {
+        "review_status": _text(backlog_row.get("status")) or "new",
+        "appearances": int(backlog_row.get("appearances", 1)),
+        "first_seen": _text(backlog_row.get("first_seen")) or "",
         "event_id": _event_id(event),
         "title": _text(event.get("title")) or "",
         "category": _text(event.get("category")) or "",
