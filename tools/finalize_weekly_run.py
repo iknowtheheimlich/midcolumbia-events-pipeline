@@ -14,6 +14,7 @@ from src.classification_review_batch import export_review_batch
 from src.classification_review_feedback import load_feedback
 from src.corpus_health import analyze_corpus_health, render_corpus_health
 from src.corpus_snapshots import create_corpus_snapshot
+from src.operational_dashboard import build_operational_dashboard, render_operational_dashboard
 from src.operational_defaults import (
     CAPACITY_LOOKBACK_RUNS,
     SLA_DUE_AFTER_DAYS,
@@ -142,6 +143,22 @@ def finalize_weekly_run(
             if result.returncode:
                 report_failures.append(" ".join(command[2:]))
 
+    dashboard = build_operational_dashboard(
+        health,
+        metrics,
+        config,
+        review_batch_exported=review_batch.exported,
+        report_failures=report_failures,
+    )
+    dashboard_json_path = artifacts_dir / "weekly_pipeline_health.json"
+    dashboard_json_path.write_text(
+        json.dumps(dashboard.to_dict(), indent=2) + "\n", encoding="utf-8"
+    )
+    dashboard_report_path = artifacts_dir / "weekly_pipeline_health.txt"
+    dashboard_report_path.write_text(
+        render_operational_dashboard(dashboard), encoding="utf-8"
+    )
+
     return {
         **stats,
         "history_path": str(history_path),
@@ -169,6 +186,9 @@ def finalize_weekly_run(
         "review_batch_path": str(review_batch_path),
         "review_batch_exported": review_batch.exported,
         "review_batch_skipped_reviewed": review_batch.skipped_already_reviewed,
+        "pipeline_health_status": dashboard.status,
+        "pipeline_health_report": str(dashboard_report_path),
+        "pipeline_health_json": str(dashboard_json_path),
         "report_failures": report_failures,
     }
 
@@ -225,8 +245,10 @@ def main() -> None:
         run_reports=not args.skip_reports,
     )
 
-    print("Attempt 96 Weekly Finalization")
+    print("Attempt 98 Weekly Finalization")
     print("==============================")
+    print(f"Pipeline health: {result['pipeline_health_status'].upper()}")
+    print(f"Dashboard: {result['pipeline_health_report']}")
     print(f"Incoming classified: {result['incoming']}")
     print(f"Inserted: {result['inserted']}")
     print(f"Updated: {result['updated']}")
@@ -234,24 +256,12 @@ def main() -> None:
     print(f"Corpus total: {result['total']}")
     print(f"History path: {result['history_path']}")
     print(f"Snapshot path: {result['snapshot_path'] or 'None (empty initial corpus)'}")
-    print(f"Health report: {result['health_report']}")
     print(f"Review config: {result['review_operations_config']}")
     print(
         f"Review backlog: {result['review_backlog_path']} "
         f"({result['review_backlog_active']} active; {result['review_backlog_stale']} stale; "
         f"{result['review_backlog_trend']} {result['review_backlog_net_change']:+d})"
     )
-    print(
-        f"Review SLA: {result['review_sla_overdue']} overdue; "
-        f"{result['review_sla_due_soon']} due soon; oldest={result['review_sla_oldest_days']}d"
-    )
-    eta = result["review_capacity_weeks_to_clear"]
-    eta_text = "not clearing" if eta is None else f"{eta:.1f}w"
-    print(
-        f"Review capacity: {result['review_capacity_status']}; "
-        f"net clearance={result['review_capacity_net_clearance']:+.1f}/week; ETA={eta_text}"
-    )
-    print(f"Review metrics: {result['review_operational_metrics']}")
     print(
         f"Review batch: {result['review_batch_path']} "
         f"({result['review_batch_exported']} events; "
