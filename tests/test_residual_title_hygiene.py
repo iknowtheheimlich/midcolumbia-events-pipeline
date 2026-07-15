@@ -40,12 +40,25 @@ def test_live_music_on_the_point_is_not_reduced_to_fragment() -> None:
     assert title == "Live Music on the Point"
 
 
-def test_known_all_caps_title_is_normalized_without_global_title_case() -> None:
-    title, _, _ = derive_display_fields(
+def test_frichette_all_white_party_uses_curated_editorial_title() -> None:
+    title, _, reason = derive_display_fields(
         'FRICHETTE WINERY "ALL WHITE PARTY',
         "Frichette Winery",
         "Benton City",
         category="Music/Comedy",
         profile=profile(),
     )
-    assert title == "Frichette Winery All White Party"
+    assert title == "Wine en Blanc Soirée"
+    assert "title_cleanup" in reason
+
+
+def test_multilingual_fifa_marketing_copy_uses_english_title() -> None:
+    title, _, reason = derive_display_fields(
+        "OFFICIAL FIFA WATCH PARTY La fiesta del futbol ven a celebrar!!",
+        "John Dam Plaza",
+        "Richland",
+        category="Events/Hangouts",
+        profile=profile(),
+    )
+    assert title == "FIFA Watch Party"
+    assert "title_cleanup" in reason
