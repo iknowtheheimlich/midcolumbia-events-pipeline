@@ -20,6 +20,7 @@ from typing import Iterable, Sequence, TypeAlias
 
 from src.program_intelligence import EditorialProgram, ProgramOccurrence
 from src.publisher_editorial import EditorialEvent
+from src.publishing_contract import PublishingProfile
 
 Renderable: TypeAlias = EditorialEvent | EditorialProgram
 
@@ -40,6 +41,7 @@ def render_reddit_post(
         event for event in events if event.publication_disposition == "AUTO_PUBLISH"
     ]
     ordered = sorted(publishable, key=_sort_key)
+    active_category_order = tuple(category_order or PublishingProfile.load().category_order)
 
     grouped: dict[str, list[Renderable]] = defaultdict(list)
     for event in ordered:
@@ -49,10 +51,7 @@ def render_reddit_post(
     for start_date, day_events in grouped.items():
         lines.append(_date_heading(start_date))
         lines.append("")
-        if category_order is None:
-            lines.extend(render_item_line(event) for event in day_events)
-        else:
-            lines.extend(_render_category_sections(day_events, category_order))
+        lines.extend(_render_category_sections(day_events, active_category_order))
         lines.append("")
 
     if footnote.strip():
@@ -141,19 +140,23 @@ def _render_category_sections(
 ) -> list[str]:
     grouped: dict[str, list[Renderable]] = defaultdict(list)
     for event in events:
-        if event.semantic_category:
-            grouped[event.semantic_category].append(event)
+        category = event.semantic_category or getattr(event, "category", None)
+        if category:
+            grouped[category].append(event)
 
     lines: list[str] = []
     for category in category_order:
         category_events = grouped.get(category, [])
         if not category_events:
             continue
+        if lines:
+            lines.append("")
         lines.append(f"## {category}")
-        lines.extend(render_item_line(event) for event in category_events)
         lines.append("")
-    if lines and not lines[-1]:
-        lines.pop()
+        for index, event in enumerate(category_events):
+            if index:
+                lines.append("")
+            lines.append(render_item_line(event))
     return lines
 
 
