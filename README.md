@@ -1,185 +1,197 @@
 # Mid-Columbia Events Pipeline
 
-A local event harvesting, normalization, venue-resolution, deduplication, and publishing pipeline for Mid-Columbia community event posts.
+A local-first event intelligence and publishing pipeline for Mid-Columbia community events. It harvests multiple sources, normalizes events into a canonical schema, resolves venues and organizers, deduplicates occurrences, classifies categories with explainable precedence, preserves human review history, and produces publisher-ready output plus operational health artifacts.
 
-## Current Status
+## Release Status
 
-The current foundation is stable through:
+The pipeline is preparing for **v1.0.0-rc1** after Attempt 98.
+
+Current regression baseline:
 
 ```text
-Attempt_21_TriCityVibe
+430 tests passing
 ```
 
-Core capabilities documented so far:
+The current system includes:
 
-- Cargo Harvester using saved HTML
-- Stable canonical event schema
-- Venue Registry with approximately 1,056 venues and Google Place IDs
-- Registry Optimizer lookup generation
-- Resolver Pipeline with Unknown Venue Queue routing
-- Reddit Publisher chronological output
-- Visit Tri-Cities Algolia-backed adapter
-- Richland Library LibCal-backed adapter
-- Mid-Columbia Libraries saved-HTML adapter
-- Tri-City Vibe WordPress-rendered saved-HTML adapter
-- Recurrence classification and publisher safety split
-- Legacy CSV importer for old `unified_events.csv`
-- Unified pipeline spine accepting multiple normalized source batches
-- Generic N-source pipeline runner
-- Adapter registry for supported source metadata
-- Shared adapter contract in `adapters/contract.py`
-- Conservative exact-key deduplication with source attribution preservation
-- Regression suite
-- Pipeline status command
+- multi-source adapter framework
+- canonical event schema and source attribution
+- venue and organizer registries
+- conservative occurrence resolution and deduplication
+- explainable category intelligence
+- venue and organizer category priors
+- classified-history corpus and snapshots
+- knowledge-drift detection
+- human classification-review import/export
+- review backlog aging, SLA, throughput, and capacity monitoring
+- typed review-operations configuration
+- unified weekly operational dashboard
+- Reddit publishing and editorial formatting contracts
 
-## Status Command
+## Canonical Weekly Run
 
-Run:
+From the repository root:
 
 ```powershell
-python -m tools.status
+python -m pytest
+python -m tools.finalize_weekly_run fixtures/real_multi_source/deduplicated_publisher_ready_events.json
 ```
 
-Expected adapter set after Attempt_21:
+A successful release-candidate run must complete the full test suite and generate the weekly operational artifacts without blocking failures.
+
+## Primary Weekly Artifacts
+
+The finalizer updates durable history and writes operational artifacts including:
 
 ```text
-Adapters
---------
-LegacyUnifiedCSV       MIGRATION_BRIDGE
-MidColumbiaLibraries   ACTIVE
-RichlandLibrary        ACTIVE
-TriCityVibe            ACTIVE
-VisitTriCities         ACTIVE
+history/classified_events.jsonl
+history/classification_reviews.jsonl
+history/review_backlog.json
+history/review_backlog_throughput.jsonl
+history/snapshots/
+
+artifacts/corpus_health.json
+artifacts/corpus_health_report.txt
+artifacts/review_operations_config.json
+artifacts/review_operational_metrics.json
+artifacts/review_backlog_report.txt
+artifacts/review_sla_report.txt
+artifacts/review_backlog_throughput_report.txt
+artifacts/review_capacity_report.txt
+artifacts/classification_review_batch.csv
+artifacts/weekly_pipeline_health.json
+artifacts/weekly_pipeline_health.txt
 ```
 
-Fixture counts depend on whether the local Tri-City Vibe fixture is still representative or has been replaced by a harvested full-page fixture.
-
-## Verified Smoke Tests
-
-Visit Tri-Cities fixture through unified pipeline:
+The first operator-facing file to inspect is:
 
 ```text
-all_events: 24
-publisher_ready_events: 15
-recurrence_review_events: 9
+artifacts/weekly_pipeline_health.txt
 ```
 
-Visit Tri-Cities plus legacy unified CSV through unified pipeline:
+Dashboard states are deliberately simple:
+
+- `HEALTHY` — no current operational warnings
+- `ATTENTION` — review debt or capacity requires action
+- `DEGRADED` — report failures or corpus-integrity problems require investigation
+
+The dashboard summarizes existing metrics; it does not replace the underlying reports.
+
+## Review Workflow
+
+The weekly finalizer exports:
 
 ```text
-all_events: 111
-publisher_ready_events: 102
-recurrence_review_events: 9
+artifacts/classification_review_batch.csv
 ```
 
-Visit Tri-Cities plus legacy unified CSV plus Richland Library with dedupe enabled:
+Reviewed decisions are imported into the durable review ledger. Already-reviewed event/category decisions are suppressed from future batches unless the classifier decision changes.
+
+Review intelligence includes:
+
+- new, recurring, and stale backlog states
+- due-soon and overdue SLA states
+- opened, carried, resolved, and net-change throughput
+- capacity status and estimated time to clear
+- immutable operational metric snapshots
+
+## Category Decision Precedence
+
+Category decisions follow the established precedence chain:
+
+1. explicit title rules
+2. existing or source category
+3. venue or organizer registry hint
+4. venue-type intelligence
+5. description evidence
+6. review queue
+
+Registry hints are priors. They never override stronger evidence.
+
+## Configuration
+
+Review policy is represented by the typed `ReviewOperationsConfig` model and may be supplied through a JSON file:
+
+```powershell
+python -m tools.finalize_weekly_run <events.json> --review-config config/review_operations.json
+```
+
+Precedence is:
 
 ```text
-all_events: 123
-publisher_ready_events: 114
-deduplicated_publisher_ready_events: 113
-duplicate_groups: 1
-recurrence_review_events: 9
-skipped_low_quality_dedupe: 30
+built-in defaults < configuration file/object < explicit command-line overrides
 ```
 
-Mid-Columbia Libraries alone through unified pipeline:
+The exact effective configuration used by each run is persisted to:
 
 ```text
-all_events: 6
-publisher_ready_events: 6
-deduplicated_publisher_ready_events: 6
-duplicate_groups: 0
-recurrence_review_events: 0
-skipped_low_quality_dedupe: 0
+artifacts/review_operations_config.json
 ```
 
-Tri-City Vibe representative fixture:
+## Useful Commands
 
-```text
-raw fixture events: 4
-normalized fixture events: 4
-past events cutoff: enabled
-```
-
-## Regression Tests
-
-Run:
+Run the complete regression suite:
 
 ```powershell
 python -m pytest
 ```
 
-or on Windows:
+Run the status command:
 
 ```powershell
-.\run_tests.bat
+python -m tools.status
 ```
 
-## Project Roadmap
+Inspect venue-intelligence candidates:
 
-See:
+```powershell
+python -m tools.report_venue_intelligence history/classified_events.jsonl
+```
 
+Inspect knowledge drift:
+
+```powershell
+python -m tools.report_knowledge_drift history/classified_events.jsonl
+```
+
+Inspect review backlog:
+
+```powershell
+python -m tools.report_review_backlog history/classified_events.jsonl
+```
+
+Inspect review capacity:
+
+```powershell
+python -m tools.report_review_capacity
+```
+
+## Architecture Contracts
+
+The project relies on several non-negotiable contracts:
+
+- source adapters normalize into a shared event model
+- deduplication remains conservative and preserves attribution
+- stronger category evidence outranks registry priors
+- analytical reports do not silently alter decisions
+- human review history is durable and idempotent
+- weekly operational metrics must agree on active backlog
+- configuration is validated rather than silently rewritten
+- publisher output remains separate from review and recurrence queues
+
+## Documentation
+
+- [`docs/Architecture.md`](docs/Architecture.md)
+- [`docs/EventSchema.md`](docs/EventSchema.md)
+- [`docs/SourceAdapters.md`](docs/SourceAdapters.md)
+- [`docs/VenueRegistry.md`](docs/VenueRegistry.md)
+- [`docs/ResolverPipeline.md`](docs/ResolverPipeline.md)
 - [`docs/ROADMAP.md`](docs/ROADMAP.md)
+- [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md)
 - [`CHANGELOG.md`](CHANGELOG.md)
 
-## Architecture Documents
-
-- [`docs/Architecture.md`](docs/Architecture.md) — component boundaries and pipeline shape
-- [`docs/EventSchema.md`](docs/EventSchema.md) — canonical event object contract
-- [`docs/SourceAdapters.md`](docs/SourceAdapters.md) — adapter contract for adding new event sources
-- [`docs/VenueRegistry.md`](docs/VenueRegistry.md) — canonical venue system
-- [`docs/ResolverPipeline.md`](docs/ResolverPipeline.md) — venue resolution decision tree
-- [`docs/Attempt_14_RegistryOptimizerVerification.md`](docs/Attempt_14_RegistryOptimizerVerification.md) — local verification checklist before Attempt_15
-- [`docs/Attempt_15_VisitTriCities_SourceStrategy.md`](docs/Attempt_15_VisitTriCities_SourceStrategy.md) — Visit Tri-Cities source strategy
-- [`docs/Attempt_18_RichlandLibrary_SourceStrategy.md`](docs/Attempt_18_RichlandLibrary_SourceStrategy.md) — Richland Library source strategy
-- [`docs/Attempt_20_AdapterFramework.md`](docs/Attempt_20_AdapterFramework.md) — shared adapter framework contract
-- [`docs/Attempt_21_TriCityVibe.md`](docs/Attempt_21_TriCityVibe.md) — Tri-City Vibe adapter strategy
-
-## GitHub Roadmap Issues
-
-Current execution chain has moved beyond the original issue numbering. `docs/ROADMAP.md` is the canonical milestone source.
-
-Current local milestone chain:
-
-```text
-Attempt_14_Registry_Optimizer
-  ↓
-Attempt_15_Visit_Tri-Cities
-  ↓
-Attempt_16_Unified_Pipeline
-  ↓
-Attempt_17_Multi-Source_Deduplication
-  ↓
-Attempt_18_Richland_Library
-  ↓
-Attempt_19_Mid-Columbia_Libraries
-  ↓
-Attempt_20_AdapterFramework
-  ↓
-Attempt_21_TriCityVibe
-  ↓
-Attempt_22_Notion_Export
-  ↓
-Attempt_23_Regression_Test_Suite
-  ↓
-Attempt_24_Production_Release
-```
+Historical attempt documents remain in `docs/attempts/` as implementation records. The README and release checklist define the current operational contract.
 
 ## Development Rule
 
-Every milestone uses this naming format:
-
-```text
-Attempt_##_<Description>
-```
-
-The event schema should remain backwards compatible whenever possible.
-
-## Next Planned Milestone
-
-```text
-Attempt_22_Notion_Export
-```
-
-Before starting broad source expansion, keep the unified pipeline source-agnostic and preserve review queues separately from deduplicated publisher-ready output.
+Changes should preserve backward compatibility where practical and must end with a green full regression suite. New behavior requires a focused contract test; refactors must prove that existing observable behavior remains intact.
