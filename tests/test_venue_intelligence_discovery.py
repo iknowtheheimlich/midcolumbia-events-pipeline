@@ -1,4 +1,8 @@
-from src.venue_intelligence_discovery import discover_venue_intelligence, infer_venue_type
+from src.venue_intelligence_discovery import (
+    canonicalize_discovery_venue_name,
+    discover_venue_intelligence,
+    infer_venue_type,
+)
 
 
 def _events(venue, category_counts, *, venue_type=None):
@@ -70,6 +74,22 @@ def test_name_inference_covers_restaurants_parks_and_lodging():
     assert infer_venue_type("Columbia Point Marina Park") == "park"
     assert infer_venue_type("The Lodge at Columbia Point") == "hotel"
     assert infer_venue_type("Solar Spirits") == "bar"
+
+
+def test_institutional_visitor_center_is_not_inferred_as_open_park():
+    name = "Manhattan Project National Historical Park Visitor Center"
+    assert infer_venue_type(name) is None
+    candidate = _candidate(_events(name, {"Community Events": 2}), name)
+    assert candidate.recommendation == "INSUFFICIENT"
+    assert candidate.venue_type is None
+
+
+def test_malformed_bookwalter_alias_is_canonicalized_before_type_inference():
+    assert canonicalize_discovery_venue_name("Fiction @ J Book Walter") == "J. Bookwalter Winery"
+    candidate = _candidate(_events("Fiction @ J Book Walter", {"Music & Concerts": 1}), "J. Bookwalter Winery")
+    assert candidate.recommendation == "REJECT"
+    assert candidate.venue_type == "winery"
+    assert candidate.reason == "excluded_venue_type=winery"
 
 
 def test_mixed_venue_is_rejected_for_low_dominance():
