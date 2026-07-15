@@ -7,9 +7,11 @@ Attempt_63_PerformerIdentityCanonicalization
 Attempt_71_ReviewQueueCategoryExpansion
 Attempt_72_CategoryCompletionPass1
 Attempt_73_VenueCategoryIntelligence
+Attempt_75_OrganizerCategoryIntelligence
 
-This layer classifies what an event is. Venue intelligence supplies a prior; it
-never overrides stronger title or source evidence.
+This layer classifies what an event is. Organizer and venue intelligence supply priors;
+neither overrides stronger title or source evidence. Organizer evidence precedes venue
+evidence because organizers travel while physical venues frequently host mixed programs.
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ from dataclasses import dataclass
 import re
 from typing import Any, Iterable
 
+from src.organizer_category_intelligence import organizer_category_hint
 from src.publishing_contract import PublishingProfile
 from src.venue_category_intelligence import venue_category_hint
 
@@ -160,6 +163,14 @@ def classify_event(event: dict[str, Any], profile: PublishingProfile | None = No
     for rule in _TITLE_RULES:
         if rule.pattern.search(title):
             return CategoryDecision(rule.category, rule.confidence, f"title_rule={rule.label}")
+
+    organizer_hint = organizer_category_hint(event)
+    if organizer_hint is not None:
+        return CategoryDecision(
+            organizer_hint.category,
+            organizer_hint.confidence,
+            f"organizer_hint={organizer_hint.organizer_name};strength={organizer_hint.strength}",
+        )
 
     venue_hint = venue_category_hint(event)
     if venue_hint is not None:
