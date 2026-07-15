@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass
 from math import log2
+import re
 from typing import Any, Iterable
 
 from src.venue_registry import normalize_venue_key
@@ -26,6 +27,18 @@ DEFAULT_EXCLUDED_VENUE_TYPES = {
     "restaurant",
     "winery",
 }
+
+_VENUE_NAME_TYPE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("winery", re.compile(r"\b(?:winery|vineyard|cellars?)\b", re.IGNORECASE)),
+    ("brewery", re.compile(r"\b(?:brewery|brewing|brewpub)\b", re.IGNORECASE)),
+    ("bar", re.compile(r"\b(?:bar|pub|saloon|tavern|lounge|spirits|distillery)\b", re.IGNORECASE)),
+    ("restaurant", re.compile(r"\b(?:restaurant|kitchen|grill|cafe|bistro|eatery)\b", re.IGNORECASE)),
+    ("hotel", re.compile(r"\b(?:hotel|inn|lodge|resort)\b", re.IGNORECASE)),
+    ("fairgrounds", re.compile(r"\bfairgrounds?\b", re.IGNORECASE)),
+    ("convention center", re.compile(r"\b(?:convention|conference) center\b", re.IGNORECASE)),
+    ("community center", re.compile(r"\bcommunity center\b", re.IGNORECASE)),
+    ("park", re.compile(r"\b(?:park|fairground|marina)\b", re.IGNORECASE)),
+)
 
 
 @dataclass(frozen=True)
@@ -65,11 +78,7 @@ def discover_venue_intelligence(
     display_names: dict[str, str] = {}
 
     for event in events:
-        venue_name = _text(
-            event.get("venue_registry_name")
-            or event.get("venue")
-            or event.get("display_venue")
-        )
+        venue_name = _text(event.get("venue_registry_name") or event.get("venue") or event.get("display_venue"))
         category = _text(event.get("category"))
         if not venue_name or not category:
             continue
@@ -90,7 +99,8 @@ def discover_venue_intelligence(
         dominant_percent = dominant_count / total if total else 0.0
         second_percent = second_count / total if total else 0.0
         entropy = _normalized_entropy(category_counts)
-        venue_type = _dominant_text(venue_events, "registry_venue_type", "venue_type")
+        venue_name = display_names[key]
+        venue_type = _dominant_text(venue_events, "registry_venue_type", "venue_type") or infer_venue_type(venue_name)
         last_seen = max((_event_date(event) for event in venue_events if _event_date(event)), default=None)
 
         recommendation, reason = _recommendation(
@@ -108,7 +118,7 @@ def discover_venue_intelligence(
         confidence = _confidence(total, dominant_percent, entropy)
         candidates.append(
             VenueIntelligenceCandidate(
-                venue_name=display_names[key],
+                venue_name=venue_name,
                 total_events=total,
                 dominant_category=dominant_category,
                 dominant_count=dominant_count,
@@ -126,8 +136,19 @@ def discover_venue_intelligence(
             )
         )
 
-    rank = {"PROMOTE": 0, "REVIEW": 1, "REJECT": 2}
+    rank = {"PROMOTE": 0, "REVIEW": 1, "INSUFFICIENT": 2, "REJECT": 3}
     return sorted(candidates, key=lambda item: (rank[item.recommendation], -item.confidence, item.venue_name.casefold()))
+
+
+def infer_venue_type(venue_name: str | None) -> str | None:
+    """Infer obvious multipurpose venue types when registry metadata is absent."""
+    text = _text(venue_name)
+    if not text:
+        return None
+    for venue_type, pattern in _VENUE_NAME_TYPE_PATTERNS:
+        if pattern.search(text):
+            return venue_type
+    return None
 
 
 def _recommendation(
@@ -146,7 +167,7 @@ def _recommendation(
     if venue_type and venue_type.casefold() in excluded:
         return "REJECT", f"excluded_venue_type={venue_type}"
     if total < minimum_events:
-        return "REVIEW", f"insufficient_sample={total}<{minimum_events}"
+        return "INSUFFICIENT", f"insufficient_sample={total}<{minimum_events}"
     if dominant_percent < minimum_dominant_percent:
         return "REJECT", f"dominant_percent={dominant_percent:.3f}<{minimum_dominant_percent:.3f}"
     if second_percent > maximum_second_percent:
@@ -157,9 +178,10 @@ def _recommendation(
 
 
 def _confidence(total: int, purity: float, entropy: float) -> float:
-    sample_factor = min(1.0, total / 100.0)
+    """Conservative evidence confidence; sample size dominates early observations."""
+    sample_factor = total / (total + 20.0) if total > 0 else 0.0
     stability_factor = max(0.0, 1.0 - entropy)
-    return purity * (0.70 + 0.30 * sample_factor) * (0.80 + 0.20 * stability_factor)
+    return purity * sample_factor * stability_factor
 
 
 def _normalized_entropy(counts: Counter[str | None]) -> float:
