@@ -1,0 +1,7 @@
+{
+  "stale_after_appearances": 3,
+  "sla_due_after_days": 7,
+  "sla_overdue_after_days": 14,
+  "sla_overdue_after_appearances": 4,
+  "capacity_lookback_runs": 4
+}

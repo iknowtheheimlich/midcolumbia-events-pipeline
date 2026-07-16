@@ -1,0 +1,769 @@
+Event Completeness Audit
+========================
+
+Weekly events measured: 246
+Average completeness: 78.6%
+Events below 80%: 150
+
+Most commonly missing fields:
+  cost: 246
+  organization: 246
+  registration_info: 246
+  schedule_items: 246
+  category: 123
+  image_url: 83
+  end_time: 61
+  description: 27
+  address: 9
+  start_time: 1
+
+Low-completeness events:
+63% | 2026-07-16 | (509) 783-7878
+  Mid-Columbia Libraries - Kennewick Branch | MidColumbiaLibraries
+  Missing: start_time, organization, category, image_url, cost, schedule_items, registration_info, end_time
+  URL: tel:509-783-7878
+
+65% | 2026-07-15 | Engelwood Heights at the Clover Island Concert Series
+  Clover Island Stage | TriCityVibe
+  Missing: description, organization, address, image_url, cost, schedule_items, registration_info, end_time
+  URL: https://tricityvibe.com/event/engelwood-heights-clover-island-concert-series/
+
+65% | 2026-07-16 | Knutzen Brothers at Southridge Dugout Summer Series!!
+  Southridge Dugout | TriCityVibe
+  Missing: description, organization, address, image_url, cost, schedule_items, registration_info, end_time
+  URL: https://tricityvibe.com/event/jamie-buckley-14/
+
+65% | 2026-07-16 | The Knockoffs at Tagaris
+  Tagaris | TriCityVibe
+  Missing: description, organization, address, image_url, cost, schedule_items, registration_info, end_time
+  URL: https://tricityvibe.com/event/edge-blue-2/
+
+65% | 2026-07-17 | Live Reggae w/ Dozey Dubs and Northwest Breeze at Emerald of Siam
+  Emerald of Siam | TriCityVibe
+  Missing: description, organization, address, image_url, cost, schedule_items, registration_info, end_time
+  URL: https://tricityvibe.com/event/live-reggae-w-dozey-dubs-and-northwest-breeze-at-emerald-of-siam/
+
+65% | 2026-07-19 | Catch a Wave (Beach Boyt Tribute Band) w/Badlandz at Clover Island Concert Series
+  Clover Island Stage | TriCityVibe
+  Missing: description, organization, address, image_url, cost, schedule_items, registration_info, end_time
+  URL: https://tricityvibe.com/event/foolish-fortune-thunder-island-clover-island/
+
+67% | 2026-07-14 | Tuesday Tunes w/ Ben Johnson at Mercer Estates Tasting Room!
+  Mercer Estates Tasting Room | TriCityVibe
+  Missing: description, organization, address, image_url, cost, schedule_items, registration_info
+  URL: https://tricityvibe.com/event/tuesday-tunes-w-ben-dimitri-mercer-estates-tasting-room/
+
+67% | 2026-07-16 | Bop Revival Live at Hedges Wine!
+  Hedges Wine | TriCityVibe
+  Missing: description, organization, address, image_url, cost, schedule_items, registration_info
+  URL: https://tricityvibe.com/event/mia-lenay-live-wine-social-2/
+
+67% | 2026-07-17 | Jack Rothwell Rocking Rattlesnake Mountain Brewing
+  Rattlesnake Mountain Brewing Company | TriCityVibe
+  Missing: description, organization, address, image_url, cost, schedule_items, registration_info
+  URL: https://tricityvibe.com/event/live-music-jack-rothwell-rattlesnake-mountain-brewing/
+
+67% | 2026-07-17 | Jeff Peterson live @ Lodge at Columbia Point!
+  Lodge at Columbia Point | TriCityVibe
+  Missing: description, organization, address, image_url, cost, schedule_items, registration_info
+  URL: https://tricityvibe.com/event/jeff-peterson-live-lodge-at-columbia-point/
+
+70% | 2026-07-17 | A Quiet Life/Heel Klick/Running From Nothing/BAKLIP at Rays Golden Lion
+  Ray's Golden Lion Restaurant | TriCityVibe
+  Missing: description, organization, image_url, cost, schedule_items, registration_info, end_time
+  URL: https://tricityvibe.com/event/finger-guns-from-ashes-rad-stag-hard-rock-rays-golden-lion/
+
+70% | 2026-07-17 | Set Walker Trio at Brewminatti
+  Brewminatti | TriCityVibe
+  Missing: description, organization, image_url, cost, schedule_items, registration_info, end_time
+  URL: https://tricityvibe.com/event/laurie-lewis-brewminatti/
+
+70% | 2026-07-18 | Back Roads at Longbranch Saloon!
+  Longbranch Saloon | TriCityVibe
+  Missing: description, organization, image_url, cost, schedule_items, registration_info, end_time
+  URL: https://tricityvibe.com/event/simple-seasoned/
+
+70% | 2026-07-18 | The EMO Night Tour at Rays Golden Lion
+  Ray's Golden Lion Restaurant | TriCityVibe
+  Missing: description, organization, image_url, cost, schedule_items, registration_info, end_time
+  URL: https://tricityvibe.com/event/mismiths-evelyns-casket-the-jerks-horror-punk-rays-golden-lion/
+
+72% | 2026-07-16 | Contraband @ Live at 5
+  John Dam Plaza | TriCityVibe
+  Missing: description, organization, image_url, cost, schedule_items, registration_info
+  URL: https://tricityvibe.com/event/bindlestiff-family-cirkus-richland-high-school-auditorium/
+
+72% | 2026-07-16 | Frazer Wambeke at Longship Cellars
+  Longship Cellars | TriCityVibe
+  Missing: description, organization, image_url, cost, schedule_items, registration_info
+  URL: https://tricityvibe.com/event/jeff-peterson-longship-cellars/
+
+72% | 2026-07-17 | Gregory Live at Henry Earl Estate Wines
+  Henry Earl Estate Wines | TriCityVibe
+  Missing: description, organization, image_url, cost, schedule_items, registration_info
+  URL: https://tricityvibe.com/event/maryann-gregory-live-henry-earl-estate-wines-14/
+
+72% | 2026-07-17 | Groove Principal at Wednesdays in West Richland
+  Flat Top Park | TriCityVibe
+  Missing: description, organization, image_url, cost, schedule_items, registration_info
+  URL: https://tricityvibe.com/event/dr-rock-sturgeons-micheles-2/
+
+72% | 2026-07-17 | Jeff Davis at 3 Eyed Fish!
+  3 Eyed Fish Kitchen + Bar | TriCityVibe
+  Missing: description, organization, image_url, cost, schedule_items, registration_info
+  URL: https://tricityvibe.com/event/frank-debi-eng-3-eyed-fish-2/
+
+72% | 2026-07-17 | Live Music with Bryce Allen at The Peacock
+  The Peacock | TriCityVibe
+  Missing: description, organization, image_url, cost, schedule_items, registration_info
+  URL: https://tricityvibe.com/event/bryce-allen-peacock/
+
+72% | 2026-07-17 | Nashville in the Northwest at Tranche Live Music Series
+  Tranche | TriCityVibe
+  Missing: description, organization, image_url, cost, schedule_items, registration_info
+  URL: https://tricityvibe.com/event/nashville-in-the-northwest-at-tranche-live-music-series/
+
+72% | 2026-07-17 | Stone Country at Pasco Eagles
+  Fraternal Order of Eagles | TriCityVibe
+  Missing: description, organization, image_url, cost, schedule_items, registration_info
+  URL: https://tricityvibe.com/event/lori-tyler-w-stone-country/
+
+72% | 2026-07-18 | Campbell Davis at Henry Earl Estate Wines
+  Henry Earl Estate Wines | TriCityVibe
+  Missing: description, organization, image_url, cost, schedule_items, registration_info
+  URL: https://tricityvibe.com/event/wwgf-rick-phillips-lance-smith-henry-earl-estate-wines/
+
+72% | 2026-07-18 | Colorblind at Sam’s Saloon Summer Concert Series!
+  Sam’s Saloon | TriCityVibe
+  Missing: description, organization, image_url, cost, schedule_items, registration_info
+  URL: https://tricityvibe.com/event/colorblind-sams-saloon-summer-conert-series/
+
+72% | 2026-07-18 | Dadweed @ Tranche Live Music Series
+  Tranche | TriCityVibe
+  Missing: description, organization, image_url, cost, schedule_items, registration_info
+  URL: https://tricityvibe.com/event/dadweed-tranche-live-music-series/
+
+72% | 2026-07-18 | Simply Seasoned Live at Woody’s Bullpen!
+  Woody's BullPen Bar & Grille | TriCityVibe
+  Missing: description, organization, image_url, cost, schedule_items, registration_info
+  URL: https://tricityvibe.com/event/skydogs-band-live-woodys-bullpen/
+
+72% | 2026-07-18 | Sonic Suds Grunge Fest @ Iconic Brewing!
+  Iconic Brewing | TriCityVibe
+  Missing: description, organization, image_url, cost, schedule_items, registration_info
+  URL: https://tricityvibe.com/event/operation-falkor-soi-705/
+
+72% | 2026-07-18 | Zac Burrell at Barnard Griffin!
+  Barnard Griffin Winery | TriCityVibe
+  Missing: description, organization, image_url, cost, schedule_items, registration_info
+  URL: https://tricityvibe.com/event/jack-rothwell-rocking-halloween-barnard-griffin/
+
+73% | 2026-07-16 | Franklin County Democrats July General Meeting
+  Pasco Farmers Market | AllEvents
+  Missing: organization, category, image_url, cost, schedule_items, registration_info, end_time
+  URL: https://allevents.in/pasco/event/200030396887520
+
+75% | 2026-07-13 | Auditions: Steel Magnolias
+  Princess Theatre | AllEvents
+  Missing: organization, category, image_url, cost, schedule_items, registration_info
+  URL: https://allevents.in/prosser/event/200030400534343
+
+75% | 2026-07-13 | Music Together
+  Richland Public Library | AllEvents
+  Missing: organization, category, image_url, cost, schedule_items, registration_info
+  URL: https://allevents.in/richland/event/200030396981203
+
+75% | 2026-07-15 | Community Program: Book Talk
+  Mid-Columbia Libraries - Pasco Branch | MidColumbiaLibraries
+  Missing: organization, category, image_url, cost, schedule_items, registration_info
+  URL: https://midcolumbialibraries.org/event/community-program-book-talk-17
+
+75% | 2026-07-15 | Library Gaming Guild
+  Mid-Columbia Libraries - Kennewick Branch | MidColumbiaLibraries
+  Missing: organization, category, image_url, cost, schedule_items, registration_info
+  URL: https://midcolumbialibraries.org/event/library-gaming-guild-30
+
+75% | 2026-07-15 | Love on a Leash
+  Mid-Columbia Libraries - West Pasco Branch | MidColumbiaLibraries
+  Missing: organization, category, image_url, cost, schedule_items, registration_info
+  URL: https://midcolumbialibraries.org/event/love-leash-402
+
+75% | 2026-07-15 | Love on a Leash
+  Mid-Columbia Libraries - Benton City Branch | MidColumbiaLibraries
+  Missing: organization, category, image_url, cost, schedule_items, registration_info
+  URL: https://midcolumbialibraries.org/event/love-leash-431
+
+75% | 2026-07-15 | Magna-Saurus
+  Mid-Columbia Libraries - West Richland Branch | MidColumbiaLibraries
+  Missing: organization, category, image_url, cost, schedule_items, registration_info
+  URL: https://midcolumbialibraries.org/event/magna-saurus-0
+
+75% | 2026-07-15 | Magna-Saurus
+  Mid-Columbia Libraries - Connell Branch | MidColumbiaLibraries
+  Missing: organization, category, image_url, cost, schedule_items, registration_info
+  URL: https://midcolumbialibraries.org/event/magna-saurus-3
+
+75% | 2026-07-15 | Magna-Saurus
+  Mid-Columbia Libraries - Benton City Branch | MidColumbiaLibraries
+  Missing: organization, category, image_url, cost, schedule_items, registration_info
+  URL: https://midcolumbialibraries.org/event/magna-saurus-9
+
+75% | 2026-07-15 | Primordial Goo
+  Mid-Columbia Libraries - Prosser Branch | MidColumbiaLibraries
+  Missing: organization, category, image_url, cost, schedule_items, registration_info
+  URL: https://midcolumbialibraries.org/event/primordial-goo-7
+
+75% | 2026-07-15 | Primordial Goo
+  Mid-Columbia Libraries - Pasco Branch | MidColumbiaLibraries
+  Missing: organization, category, image_url, cost, schedule_items, registration_info
+  URL: https://midcolumbialibraries.org/event/primordial-goo-2
+
+75% | 2026-07-16 | Magna-Saurus
+  Mid-Columbia Libraries - Kennewick Branch | MidColumbiaLibraries
+  Missing: organization, category, image_url, cost, schedule_items, registration_info
+  URL: https://midcolumbialibraries.org/event/magna-saurus
+
+75% | 2026-07-16 | Piggy Bank Kids Camp
+  CENTURY 21 Tri-Cities | AllEvents
+  Missing: organization, category, image_url, cost, schedule_items, registration_info
+  URL: https://allevents.in/richland/event/200030186360325
+
+75% | 2026-07-16 | Primordial Goo
+  Mid-Columbia Libraries - Kennewick Branch | MidColumbiaLibraries
+  Missing: organization, category, image_url, cost, schedule_items, registration_info
+  URL: https://midcolumbialibraries.org/event/primordial-goo-9
+
+75% | 2026-07-16 | Primordial Goo
+  Mid-Columbia Libraries - Keewaydin Park Branch | MidColumbiaLibraries
+  Missing: organization, category, image_url, cost, schedule_items, registration_info
+  URL: https://midcolumbialibraries.org/event/primordial-goo-4
+
+75% | 2026-07-16 | Primordial Goo
+  Mid-Columbia Libraries - West Pasco Branch | MidColumbiaLibraries
+  Missing: organization, category, image_url, cost, schedule_items, registration_info
+  URL: https://midcolumbialibraries.org/event/primordial-goo-5
+
+75% | 2026-07-16 | Primordial Goo
+  Mid-Columbia Libraries - Basin City Branch | MidColumbiaLibraries
+  Missing: organization, category, image_url, cost, schedule_items, registration_info
+  URL: https://midcolumbialibraries.org/event/primordial-goo-8
+
+75% | 2026-07-16 | Primordial Goo
+  Mid-Columbia Libraries - Othello Branch | MidColumbiaLibraries
+  Missing: organization, category, image_url, cost, schedule_items, registration_info
+  URL: https://midcolumbialibraries.org/event/primordial-goo-3
+
+75% | 2026-07-16 | Primordial Goo Take
+  Mid-Columbia Libraries - Merrill's Corner Branch | MidColumbiaLibraries
+  Missing: organization, category, image_url, cost, schedule_items, registration_info
+  URL: https://midcolumbialibraries.org/event/primordial-goo-take
+
+77% | 2026-07-13 | Midnight Coterie
+  Ink Drinkers Bookshop | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info, end_time
+  URL: https://allevents.in/kennewick/event/200030277026847
+
+77% | 2026-07-13 | Musically Unstable at Boardman Marina Park
+  Boardman Marina Park Grounds | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info, end_time
+  URL: https://allevents.in/boardman/event/200030043282554
+
+77% | 2026-07-14 | Supplier Connect: Connecting Small Business with Prime Contractors
+  7130 W Grandridge Blvd, Ste C, Kennewick, WA, United States, Washington 99336 | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info, end_time
+  URL: https://allevents.in/kennewick/event/200030301280300
+
+77% | 2026-07-14 | The City of Umatilla Town Hall
+  700 6th Street, Umatilla, OR, United States, Oregon 97882 | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info, end_time
+  URL: https://allevents.in/umatilla/event/200030404433243
+
+77% | 2026-07-15 | GO-STEM in Boardman
+  200 S Main St, Boardman, OR, United States, Oregon 97818 | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info, end_time
+  URL: https://allevents.in/boardman/event/200030333849134
+
+77% | 2026-07-15 | GO-STEM in Irrigon
+  490 NE Main Ave, Irrigon, OR 97844, United States | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info, end_time
+  URL: https://allevents.in/irrigon/event/200030340255758
+
+77% | 2026-07-15 | Race #7
+  Benton County, WA Fairgrounds | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info, end_time
+  URL: https://allevents.in/kennewick/event/200030090178722
+
+77% | 2026-07-15 | The Amazing Bubble Man in Boardman
+  200 S Main St, Boardman, OR, United States, Oregon 97818 | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info, end_time
+  URL: https://allevents.in/boardman/event/200030340317408
+
+77% | 2026-07-15 | The Amazing Bubble Man in Irrigon
+  490 NE Main Ave, Irrigon, OR 97844, United States | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info, end_time
+  URL: https://allevents.in/irrigon/event/200030340255654
+
+77% | 2026-07-15 | The Arc of Tri-Cities Pool Party
+  George Prout Pool | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info, end_time
+  URL: https://allevents.in/richland/event/200030319886637
+
+77% | 2026-07-16 | Dru Bru Tap Takeover
+  5453 Ridgeline Drive Suite 110, Kennewick, WA, United States, Washington 99338 | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info, end_time
+  URL: https://allevents.in/kennewick/event/200030370077842
+
+77% | 2026-07-16 | Gateway Show - Richland, WA
+  Jokers Comedy Club | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info, end_time
+  URL: https://allevents.in/richland/event/200030399274441
+
+77% | 2026-07-17 | Creature Teachers
+  700 6th St, Umatilla, OR, United States, Oregon 97882 | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info, end_time
+  URL: https://allevents.in/umatilla/event/200030194613015
+
+77% | 2026-07-17 | July Sons of Norway Kennewick Monthly Potluck & Cultural Program
+  First Lutheran Church of Kennewick | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info, end_time
+  URL: https://allevents.in/kennewick/event/200030227291000
+
+77% | 2026-07-17 | Kokedama + Sip
+  Richland, Washington | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info, end_time
+  URL: https://allevents.in/richland/event/200030332237913
+
+77% | 2026-07-17 | TC Cider House Grand Re-Opening
+  Tri-Cities Cider House | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info, end_time
+  URL: https://allevents.in/richland/event/200030400213753
+
+77% | 2026-07-17 | WORLD CUP SEMI FINALS EVENT⚽️✨
+  Metaline | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info, end_time
+  URL: https://allevents.in/kennewick/event/200030376840009
+
+77% | 2026-07-18 | $450 NLH Championship | $20K GTD
+  5215 W. Clearwater Ave, Suite 111, Kennewick, WA, United States, Washington 99336 | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info, end_time
+  URL: https://allevents.in/kennewick/event/200030356862241
+
+77% | 2026-07-18 | BANDA ARKANGEL R15
+  El Caballo de Sunnyside Oficial | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info, end_time
+  URL: https://allevents.in/sunnyside/event/200030160515017
+
+77% | 2026-07-18 | Family Board game challenge!
+  892 S Hwy 395, Hermiston, OR | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info, end_time
+  URL: https://allevents.in/hermiston/event/200030331092053
+
+77% | 2026-07-18 | First Pour Wine Release Party
+  39893 West Knox Road, Benton City, WA, United States, Washington 99320 | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info, end_time
+  URL: https://allevents.in/benton-city/event/200030078295436
+
+77% | 2026-07-18 | LOS FARMERZ, PANTER BELICO & LOS PILARES DE CULIACAN
+  RANCHO TRUJILLO | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info, end_time
+  URL: https://allevents.in/mabton/event/2900030009687008
+
+77% | 2026-07-18 | Monster Truck Insanity Tour
+  Benton Franklin Fair & Rodeo | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info, end_time
+  URL: https://allevents.in/kennewick/event/200030191483151
+
+77% | 2026-07-18 | TCCC Cruise to Packwood
+  Leona Marshall Libby Middle School | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info, end_time
+  URL: https://allevents.in/west-richland/event/200030069819929
+
+77% | 2026-07-18 | Umatilla Sage Riders 2026 Buckle Series
+  81907 N Hwy 395, Hermiston, Oregon 97838, Umatilla, OR | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info, end_time
+  URL: https://allevents.in/hermiston/event/200030252410139
+
+77% | 2026-07-19 | Beginner Adult Breakaway Clinic
+  38804 N Hayes Rd, Benton City, WA | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info, end_time
+  URL: https://allevents.in/benton-city/event/200030275017751
+
+77% | 2026-07-19 | MTG: Commander- Loki God of Mischief Event
+  892 S Hwy 395, Hermiston, OR | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info, end_time
+  URL: https://allevents.in/hermiston/event/200030336722246
+
+77% | 2026-07-19 | Queer Clothing Swap
+  2625 W Bruneau Pl, Kennewick, WA 99336-3168, United States | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info, end_time
+  URL: https://allevents.in/kennewick/event/200030343628229
+
+77% | 2026-07-19 | Sunday Morning at The Threshing Floor Church!!!
+  7009 Valley View Pl, Pasco, WA, United States, Washington 99301 | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info, end_time
+  URL: https://allevents.in/pasco/event/200030298552710
+
+79% | 2026-07-13 | Coming Home to Yourself: Cancer New Moon Gathering with Lacey
+  Lifted Lotus Yoga Collective | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/kennewick/event/200030343630241
+
+79% | 2026-07-13 | iPlay FREE (Private Event) Monday, July 13, 2026 from 6-8 PM
+  iPlay Experience | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/kennewick/event/200030356884509
+
+79% | 2026-07-13 | Kiddo and Adult Paint a Ceramic Piece
+  717 Sixth Street, Ste B, Prosser, WA, United States, Washington 99350 | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/prosser/event/200030279800847
+
+79% | 2026-07-13 | Serenity - Ages 12+ - Tri-Cities
+  Budd's Broiler | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/richland/event/200030289331146
+
+79% | 2026-07-13 | Vacation Bible School
+  Central Church | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/richland/event/200030356588402
+
+79% | 2026-07-13 | 🏃 FREE P.A.C. Trial Day | Where Kids Become Athletes
+  1350 North Grant St., Kennewick, WA, United States, Washington 99336 | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/kennewick/event/200030259970605
+
+79% | 2026-07-14 | Barnes & Noble Presents Children's Story-time!
+  Columbia Center | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/kennewick/event/200030376844759
+
+79% | 2026-07-14 | Cow Appreciation Day 2026!
+  Chick-fil-A | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/kennewick/event/200030403835059
+
+79% | 2026-07-14 | Romancing the Cryptid: My Minotaur Husband
+  Lee's Tahitian Richland | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/richland/event/200030238888701
+
+79% | 2026-07-14 | Sound Bath + Cacao
+  La Luna Wellness Studio | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/richland/event/200030238890610
+
+79% | 2026-07-14 | Summer Shenanigans: Cartoon Creation
+  Lighthouse Church Tri-Cities | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/richland/event/200030186360931
+
+79% | 2026-07-14 | Tri-Ward Youth Activity Night
+  The Church of Jesus Christ of Latter-day Saints | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/kennewick/event/1600030295590028
+
+79% | 2026-07-15 | "Tales of a Time Traveler"
+  CPCCo Planetarium | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/pasco/event/200030260551249
+
+79% | 2026-07-15 | Groove Principal LIVE - Wednesday In West
+  Flat Top Park | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/west-richland/event/200030358586341
+
+79% | 2026-07-15 | Make an Alcohol Ink Tile
+  Alley Kat Artisans | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/kennewick/event/200030301282437
+
+79% | 2026-07-15 | National Hot Dog Day w/ DSG
+  Doggie Style Gourmet | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/richland/event/200030356609013
+
+79% | 2026-07-15 | Recovery Dharma – Weekly Meditation & Discussion at Lifted Lotus
+  Lifted Lotus Yoga Collective, Kennewick, WA, United States, Washington 99336 | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/kennewick/event/200030381836808
+
+79% | 2026-07-15 | Speed Friending at Empower Center for Growth
+  Spectrum Studios | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/kennewick/event/100001992980548470
+
+79% | 2026-07-15 | Vacation Bible School at Harrison Park
+  215 NW 13th St, Hermiston, OR 97838-1404, United States | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/hermiston/event/200030179297022
+
+79% | 2026-07-16 | "Worlds Beyond Earth"
+  CPCCo Planetarium | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/pasco/event/200030260552802
+
+79% | 2026-07-16 | Aloha Pineapple- Ages 21+
+  Azucar at Out And About | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/pasco/event/200030175091936
+
+79% | 2026-07-16 | B²: Boredom Busters Summer Edition • Americana Crafternoon
+  1943 Columbia Park Trl, Richland, WA, United States, Washington 99352 | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/richland/event/200030149905332
+
+79% | 2026-07-16 | Gateway Show - Richland, WA
+  Jokers Comedy Club | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/richland/event/100001992263345296
+
+79% | 2026-07-16 | Gluten Free: Trend, Necessity, or Something In Between?
+  Tri-Cities Food Co-op | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/richland/event/100001993266627139
+
+79% | 2026-07-16 | July Bike Night
+  RideNow Powersports Tri-Cities | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/kennewick/event/200030343630140
+
+79% | 2026-07-16 | Kennewick Educational Lunch Events
+  Zintel Creek Golf Course | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/kennewick/event/200030266525849
+
+79% | 2026-07-16 | Ladies Night (Summer Soirée Edition)
+  Beaver Bark Gift & Garden Center | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/richland/event/200030238885542
+
+79% | 2026-07-16 | Live @ 5 Presented by Yakima Federal Svings & Loan w/ Contraband
+  John Dam Plaza | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/richland/event/200030045831344
+
+79% | 2026-07-16 | Oregon State ATA Trapshooting Championships and ATA Western Zone
+  77034 Gun Club Rd, Hermiston, OR, United States, Oregon 97838 | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/hermiston/event/200029815149306
+
+79% | 2026-07-16 | Sip and Paint with Aubrey; Aloha Pineapple
+  Azucar at Out And About | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/pasco/event/200030120302349
+
+79% | 2026-07-16 | Thursday Evening Yoga & Bouquets at the Farmstand
+  Buggirl's Garden | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/benton-city/event/200030388053404
+
+79% | 2026-07-16 | Whimsical Watercolor Landscape
+  Alley Kat Artisans | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/kennewick/event/200030330377329
+
+79% | 2026-07-17 | "Supervolcanoes"
+  CPCCo Planetarium | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/pasco/event/200030272607319
+
+79% | 2026-07-17 | $20 Time Onlies - Barrel Pattern
+  38804 N Hayes Rd, Benton City, WA, United States, Washington 99320 | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/benton-city/event/200030316287909
+
+79% | 2026-07-17 | ADULT NIGHT OUT @ SPLASHDOWN COVE
+  1350 North Grant St., Kennewick, WA, United States, Washington 99336 | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/kennewick/event/200030066606336
+
+79% | 2026-07-17 | DermaCare's Cape Cod Summer Event
+  DermaCare TriCities | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/richland/event/200030289318919
+
+79% | 2026-07-17 | Grand Opening
+  2402 Henderson Loop, Unit 101 Richland | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/richland/event/200030356624414
+
+79% | 2026-07-17 | Hot Bride Summer Sale
+  Roselily Bridal | Tuxedo | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/richland/event/200030276826351
+
+79% | 2026-07-17 | Kennewick Inaugural Summer Championships (Kennewick, WA) - NCS Cafarelli
+  Southridge Sports and Events Complex | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/kennewick/event/200028919433531
+
+79% | 2026-07-17 | Lollipop Rave @ Tee Time
+  Tee Time | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/kennewick/event/100001993461067716
+
+79% | 2026-07-17 | Nail Party!
+  115 w 1st ave, Kennewick | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/kennewick/event/200030363968417
+
+79% | 2026-07-17 | Nail studio event meet and greet
+  115 w 1st ave, Downtown Kennewick, WA | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/kennewick/event/200030370082450
+
+79% | 2026-07-17 | Park activity
+  Leslie Groves Park | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/richland/event/1600030239614637
+
+79% | 2026-07-17 | Premier Park Picnics Umatilla County
+  Funland Park, 735 NW 7th St, Hermiston, OR | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/hermiston/event/200030399474111
+
+79% | 2026-07-17 | Puzzles and Pints
+  Caterpillar Cafe | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/richland/event/200030356589408
+
+79% | 2026-07-17 | Summer Crafty Series | Week 7 | Mini Summer Floral Wreath
+  953 Stevens Drive, Richland WA | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/richland/event/200030319897511
+
+79% | 2026-07-17 | Swagg 20th Ave Cars and Coffee
+  2915 N 20th Ave, Pasco, WA 99301-3996, United States | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/pasco/event/200030396576343
+
+79% | 2026-07-17 | Vinyasa + Breathwork with Lacey and Dr. Penney
+  5608 W Clearwater Ave, Kennewick, WA | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/kennewick/event/200030343627221
+
+79% | 2026-07-18 | 2026 Bike Rodeo
+  Chief Joseph Middle School | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/richland/event/200030250416725
+
+79% | 2026-07-18 | Banda Arkangel R-15, La Migra in Sunnyside
+  El Caballo de Sunnyside | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/sunnyside/event/3300030333434943
+
+79% | 2026-07-18 | BANDA ARKANGEL R-15, LA SUPER SONORA DINAMITA & MAS
+  El Caballo de Sunnyside | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/sunnyside/event/2900030311490532
+
+79% | 2026-07-18 | Barnes & Noble Presents Children's Story-time!
+  Columbia Center | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/kennewick/event/200030395618141
+
+79% | 2026-07-18 | Family Braiding Experience
+  The Braiding Boutique | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/richland/event/200030238891213
+
+79% | 2026-07-18 | Family Braiding Experience
+  1828 W Lewis St | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/pasco/event/100001991478738516
+
+79% | 2026-07-18 | Fusion and Blues with Rhythm & Roots
+  1393 George Washington Way Ste 3, Richland, WA, United States, Washington 99354 | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/richland/event/200030395478422
+
+79% | 2026-07-18 | ITALIAN DAY AT LAYERED CAKE ARTISTRY
+  117 W Kennewick Avenue, Kennewick, WA, United States, Washington 99336 | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/kennewick/event/200030056966844
+
+79% | 2026-07-18 | Kittens & Starbucks Adoption Event
+  Starbucks Coffee Company | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/richland/event/200030356607908
+
+79% | 2026-07-18 | LOS FARMERZ, PANTER BELICO & MAS
+  Toppenish Rodeo & Livestock | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/toppenish/event/2900030311443835
+
+79% | 2026-07-18 | Lu'au Lunch
+  Callaway Gardens Alzheimer's Special Care | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/kennewick/event/200030330380750
+
+79% | 2026-07-18 | Paddle Stroke Clinic
+  Sacajawea Historical State Park | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/pasco/event/200030344236602
+
+79% | 2026-07-18 | Park Play Date -- Funland at 10 and Splash Pad at 11
+  Funland Playground | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/hermiston/event/200030302358247
+
+79% | 2026-07-18 | PIAZZA MAGNOLIA - Italian Day at Magnolia Studios
+  20 N Benton Street, Kennewick, WA, United States, Washington 99337 | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/kennewick/event/200030232734216
+
+79% | 2026-07-18 | Planted & Present (in the Park)
+  Leslie Groves Park | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/richland/event/200030186360530
+
+79% | 2026-07-18 | Regenerate Grand Opening
+  464 Keene Road, Richland, WA | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/richland/event/200030182494640
+
+79% | 2026-07-18 | Road Rally Cruise to Goldendale
+  Walmart Richland - Duportail St | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/richland/event/200030173057523
+
+79% | 2026-07-18 | Summer Warm Up
+  Southridge Sports and Events Complex | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/kennewick/event/200030370077943
+
+79% | 2026-07-18 | Sutra Saturday with Melissa
+  Lifted Lotus Yoga Collective | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/kennewick/event/200030343630543
+
+79% | 2026-07-18 | The Emo Night Tour - Richland
+  Ray's Golden Lion Restaurant | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/richland/event/100001989726712158
+
+79% | 2026-07-18 | Venetian Mask Laboratorium
+  20 N Benton Street, Kennewick, WA, United States, Washington 99337 | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/kennewick/event/200030239439918
+
+79% | 2026-07-18 | Vida Amore Divas Show: Fiesta Semaforo
+  Azucar at Out And About | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/pasco/event/100001993621530665
+
+79% | 2026-07-18 | WaterPalooza 2026
+  Umatilla Marina Park | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/umatilla/event/200029679073757
+
+79% | 2026-07-19 | Elevate Mindful Dance with Chrystal
+  5608 W Clearwater Ave, Kennewick, WA | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/kennewick/event/200030343629031
+
+79% | 2026-07-19 | Sunday Voice Session No. 6 — Columbia River Series (Desert Aire, WA )
+  Desert Aire | AllEvents
+  Missing: organization, category, cost, schedule_items, registration_info
+  URL: https://allevents.in/mattawa/event/100001988568876039

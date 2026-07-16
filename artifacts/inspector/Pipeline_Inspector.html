@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MCEI Pipeline Inspector</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:1100px;margin:2rem auto;padding:0 1rem;line-height:1.45;background:#f5f5f5;color:#171717}
+header,section{background:white;border:1px solid #ddd;border-radius:8px;padding:1rem 1.25rem;margin-bottom:1rem}
+h1,h2{margin:.2rem 0 .5rem}.count{color:#555;margin-bottom:.75rem}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f0f0f0;padding:.8rem;border-radius:5px;border-left:4px solid #777}details{margin:.65rem 0}summary{cursor:pointer;font-weight:650}.empty{color:#777;font-style:italic}
+</style>
+</head>
+<body>
+<header>
+<h1>MCEI Pipeline Inspector</h1>
+<p><strong>Query:</strong> Summer Thursdays</p>
+<p><strong>Stage matches:</strong> 7</p>
+</header>
+<section><h2>Collected source records</h2><div class="count">1 match(es)</div><details open><summary>Record 1</summary><pre>{
+  &quot;address&quot;: &quot;325 East Columbia Gardens Way, Kennewick, WA, United States, Washington 99336, 307 E Columbia Dr, Kennewick, Washington 99336&quot;,
+  &quot;category&quot;: &quot;Community Events&quot;,
+  &quot;city&quot;: &quot;Kennewick&quot;,
+  &quot;description&quot;: &quot;☀️ 🎶 Bring your friends and family and join us for our new live music series Summer Thursdays! We have an incredible lineup of talented local performers. Plus, you can play games and enjoy food, wine, beer, art and more. Where: Columbia Gardens Artisan Village 325 E Columbia Gardens Way, KennewickWhen: Thursdays (June – August 2026) 🕚 The music and games are FREE! Join us every Thursday night this summer for family-friendly entertainment!&quot;,
+  &quot;end_date&quot;: &quot;2026-07-16&quot;,
+  &quot;end_time&quot;: &quot;23:59&quot;,
+  &quot;event_kind&quot;: &quot;single&quot;,
+  &quot;external_url&quot;: &quot;https://www.facebook.com/events/3445069025655097/&quot;,
+  &quot;is_series&quot;: false,
+  &quot;recurrence_note&quot;: &quot;Jun 25, 2026, Jul 2, 2026, Jul 16, 2026, Jul 23, 2026, Jul 30, 2026, Aug 6, 2026, Aug 13, 2026, Aug 20, 2026, Aug 27, 2026&quot;,
+  &quot;source&quot;: &quot;VisitTriCities&quot;,
+  &quot;source_end_timestamp&quot;: 1784246340,
+  &quot;source_event_id&quot;: &quot;1294993&quot;,
+  &quot;source_is_multi_day&quot;: false,
+  &quot;source_start_timestamp&quot;: 1784224800,
+  &quot;start_date&quot;: &quot;2026-07-16&quot;,
+  &quot;start_time&quot;: &quot;18:00&quot;,
+  &quot;title&quot;: &quot;Summer Thursdays at Columbia Gardens&quot;,
+  &quot;url&quot;: &quot;https://www.visittri-cities.com/summer-thursdays-at-columbia-gardens/&quot;,
+  &quot;venue&quot;: &quot;325 East Columbia Gardens Way, Kennewick, WA, United States, Washington 99336&quot;,
+  &quot;venue_id&quot;: null
+}</pre></details></section><section><h2>Normalized and enriched events</h2><div class="count">1 match(es)</div><details open><summary>Record 1</summary><pre>{
+  &quot;address&quot;: &quot;325 East Columbia Gardens Way, Kennewick, WA, United States, Washington 99336, 307 E Columbia Dr, Kennewick, Washington 99336&quot;,
+  &quot;category&quot;: &quot;Art/Theater&quot;,
+  &quot;category_confidence&quot;: 0.93,
+  &quot;category_reason&quot;: &quot;keyword=play&quot;,
+  &quot;city&quot;: &quot;Kennewick&quot;,
+  &quot;description&quot;: &quot;☀️ 🎶 Bring your friends and family and join us for our new live music series Summer Thursdays! We have an incredible lineup of talented local performers. Plus, you can play games and enjoy food, wine, beer, art and more. Where: Columbia Gardens Artisan Village 325 E Columbia Gardens Way, KennewickWhen: Thursdays (June – August 2026) 🕚 The music and games are FREE! Join us every Thursday night this summer for family-friendly entertainment!&quot;,
+  &quot;end_date&quot;: &quot;2026-07-16&quot;,
+  &quot;end_time&quot;: &quot;23:59&quot;,
+  &quot;event_kind&quot;: &quot;single&quot;,
+  &quot;external_url&quot;: &quot;https://www.facebook.com/events/3445069025655097/&quot;,
+  &quot;geo_region&quot;: &quot;TRI_CITIES&quot;,
+  &quot;geo_scope&quot;: &quot;LOCAL&quot;,
+  &quot;intelligence&quot;: {
+    &quot;category&quot;: {
+      &quot;confidence&quot;: 0.93,
+      &quot;reason&quot;: &quot;keyword=play&quot;,
+      &quot;value&quot;: &quot;Art/Theater&quot;
+    },
+    &quot;geographic_scope&quot;: {
+      &quot;confidence&quot;: 0.98,
+      &quot;reason&quot;: &quot;city_region_lookup&quot;,
+      &quot;value&quot;: &quot;LOCAL&quot;
+    },
+    &quot;venue&quot;: {
+      &quot;confidence&quot;: 0.0,
+      &quot;reason&quot;: &quot;registry_unknown&quot;,
+      &quot;value&quot;: &quot;325 East Columbia Gardens Way, Kennewick, WA, United States, Washington 99336&quot;
+    }
+  },
+  &quot;is_series&quot;: false,
+  &quot;location_type&quot;: &quot;PRIVATE_ADDRESS&quot;,
+  &quot;recurrence_note&quot;: &quot;Jun 25, 2026, Jul 2, 2026, Jul 16, 2026, Jul 23, 2026, Jul 30, 2026, Aug 6, 2026, Aug 13, 2026, Aug 20, 2026, Aug 27, 2026&quot;,
+  &quot;source&quot;: &quot;VisitTriCities&quot;,
+  &quot;source_end_timestamp&quot;: 1784246340,
+  &quot;source_event_id&quot;: &quot;1294993&quot;,
+  &quot;source_is_multi_day&quot;: false,
+  &quot;source_start_timestamp&quot;: 1784224800,
+  &quot;start_date&quot;: &quot;2026-07-16&quot;,
+  &quot;start_time&quot;: &quot;18:00&quot;,
+  &quot;state&quot;: &quot;WA&quot;,
+  &quot;title&quot;: &quot;Summer Thursdays at Columbia Gardens&quot;,
+  &quot;url&quot;: &quot;https://www.visittri-cities.com/summer-thursdays-at-columbia-gardens/&quot;,
+  &quot;venue&quot;: &quot;325 East Columbia Gardens Way, Kennewick, WA, United States, Washington 99336&quot;,
+  &quot;venue_id&quot;: null
+}</pre></details></section><section><h2>Publisher-ready occurrences</h2><div class="count">1 match(es)</div><details open><summary>Record 1</summary><pre>{
+  &quot;address&quot;: &quot;325 East Columbia Gardens Way, Kennewick, WA, United States, Washington 99336, 307 E Columbia Dr, Kennewick, Washington 99336&quot;,
+  &quot;category&quot;: &quot;Art/Theater&quot;,
+  &quot;category_confidence&quot;: 0.93,
+  &quot;category_reason&quot;: &quot;keyword=play&quot;,
+  &quot;city&quot;: &quot;Kennewick&quot;,
+  &quot;content_kind&quot;: &quot;EVENT&quot;,
+  &quot;description&quot;: &quot;☀️ 🎶 Bring your friends and family and join us for our new live music series Summer Thursdays! We have an incredible lineup of talented local performers. Plus, you can play games and enjoy food, wine, beer, art and more. Where: Columbia Gardens Artisan Village 325 E Columbia Gardens Way, KennewickWhen: Thursdays (June – August 2026) 🕚 The music and games are FREE! Join us every Thursday night this summer for family-friendly entertainment!&quot;,
+  &quot;end_date&quot;: &quot;2026-07-16&quot;,
+  &quot;end_time&quot;: &quot;23:59&quot;,
+  &quot;event_kind&quot;: &quot;single&quot;,
+  &quot;external_url&quot;: &quot;https://www.facebook.com/events/3445069025655097/&quot;,
+  &quot;geo_region&quot;: &quot;TRI_CITIES&quot;,
+  &quot;geo_scope&quot;: &quot;LOCAL&quot;,
+  &quot;intelligence&quot;: {
+    &quot;category&quot;: {
+      &quot;confidence&quot;: 0.93,
+      &quot;reason&quot;: &quot;keyword=play&quot;,
+      &quot;value&quot;: &quot;Art/Theater&quot;
+    },
+    &quot;geographic_scope&quot;: {
+      &quot;confidence&quot;: 0.98,
+      &quot;reason&quot;: &quot;city_region_lookup&quot;,
+      &quot;value&quot;: &quot;LOCAL&quot;
+    },
+    &quot;venue&quot;: {
+      &quot;confidence&quot;: 0.0,
+      &quot;reason&quot;: &quot;registry_unknown&quot;,
+      &quot;value&quot;: &quot;325 East Columbia Gardens Way, Kennewick, WA, United States, Washington 99336&quot;
+    }
+  },
+  &quot;is_series&quot;: false,
+  &quot;location_type&quot;: &quot;PRIVATE_ADDRESS&quot;,
+  &quot;recurrence_note&quot;: &quot;Jun 25, 2026, Jul 2, 2026, Jul 16, 2026, Jul 23, 2026, Jul 30, 2026, Aug 6, 2026, Aug 13, 2026, Aug 20, 2026, Aug 27, 2026&quot;,
+  &quot;source&quot;: &quot;VisitTriCities&quot;,
+  &quot;source_end_timestamp&quot;: 1784246340,
+  &quot;source_event_id&quot;: &quot;1294993&quot;,
+  &quot;source_is_multi_day&quot;: false,
+  &quot;source_start_timestamp&quot;: 1784224800,
+  &quot;start_date&quot;: &quot;2026-07-16&quot;,
+  &quot;start_time&quot;: &quot;18:00&quot;,
+  &quot;state&quot;: &quot;WA&quot;,
+  &quot;title&quot;: &quot;Summer Thursdays at Columbia Gardens&quot;,
+  &quot;url&quot;: &quot;https://www.visittri-cities.com/summer-thursdays-at-columbia-gardens/&quot;,
+  &quot;venue&quot;: &quot;325 East Columbia Gardens Way, Kennewick, WA, United States, Washington 99336&quot;,
+  &quot;venue_id&quot;: null
+}</pre></details></section><section><h2>Resolved occurrences</h2><div class="count">1 match(es)</div><details open><summary>Record 1</summary><pre>{
+  &quot;address&quot;: &quot;325 East Columbia Gardens Way, Kennewick, WA, United States, Washington 99336, 307 E Columbia Dr, Kennewick, Washington 99336&quot;,
+  &quot;category&quot;: &quot;Art/Theater&quot;,
+  &quot;category_confidence&quot;: 0.93,
+  &quot;category_reason&quot;: &quot;keyword=play&quot;,
+  &quot;city&quot;: &quot;Kennewick&quot;,
+  &quot;content_kind&quot;: &quot;EVENT&quot;,
+  &quot;description&quot;: &quot;☀️ 🎶 Bring your friends and family and join us for our new live music series Summer Thursdays! We have an incredible lineup of talented local performers. Plus, you can play games and enjoy food, wine, beer, art and more. Where: Columbia Gardens Artisan Village 325 E Columbia Gardens Way, KennewickWhen: Thursdays (June – August 2026) 🕚 The music and games are FREE! Join us every Thursday night this summer for family-friendly entertainment!&quot;,
+  &quot;end_date&quot;: &quot;2026-07-16&quot;,
+  &quot;end_time&quot;: &quot;23:59&quot;,
+  &quot;event_kind&quot;: &quot;single&quot;,
+  &quot;external_url&quot;: &quot;https://www.facebook.com/events/3445069025655097/&quot;,
+  &quot;geo_region&quot;: &quot;TRI_CITIES&quot;,
+  &quot;geo_scope&quot;: &quot;LOCAL&quot;,
+  &quot;intelligence&quot;: {
+    &quot;category&quot;: {
+      &quot;confidence&quot;: 0.93,
+      &quot;reason&quot;: &quot;keyword=play&quot;,
+      &quot;value&quot;: &quot;Art/Theater&quot;
+    },
+    &quot;geographic_scope&quot;: {
+      &quot;confidence&quot;: 0.98,
+      &quot;reason&quot;: &quot;city_region_lookup&quot;,
+      &quot;value&quot;: &quot;LOCAL&quot;
+    },
+    &quot;venue&quot;: {
+      &quot;confidence&quot;: 0.0,
+      &quot;reason&quot;: &quot;registry_unknown&quot;,
+      &quot;value&quot;: &quot;325 East Columbia Gardens Way, Kennewick, WA, United States, Washington 99336&quot;
+    }
+  },
+  &quot;is_series&quot;: false,
+  &quot;location_type&quot;: &quot;PRIVATE_ADDRESS&quot;,
+  &quot;recurrence_note&quot;: &quot;Jun 25, 2026, Jul 2, 2026, Jul 16, 2026, Jul 23, 2026, Jul 30, 2026, Aug 6, 2026, Aug 13, 2026, Aug 20, 2026, Aug 27, 2026&quot;,
+  &quot;source&quot;: &quot;VisitTriCities&quot;,
+  &quot;source_end_timestamp&quot;: 1784246340,
+  &quot;source_event_id&quot;: &quot;1294993&quot;,
+  &quot;source_is_multi_day&quot;: false,
+  &quot;source_start_timestamp&quot;: 1784224800,
+  &quot;start_date&quot;: &quot;2026-07-16&quot;,
+  &quot;start_time&quot;: &quot;18:00&quot;,
+  &quot;state&quot;: &quot;WA&quot;,
+  &quot;title&quot;: &quot;Summer Thursdays at Columbia Gardens&quot;,
+  &quot;url&quot;: &quot;https://www.visittri-cities.com/summer-thursdays-at-columbia-gardens/&quot;,
+  &quot;venue&quot;: &quot;325 East Columbia Gardens Way, Kennewick, WA, United States, Washington 99336&quot;,
+  &quot;venue_id&quot;: null
+}</pre></details></section><section><h2>Publisher projection</h2><div class="count">1 match(es)</div><details open><summary>Record 1</summary><pre>{
+  &quot;category&quot;: &quot;Art/Theater&quot;,
+  &quot;category_confidence&quot;: 0.93,
+  &quot;category_reason&quot;: &quot;keyword=play&quot;,
+  &quot;city&quot;: &quot;Kennewick&quot;,
+  &quot;content_classification&quot;: &quot;EVENT&quot;,
+  &quot;content_rejection_reason&quot;: null,
+  &quot;description&quot;: &quot;☀️ 🎶 Bring your friends and family and join us for our new live music series Summer Thursdays! We have an incredible lineup of talented local performers. Plus, you can play games and enjoy food, wine, beer, art and more. Where: Columbia Gardens Artisan Village 325 E Columbia Gardens Way, KennewickWhen: Thursdays (June – August 2026) 🕚 The music and games are FREE! Join us every Thursday night this summer for family-friendly entertainment!&quot;,
+  &quot;duplicate_count&quot;: 1,
+  &quot;duplicate_sources&quot;: [],
+  &quot;end_date&quot;: &quot;2026-07-16&quot;,
+  &quot;end_time&quot;: &quot;23:59&quot;,
+  &quot;eventbrite_event_id&quot;: null,
+  &quot;eventbrite_url&quot;: null,
+  &quot;external_url&quot;: &quot;https://www.facebook.com/events/3445069025655097/&quot;,
+  &quot;geographic_scope&quot;: &quot;LOCAL&quot;,
+  &quot;intelligence&quot;: {
+    &quot;category&quot;: {
+      &quot;confidence&quot;: 0.93,
+      &quot;reason&quot;: &quot;keyword=play&quot;,
+      &quot;value&quot;: &quot;Art/Theater&quot;
+    },
+    &quot;geographic_scope&quot;: {
+      &quot;confidence&quot;: 0.98,
+      &quot;reason&quot;: &quot;city_region_lookup&quot;,
+      &quot;value&quot;: &quot;LOCAL&quot;
+    },
+    &quot;venue&quot;: {
+      &quot;confidence&quot;: 0.0,
+      &quot;reason&quot;: &quot;registry_unknown&quot;,
+      &quot;value&quot;: &quot;325 East Columbia Gardens Way, Kennewick, WA, United States, Washington 99336&quot;
+    }
+  },
+  &quot;location_type&quot;: &quot;PRIVATE_ADDRESS&quot;,
+  &quot;organization&quot;: null,
+  &quot;parent_venue&quot;: null,
+  &quot;publication_target&quot;: null,
+  &quot;region&quot;: &quot;TRI_CITIES&quot;,
+  &quot;source&quot;: &quot;VisitTriCities&quot;,
+  &quot;source_event_id&quot;: &quot;1294993&quot;,
+  &quot;source_url&quot;: &quot;https://www.visittri-cities.com/summer-thursdays-at-columbia-gardens/&quot;,
+  &quot;source_urls&quot;: [
+    &quot;https://www.visittri-cities.com/summer-thursdays-at-columbia-gardens/&quot;
+  ],
+  &quot;start_date&quot;: &quot;2026-07-16&quot;,
+  &quot;start_time&quot;: &quot;18:00&quot;,
+  &quot;state&quot;: &quot;WA&quot;,
+  &quot;title&quot;: &quot;Summer Thursdays at Columbia Gardens&quot;,
+  &quot;venue&quot;: &quot;325 East Columbia Gardens Way, Kennewick, WA, United States, Washington 99336&quot;,
+  &quot;venue_detail&quot;: null,
+  &quot;venue_id&quot;: null,
+  &quot;venue_reddit_combo&quot;: null,
+  &quot;venue_registry_name&quot;: null,
+  &quot;venue_type&quot;: null,
+  &quot;venue_website&quot;: null
+}</pre></details></section><section><h2>Editorial projection</h2><div class="count">1 match(es)</div><details open><summary>Record 1</summary><pre>{
+  &quot;canonical_title&quot;: &quot;Summer Thursdays at Columbia Gardens&quot;,
+  &quot;category&quot;: &quot;Art/Theater&quot;,
+  &quot;category_confidence&quot;: 0.93,
+  &quot;category_reason&quot;: &quot;keyword=play&quot;,
+  &quot;description&quot;: &quot;☀️ 🎶 Bring your friends and family and join us for our new live music series Summer Thursdays! We have an incredible lineup of talented local performers. Plus, you can play games and enjoy food, wine, beer, art and more. Where: Columbia Gardens Artisan Village 325 E Columbia Gardens Way, KennewickWhen: Thursdays (June – August 2026) 🕚 The music and games are FREE! Join us every Thursday night this summer for family-friendly entertainment!&quot;,
+  &quot;display_city&quot;: &quot;Kennewick&quot;,
+  &quot;display_end_time&quot;: &quot;23:59&quot;,
+  &quot;display_organization&quot;: null,
+  &quot;display_start_time&quot;: &quot;18:00&quot;,
+  &quot;display_time&quot;: &quot;6-11:59p&quot;,
+  &quot;display_venue&quot;: &quot;Columbia Gardens&quot;,
+  &quot;duplicate_count&quot;: 1,
+  &quot;duplicate_sources&quot;: [],
+  &quot;editorial_reason&quot;: null,
+  &quot;end_date&quot;: &quot;2026-07-16&quot;,
+  &quot;eventbrite_event_id&quot;: null,
+  &quot;geographic_scope&quot;: &quot;LOCAL&quot;,
+  &quot;intelligence&quot;: {
+    &quot;category&quot;: {
+      &quot;confidence&quot;: 0.93,
+      &quot;reason&quot;: &quot;keyword=play&quot;,
+      &quot;value&quot;: &quot;Art/Theater&quot;
+    },
+    &quot;display_style&quot;: {
+      &quot;confidence&quot;: 1.0,
+      &quot;reason&quot;: &quot;venue_presentation+title_cleanup&quot;,
+      &quot;value&quot;: {
+        &quot;title&quot;: &quot;Summer Thursdays&quot;,
+        &quot;venue&quot;: &quot;Columbia Gardens&quot;
+      }
+    },
+    &quot;geographic_scope&quot;: {
+      &quot;confidence&quot;: 0.98,
+      &quot;reason&quot;: &quot;city_region_lookup&quot;,
+      &quot;value&quot;: &quot;LOCAL&quot;
+    },
+    &quot;venue&quot;: {
+      &quot;confidence&quot;: 0.0,
+      &quot;reason&quot;: &quot;registry_unknown&quot;,
+      &quot;value&quot;: &quot;325 East Columbia Gardens Way, Kennewick, WA, United States, Washington 99336&quot;
+    }
+  },
+  &quot;location_type&quot;: &quot;PRIVATE_ADDRESS&quot;,
+  &quot;publication_disposition&quot;: &quot;AUTO_PUBLISH&quot;,
+  &quot;publication_target&quot;: &quot;MAIN&quot;,
+  &quot;publication_url&quot;: &quot;https://www.facebook.com/events/3445069025655097/&quot;,
+  &quot;region&quot;: &quot;TRI_CITIES&quot;,
+  &quot;semantic_category&quot;: &quot;Art/Theater&quot;,
+  &quot;source&quot;: &quot;VisitTriCities&quot;,
+  &quot;source_event_id&quot;: &quot;1294993&quot;,
+  &quot;start_date&quot;: &quot;2026-07-16&quot;,
+  &quot;style_reason&quot;: &quot;venue_presentation+title_cleanup&quot;,
+  &quot;title&quot;: &quot;Summer Thursdays&quot;,
+  &quot;venue_id&quot;: null,
+  &quot;venue_type&quot;: null
+}</pre></details></section><section><h2>Program projection</h2><div class="count">1 match(es)</div><details open><summary>Record 1</summary><pre>{
+  &quot;canonical_titles&quot;: [
+    &quot;Summer Thursdays at Columbia Gardens&quot;
+  ],
+  &quot;grouping_confidence&quot;: 1.0,
+  &quot;grouping_reason&quot;: &quot;single_occurrence&quot;,
+  &quot;intelligence&quot;: {
+    &quot;program_grouping&quot;: {
+      &quot;confidence&quot;: 1.0,
+      &quot;reason&quot;: &quot;exact_display_title+same_day+same_category+same_source&quot;,
+      &quot;value&quot;: &quot;Summer Thursdays&quot;
+    }
+  },
+  &quot;occurrences&quot;: [
+    {
+      &quot;display_city&quot;: &quot;Kennewick&quot;,
+      &quot;display_end_time&quot;: &quot;23:59&quot;,
+      &quot;display_start_time&quot;: &quot;18:00&quot;,
+      &quot;display_time&quot;: &quot;6-11:59p&quot;,
+      &quot;display_venue&quot;: &quot;Columbia Gardens&quot;,
+      &quot;publication_url&quot;: &quot;https://www.facebook.com/events/3445069025655097/&quot;,
+      &quot;source&quot;: &quot;VisitTriCities&quot;,
+      &quot;source_event_id&quot;: &quot;1294993&quot;,
+      &quot;start_date&quot;: &quot;2026-07-16&quot;
+    }
+  ],
+  &quot;publication_disposition&quot;: &quot;AUTO_PUBLISH&quot;,
+  &quot;publication_target&quot;: &quot;MAIN&quot;,
+  &quot;semantic_category&quot;: &quot;Art/Theater&quot;,
+  &quot;start_date&quot;: &quot;2026-07-16&quot;,
+  &quot;title&quot;: &quot;Summer Thursdays&quot;
+}</pre></details></section><section><h2>Final Reddit lines</h2><div class="count">1 match(es)</div><pre>Summer Thursdays | [Columbia Gardens](https://www.facebook.com/events/3445069025655097/), Kennewick | 6-11:59p</pre></section>
+</body>
+</html>

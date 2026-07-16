@@ -1,0 +1,55 @@
+{
+  "status": "healthy",
+  "reasons": [
+    "no operational exceptions detected"
+  ],
+  "corpus": {
+    "total_events": 15,
+    "distinct_sources": 1,
+    "distinct_categories": 5,
+    "distinct_venues": 12,
+    "distinct_organizers": 0,
+    "missing_venue": 0,
+    "missing_date": 0,
+    "missing_source": 0,
+    "category_distribution": {
+      "Annual Events": 5,
+      "Community Events": 5,
+      "Food & Drink": 3,
+      "Arts & Theater": 1,
+      "Music & Concerts": 1
+    },
+    "source_distribution": {
+      "VisitTriCities": 15
+    }
+  },
+  "review": {
+    "active": 0,
+    "new": 0,
+    "recurring": 0,
+    "stale": 0,
+    "resolved": 0,
+    "due_soon": 0,
+    "overdue": 0,
+    "oldest_days": 0,
+    "opened": 0,
+    "carried": 0,
+    "net_change": 0,
+    "trend": "flat",
+    "stale_share": 0.0,
+    "capacity_status": "clear",
+    "average_opened": 0.5,
+    "average_resolved": 0.25,
+    "net_clearance": -0.25,
+    "weeks_to_clear": 0.0
+  },
+  "configuration": {
+    "stale_after_appearances": 3,
+    "sla_due_after_days": 7,
+    "sla_overdue_after_days": 14,
+    "sla_overdue_after_appearances": 4,
+    "capacity_lookback_runs": 4
+  },
+  "review_batch_exported": 0,
+  "report_failures": []
+}

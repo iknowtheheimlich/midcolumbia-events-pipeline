@@ -1,0 +1,23 @@
+Attempt 78 Corpus Health
+========================
+
+Total events: 15
+Distinct sources: 1
+Distinct categories: 5
+Distinct venues: 12
+Distinct organizers: 0
+Missing venue: 0
+Missing date: 0
+Missing source: 0
+
+CATEGORY DISTRIBUTION
+---------------------
+Annual Events: 5
+Community Events: 5
+Food & Drink: 3
+Arts & Theater: 1
+Music & Concerts: 1
+
+SOURCE DISTRIBUTION
+-------------------
+VisitTriCities: 15

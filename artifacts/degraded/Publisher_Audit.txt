@@ -1,0 +1,96 @@
+Publisher Audit
+===============
+
+Weekly editorial events: 246
+Auto-published: 89
+Review: 150
+Rejected: 7
+
+Publication targets:
+  MAIN: 73
+  COMMUNITY: 38
+  BOTH: 0
+  REVIEW: 135
+  SUPPRESS: 0
+
+Categories:
+  Events/Hangouts: 4
+  Classes/Workshops: 12
+  Lectures/Talks: 2
+  Music/Comedy: 37
+  Sports: 7
+  Food & Drink: 5
+  Restaurants/Bars/Wineries: 0
+  Art/Theater: 6
+  Trivia/Game Night: 3
+  Karaoke/Open Mic: 1
+  Fundraisers: 2
+  Markets: 2
+  Community Programs: 26
+  School District Event: 0
+  Tours: 0
+  Festivals/Fair: 4
+  Estate/Yard/Garage Sales: 0
+  Faith Based: 0
+  UNCLASSIFIED: 135
+
+Category decisions:
+  context_rule=hospitality_experience: 3
+  context_rule=performer_at_hospitality_venue: 16
+  title_rule=explicit_class_or_workshop: 10
+  title_rule=explicit_food_or_winemaker_event: 2
+  title_rule=explicit_live_performance: 11
+  title_rule=festival_or_fair: 4
+  title_rule=film_or_theater: 6
+  title_rule=fundraiser: 2
+  title_rule=karaoke_or_open_mic: 1
+  title_rule=lecture_or_history_talk: 2
+  title_rule=library_or_community_program: 26
+  title_rule=market: 2
+  title_rule=music_or_comedy_title: 10
+  title_rule=participatory_visual_art: 2
+  title_rule=social_event: 4
+  title_rule=sports_competition: 7
+  title_rule=trivia_or_game_night: 3
+
+Intelligence decisions:
+  category | context_rule=hospitality_experience: 3
+  category | context_rule=performer_at_hospitality_venue: 16
+  category | no_category_rule_matched: 135
+  category | title_rule=explicit_class_or_workshop: 10
+  category | title_rule=explicit_food_or_winemaker_event: 2
+  category | title_rule=explicit_live_performance: 11
+  category | title_rule=festival_or_fair: 4
+  category | title_rule=film_or_theater: 6
+  category | title_rule=fundraiser: 2
+  category | title_rule=karaoke_or_open_mic: 1
+  category | title_rule=lecture_or_history_talk: 2
+  category | title_rule=library_or_community_program: 26
+  category | title_rule=market: 2
+  category | title_rule=music_or_comedy_title: 10
+  category | title_rule=participatory_visual_art: 2
+  category | title_rule=social_event: 4
+  category | title_rule=sports_competition: 7
+  category | title_rule=trivia_or_game_night: 3
+  display_style | title_cleanup: 46
+  display_style | unchanged: 158
+  display_style | venue_presentation: 36
+  display_style | venue_presentation+title_cleanup: 6
+  geographic_scope | city_region_lookup: 246
+  time_semantics | identical_end_removed: 50
+  time_semantics | legacy_source_date_only_midnight+clock_times_replaced_with_all_day: 1
+  time_semantics | unchanged: 195
+  venue | registry_alias: 65
+  venue | registry_ambiguous: 7
+  venue | registry_branch_rewrite: 31
+  venue | registry_parent_room: 21
+  venue | registry_street_address: 37
+  venue | registry_unknown: 78
+  venue | registry_venue_as_address: 7
+  venue_presentation | profile_rule: 1
+  venue_presentation | registry_fallback: 161
+  venue_presentation | source_fallback: 84
+
+Review reasons:
+  geographic_review: 15
+  missing_or_unknown_category: 135

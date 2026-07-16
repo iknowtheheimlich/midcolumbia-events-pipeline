@@ -1,0 +1,12 @@
+{
+  "reviews": 0,
+  "accepted_without_change": 0,
+  "corrected": 0,
+  "override_rate": 0.0,
+  "top_transitions": [],
+  "top_reasons": [],
+  "top_sources": [],
+  "top_venues": [],
+  "top_organizers": [],
+  "confidence_bands": {}
+}

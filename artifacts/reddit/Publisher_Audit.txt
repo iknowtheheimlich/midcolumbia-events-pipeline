@@ -1,0 +1,119 @@
+Publisher Audit
+===============
+
+Weekly editorial events: 292
+Auto-published: 167
+Review: 110
+Rejected: 15
+
+Publication targets:
+  MAIN: 127
+  COMMUNITY: 78
+  BOTH: 0
+  REVIEW: 87
+  SUPPRESS: 0
+
+Categories:
+  Events/Hangouts: 7
+  Classes/Workshops: 20
+  Lectures/Talks: 6
+  Music/Comedy: 66
+  Sports: 9
+  Food & Drink: 14
+  Restaurants/Bars/Wineries: 0
+  Art/Theater: 8
+  Trivia/Game Night: 4
+  Karaoke/Open Mic: 2
+  Fundraisers: 2
+  Markets: 5
+  Community Programs: 55
+  School District Event: 0
+  Tours: 1
+  Festivals/Fair: 3
+  Estate/Yard/Garage Sales: 0
+  Faith Based: 3
+  UNCLASSIFIED: 87
+
+Category decisions:
+  context_rule=hospitality_experience: 2
+  context_rule=performer_at_hospitality_venue: 12
+  existing_semantic_category: 4
+  source_category=Adult: 5
+  source_category=Kids and Families: 11
+  source_category=Live Music: 27
+  title_rule=community_promotion_day: 2
+  title_rule=explicit_class_or_workshop: 12
+  title_rule=explicit_food_or_winemaker_event: 7
+  title_rule=explicit_live_performance: 21
+  title_rule=festival_or_fair: 3
+  title_rule=film_or_theater: 8
+  title_rule=food_or_drink_experience: 1
+  title_rule=fundraiser: 2
+  title_rule=karaoke_or_open_mic: 2
+  title_rule=lecture_or_history_talk: 6
+  title_rule=library_or_community_program: 39
+  title_rule=market: 5
+  title_rule=music_or_comedy_title: 6
+  title_rule=participatory_visual_art: 8
+  title_rule=religious_program: 3
+  title_rule=social_event: 5
+  title_rule=sports_competition: 9
+  title_rule=tour: 1
+  title_rule=trivia_or_game_night: 4
+
+Intelligence decisions:
+  category | context_rule=hospitality_experience: 2
+  category | context_rule=performer_at_hospitality_venue: 12
+  category | existing_semantic_category: 4
+  category | no_category_rule_matched: 87
+  category | source_category=Adult: 5
+  category | source_category=Kids and Families: 11
+  category | source_category=Live Music: 27
+  category | title_rule=community_promotion_day: 2
+  category | title_rule=explicit_class_or_workshop: 12
+  category | title_rule=explicit_food_or_winemaker_event: 7
+  category | title_rule=explicit_live_performance: 21
+  category | title_rule=festival_or_fair: 3
+  category | title_rule=film_or_theater: 8
+  category | title_rule=food_or_drink_experience: 1
+  category | title_rule=fundraiser: 2
+  category | title_rule=karaoke_or_open_mic: 2
+  category | title_rule=lecture_or_history_talk: 6
+  category | title_rule=library_or_community_program: 39
+  category | title_rule=market: 5
+  category | title_rule=music_or_comedy_title: 6
+  category | title_rule=participatory_visual_art: 8
+  category | title_rule=religious_program: 3
+  category | title_rule=social_event: 5
+  category | title_rule=sports_competition: 9
+  category | title_rule=tour: 1
+  category | title_rule=trivia_or_game_night: 4
+  display_style | title_cleanup: 72
+  display_style | unchanged: 175
+  display_style | venue_presentation: 38
+  display_style | venue_presentation+title_cleanup: 7
+  geographic_scope | city_region_lookup: 292
+  occurrence_resolution | same_date+same_canonical_venue+start_time_within_10m+normalized_title=1.00: 4
+  occurrence_resolution | same_date+same_canonical_venue+start_time_within_10m+title_similarity=0.96: 1
+  occurrence_resolution | same_date+same_canonical_venue+start_time_within_10m+title_similarity=0.98: 1
+  occurrence_resolution | same_date+same_canonical_venue+start_time_within_10m+title_token_similarity=0.96: 1
+  occurrence_resolution | same_date+same_venue_id+start_time_within_10m+title_token_similarity=0.96: 2
+  occurrence_resolution | shared_url+same_date: 1
+  time_semantics | identical_end_removed: 50
+  time_semantics | legacy_source_date_only_midnight+clock_times_replaced_with_all_day: 1
+  time_semantics | synthetic_end_of_day_removed: 20
+  time_semantics | unchanged: 221
+  venue | registry_alias: 103
+  venue | registry_ambiguous: 8
+  venue | registry_branch_rewrite: 31
+  venue | registry_parent_room: 20
+  venue | registry_street_address: 37
+  venue | registry_unknown: 86
+  venue | registry_venue_as_address: 7
+  venue_presentation | profile_rule: 2
+  venue_presentation | registry_fallback: 198
+  venue_presentation | source_fallback: 92
+
+Review reasons:
+  geographic_review: 23
+  missing_or_unknown_category: 87

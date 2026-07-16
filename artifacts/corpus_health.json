@@ -1,0 +1,20 @@
+{
+  "total_events": 15,
+  "distinct_sources": 1,
+  "distinct_categories": 5,
+  "distinct_venues": 12,
+  "distinct_organizers": 0,
+  "missing_venue": 0,
+  "missing_date": 0,
+  "missing_source": 0,
+  "category_distribution": {
+    "Annual Events": 5,
+    "Community Events": 5,
+    "Food & Drink": 3,
+    "Arts & Theater": 1,
+    "Music & Concerts": 1
+  },
+  "source_distribution": {
+    "VisitTriCities": 15
+  }
+}

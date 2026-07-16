@@ -1,0 +1,56 @@
+Source Metrics
+==============
+
+VisitTriCities [enabled; priority=100; status=active]
+  Harvested: 145
+  Content rejected: 0
+  Duplicates removed: 2
+  Main published: 29
+  Community published: 4
+  Review: 9
+  Rejected: 0
+
+TriCityVibe [enabled; priority=90; status=active]
+  Harvested: 149
+  Content rejected: 0
+  Duplicates removed: 25
+  Main published: 38
+  Community published: 0
+  Review: 5
+  Rejected: 0
+
+MidColumbiaLibraries [enabled; priority=80; status=active]
+  Harvested: 42
+  Content rejected: 11
+  Duplicates removed: 0
+  Main published: 1
+  Community published: 22
+  Review: 2
+  Rejected: 6
+
+RichlandLibrary [enabled; priority=80; status=active]
+  Harvested: 173
+  Content rejected: 0
+  Duplicates removed: 3
+  Main published: 2
+  Community published: 19
+  Review: 0
+  Rejected: 0
+
+AllEvents [enabled; priority=70; status=active]
+  Harvested: 225
+  Content rejected: 0
+  Duplicates removed: 4
+  Main published: 43
+  Community published: 21
+  Review: 94
+  Rejected: 9
+
+LegacyUnifiedCSV [enabled; priority=10; status=migration_bridge]
+  Harvested: 87
+  Content rejected: 0
+  Duplicates removed: 0
+  Main published: 0
+  Community published: 0
+  Review: 0
+  Rejected: 0

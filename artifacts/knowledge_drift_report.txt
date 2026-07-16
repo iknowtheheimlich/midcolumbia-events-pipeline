@@ -1,0 +1,100 @@
+Attempt 76 Knowledge Drift Detection
+====================================
+
+Events loaded: 15
+Classified events eligible: 15
+Canonical hints analyzed: 9
+Drift: 0
+Watch: 0
+Stable: 0
+Insufficient evidence: 9
+
+DRIFT
+-----
+
+None
+
+WATCH
+-----
+
+None
+
+STABLE
+------
+
+None
+
+INSUFFICIENT EVIDENCE
+---------------------
+
+Organizer: B Reactor Museum Association
+  Expected: Lectures/Talks
+  Recent events: 0
+  Expected share: 0.0%
+  Recent dominant: None (0.0%)
+  Change magnitude: 0.0%
+  Recommendation: keep
+
+Organizer: Tri-City Dust Devils
+  Expected: Sports
+  Recent events: 0
+  Expected share: 0.0%
+  Recent dominant: None (0.0%)
+  Change magnitude: 0.0%
+  Recommendation: keep
+
+Organizer: WSU Extension Master Gardeners
+  Expected: Classes/Workshops
+  Recent events: 0
+  Expected share: 0.0%
+  Recent dominant: None (0.0%)
+  Change magnitude: 0.0%
+  Recommendation: keep
+
+Organizer: WSU Tri-Cities
+  Expected: Lectures/Talks
+  Recent events: 0
+  Expected share: 0.0%
+  Recent dominant: None (0.0%)
+  Change magnitude: 0.0%
+  Recommendation: keep
+
+Venue: Art YOUR Way
+  Expected: Classes/Workshops
+  Recent events: 0
+  Expected share: 0.0%
+  Recent dominant: None (0.0%)
+  Change magnitude: 0.0%
+  Recommendation: keep
+
+Venue: CBC Planetarium
+  Expected: Lectures/Talks
+  Recent events: 0
+  Expected share: 0.0%
+  Recent dominant: None (0.0%)
+  Change magnitude: 0.0%
+  Recommendation: keep
+
+Venue: Jokers Comedy Club
+  Expected: Music/Comedy
+  Recent events: 0
+  Expected share: 0.0%
+  Recent dominant: None (0.0%)
+  Change magnitude: 0.0%
+  Recommendation: keep
+
+Venue: Mid-Columbia Libraries
+  Expected: Community Programs
+  Recent events: 0
+  Expected share: 0.0%
+  Recent dominant: None (0.0%)
+  Change magnitude: 0.0%
+  Recommendation: keep
+
+Venue: Richland Public Library
+  Expected: Community Programs
+  Recent events: 0
+  Expected share: 0.0%
+  Recent dominant: None (0.0%)
+  Change magnitude: 0.0%
+  Recommendation: keep

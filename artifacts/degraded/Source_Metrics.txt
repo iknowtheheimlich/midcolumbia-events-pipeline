@@ -1,0 +1,58 @@
+Source Metrics
+==============
+
+VisitTriCities [enabled; priority=100; status=active]
+  Harvested: 24
+  Content rejected: 0
+  Duplicates removed: 1
+  Main published: 0
+  Community published: 0
+  Review: 0
+  Rejected: 0
+  Harvest warning: URLError: <urlopen error [WinError 10060] A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond>
+
+TriCityVibe [enabled; priority=90; status=active]
+  Harvested: 117
+  Content rejected: 0
+  Duplicates removed: 0
+  Main published: 14
+  Community published: 0
+  Review: 13
+  Rejected: 0
+  Harvest warning: URLError: <urlopen error [Errno 11001] getaddrinfo failed>
+
+MidColumbiaLibraries [enabled; priority=80; status=active]
+  Harvested: 42
+  Content rejected: 11
+  Duplicates removed: 0
+  Main published: 0
+  Community published: 12
+  Review: 17
+  Rejected: 2
+
+RichlandLibrary [enabled; priority=80; status=active]
+  Harvested: 173
+  Content rejected: 0
+  Duplicates removed: 0
+  Main published: 3
+  Community published: 14
+  Review: 4
+  Rejected: 0
+
+AllEvents [enabled; priority=70; status=active]
+  Harvested: 225
+  Content rejected: 0
+  Duplicates removed: 2
+  Main published: 39
+  Community published: 7
+  Review: 116
+  Rejected: 5
+
+LegacyUnifiedCSV [enabled; priority=10; status=migration_bridge]
+  Harvested: 87
+  Content rejected: 0
+  Duplicates removed: 0
+  Main published: 0
+  Community published: 0
+  Review: 0
+  Rejected: 0
