@@ -1,3 +1,5 @@
+import json
+
 import httpx
 
 from src.notion_live import fetch_live_weekly_rows
@@ -104,7 +106,7 @@ def test_sends_weekly_and_generate_filters() -> None:
     captured = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
-        captured.update(request.json())
+        captured.update(json.loads(request.content))
         return httpx.Response(200, json={"results": [], "has_more": False})
 
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
