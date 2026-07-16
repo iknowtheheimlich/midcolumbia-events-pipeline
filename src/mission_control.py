@@ -13,6 +13,8 @@ import json
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
+from src.mission_identity import MISSION_FLOW, PROJECT_NAME, mission_id_for_week
+
 DEFAULT_MISSION_CONTROL_DIR = Path("artifacts/mission_control")
 DEFAULT_FLIGHT_RECORDER_PATH = DEFAULT_MISSION_CONTROL_DIR / "flight_recorder.json"
 DEFAULT_DASHBOARD_PATH = DEFAULT_MISSION_CONTROL_DIR / "dashboard.html"
@@ -29,10 +31,15 @@ class SourceHealthSummary:
 
 @dataclass(frozen=True)
 class MissionControlReport:
+    project_name: str
+    mission_id: str
+    mission_flow: str
     generated_at: str
     week_start: str
     production_status: str
     ready_to_publish: bool
+    captain_summary: str
+    recommendation: str
     sources: tuple[SourceHealthSummary, ...]
     counts: dict[str, int]
     knowledge: dict[str, int] = field(default_factory=dict)
@@ -81,12 +88,25 @@ def build_mission_control_report(
         and rejected_count == 0
         and regression_ok
     )
+    captain_summary, recommendation = _captain_console(
+        ready=ready,
+        required_source_failure=required_source_failure,
+        review_count=review_count,
+        rejected_count=rejected_count,
+        regression_ok=regression_ok,
+        warning_count=len(clean_warnings),
+    )
 
     return MissionControlReport(
+        project_name=PROJECT_NAME,
+        mission_id=mission_id_for_week(week_start),
+        mission_flow=MISSION_FLOW,
         generated_at=generated_at or datetime.now(timezone.utc).isoformat(),
         week_start=week_start,
         production_status=production_status,
         ready_to_publish=ready,
+        captain_summary=captain_summary,
+        recommendation=recommendation,
         sources=sources,
         counts=clean_counts,
         knowledge=clean_knowledge,
@@ -125,7 +145,7 @@ def render_dashboard(report: MissionControlReport) -> str:
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mission Control — {escape(report.week_start)}</title>
+<title>{escape(report.project_name)} — {escape(report.mission_id)}</title>
 <style>
 :root {{ color-scheme: dark; font-family: Inter, Segoe UI, Arial, sans-serif; }}
 body {{ margin: 0; background: #0b0f14; color: #e8edf2; }}
@@ -135,6 +155,8 @@ h1 {{ margin: 0; font-size: clamp(2rem, 5vw, 4rem); letter-spacing: .04em; }}
 .launch {{ padding: 18px 22px; border-radius: 12px; font-size: 1.25rem; font-weight: 800; }}
 .launch.ready {{ background: #123d2a; border: 1px solid #2f9e67; }}
 .launch.hold {{ background: #4b241e; border: 1px solid #d26a55; }}
+.console {{ background: #151b23; border: 1px solid #29313c; border-radius: 12px; padding: 18px 22px; margin-top: 18px; }}
+.console strong {{ color: #b8d8ff; }}
 .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 18px 0 28px; }}
 .card {{ background: #151b23; border: 1px solid #29313c; border-radius: 10px; padding: 16px; }}
 .card b {{ display: block; font-size: 1.8rem; margin-top: 6px; }}
@@ -146,9 +168,10 @@ code {{ color: #b8d8ff; overflow-wrap: anywhere; }}
 </style>
 </head>
 <body><main>
-<h1>MISSION CONTROL</h1>
-<p class="sub">Week of {escape(report.week_start)} · Generated {escape(report.generated_at)}</p>
+<h1>{escape(report.project_name.upper())}</h1>
+<p class="sub">{escape(report.mission_id)} · Week of {escape(report.week_start)} · {escape(report.mission_flow)} · Generated {escape(report.generated_at)}</p>
 <div class="launch {status_class}">{launch_text} · {escape(report.production_status)}</div>
+<div class="console"><h2>Captain's Console</h2><p><strong>Status:</strong> {escape(report.captain_summary)}</p><p><strong>Recommendation:</strong> {escape(report.recommendation)}</p></div>
 <section><h2>Production</h2><div class="grid">{count_cards}</div></section>
 <section><h2>Knowledge</h2><div class="grid">{knowledge_cards or '<div class="card">No knowledge metrics yet</div>'}</div></section>
 <section><h2>Source Health</h2><table><thead><tr><th>Source</th><th>Status</th><th>Harvested</th><th>ms</th><th>Reason</th></tr></thead><tbody>{source_rows}</tbody></table></section>
@@ -162,6 +185,35 @@ def write_dashboard(report: MissionControlReport, path: Path = DEFAULT_DASHBOARD
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(render_dashboard(report), encoding="utf-8", newline="\n")
     return path
+
+
+def _captain_console(
+    *,
+    ready: bool,
+    required_source_failure: bool,
+    review_count: int,
+    rejected_count: int,
+    regression_ok: bool,
+    warning_count: int,
+) -> tuple[str, str]:
+    if ready:
+        summary = "All launch gates are nominal."
+        recommendation = "Publish the generated artifacts."
+        if warning_count:
+            recommendation = f"Review {warning_count} non-blocking warning(s), then publish."
+        return summary, recommendation
+
+    blockers: list[str] = []
+    if required_source_failure:
+        blockers.append("source health failure")
+    if review_count:
+        blockers.append(f"{review_count} review item(s)")
+    if rejected_count:
+        blockers.append(f"{rejected_count} rejected item(s)")
+    if not regression_ok:
+        blockers.append("regression failure")
+    summary = "Launch held: " + ", ".join(blockers or ["production status is not nominal"]) + "."
+    return summary, "Resolve the listed launch blockers and rerun the mission."
 
 
 def _coerce_source(item: SourceHealthSummary | Mapping[str, Any]) -> SourceHealthSummary:
