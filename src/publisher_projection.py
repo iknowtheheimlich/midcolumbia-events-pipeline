@@ -61,6 +61,9 @@ class PublisherEvent:
     suppress_display_city: bool = False
     category_confidence: float | None = None
     category_reason: str | None = None
+    organization_url: str | None = None
+    artist: str | None = None
+    artist_url: str | None = None
     intelligence: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -126,6 +129,9 @@ def project_event(event: dict[str, Any]) -> PublisherEvent:
         suppress_display_city=presentation.suppress_city,
         category_confidence=_optional_float(event.get("category_confidence")),
         category_reason=_optional_text(event.get("category_reason")),
+        organization_url=_optional_text(event.get("organization_url")),
+        artist=_first_text(event, "artist_registry_name", "artist", "performer"),
+        artist_url=_optional_text(event.get("artist_url")),
         intelligence=normalize_intelligence(event.get("intelligence")),
     )
 
