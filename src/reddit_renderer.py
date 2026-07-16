@@ -1,15 +1,4 @@
-"""Render Reddit markdown from display-ready editorial events and programs.
-
-Attempt_31_RedditRendererCutover
-Attempt_33_PublishingContract
-Attempt_34_NotionPresentationLayer
-Attempt_35_DualPublisher
-Attempt_41_ProgramIntelligence
-
-The renderer contains presentation only. Venue cleanup, time grammar, URL choice,
-geographic policy, content screening, category routing, and deduplication belong
-upstream.
-"""
+"""Render Reddit markdown from display-ready editorial events and programs."""
 
 from __future__ import annotations
 
@@ -23,7 +12,6 @@ from src.publisher_editorial import EditorialEvent
 from src.publishing_contract import PublishingProfile
 
 Renderable: TypeAlias = EditorialEvent | EditorialProgram
-
 DEFAULT_FOOTNOTE = (
     "This is not an all inclusive list. Events were extracted from allevents.in, "
     "visittri-cities.com, tricityvibe.com."
@@ -36,53 +24,42 @@ def render_reddit_post(
     footnote: str = DEFAULT_FOOTNOTE,
     category_order: Sequence[str] | None = None,
 ) -> str:
-    """Return old-editor Reddit markdown for publishable events or programs."""
-    publishable = [
-        event for event in events if event.publication_disposition == "AUTO_PUBLISH"
-    ]
+    publishable = [event for event in events if event.publication_disposition == "AUTO_PUBLISH"]
     ordered = sorted(publishable, key=_sort_key)
     active_category_order = tuple(category_order or PublishingProfile.load().category_order)
-
     grouped: dict[str, list[Renderable]] = defaultdict(list)
     for event in ordered:
         grouped[event.start_date].append(event)
-
     lines: list[str] = []
     for start_date, day_events in grouped.items():
         lines.append(_date_heading(start_date))
         lines.append("")
         lines.extend(_render_category_sections(day_events, active_category_order))
         lines.append("")
-
     if footnote.strip():
         lines.append(footnote.strip())
-
     return "\n".join(lines).rstrip() + "\n"
 
 
 def render_item_line(event: Renderable) -> str:
-    if isinstance(event, EditorialProgram):
-        return render_program_line(event)
-    return render_event_line(event)
+    return render_program_line(event) if isinstance(event, EditorialProgram) else render_event_line(event)
 
 
 def render_event_line(event: EditorialEvent) -> str:
-    """Render one event using the established Reddit markdown line contract."""
-    location = _render_location(event)
-    parts = [event.title, location]
+    parts = [event.title, _render_location(event)]
     if event.display_time:
         parts.append(event.display_time)
+    parts.extend(_render_credit_parts(event))
     return " | ".join(parts)
 
 
 def render_program_line(program: EditorialProgram) -> str:
-    """Render one program, compressing repeated venue or time dimensions."""
     if len(program.occurrences) == 1:
         occurrence = program.occurrences[0]
-        location = _render_occurrence_location(occurrence)
-        parts = [program.title, location]
+        parts = [program.title, _render_occurrence_location(occurrence)]
         if occurrence.display_time:
             parts.append(occurrence.display_time)
+        parts.extend(_render_credit_parts(occurrence))
         return " | ".join(parts)
 
     venue_keys = {
@@ -91,16 +68,15 @@ def render_program_line(program: EditorialProgram) -> str:
     }
     if len(venue_keys) == 1:
         occurrence = program.occurrences[0]
-        location = _render_occurrence_location(occurrence)
-        time_chain = " • ".join(
-            occurrence.display_time or "time TBD" for occurrence in program.occurrences
-        )
-        return f"{program.title} | {location} | {time_chain}"
+        time_chain = " • ".join(item.display_time or "time TBD" for item in program.occurrences)
+        parts = [program.title, _render_occurrence_location(occurrence), time_chain]
+        parts.extend(_shared_credit_parts(program.occurrences))
+        return " | ".join(parts)
 
-    occurrence_chain = " • ".join(
-        _render_occurrence_summary(occurrence) for occurrence in program.occurrences
-    )
-    return f"{program.title} | {occurrence_chain}"
+    occurrence_chain = " • ".join(_render_occurrence_summary(item) for item in program.occurrences)
+    parts = [program.title, occurrence_chain]
+    parts.extend(_shared_credit_parts(program.occurrences))
+    return " | ".join(parts)
 
 
 def write_reddit_artifact(
@@ -110,7 +86,6 @@ def write_reddit_artifact(
     footnote: str = DEFAULT_FOOTNOTE,
     category_order: Sequence[str] | None = None,
 ) -> Path:
-    """Write a generated Reddit post outside fixture directories."""
     if "fixtures" in {part.casefold() for part in output_path.parts}:
         raise ValueError("generated Reddit artifacts must remain separate from fixtures")
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -134,16 +109,12 @@ def default_community_artifact_path() -> Path:
     return Path("artifacts") / "reddit" / "Community_Events_Post.txt"
 
 
-def _render_category_sections(
-    events: Sequence[Renderable],
-    category_order: Sequence[str],
-) -> list[str]:
+def _render_category_sections(events: Sequence[Renderable], category_order: Sequence[str]) -> list[str]:
     grouped: dict[str, list[Renderable]] = defaultdict(list)
     for event in events:
         category = event.semantic_category or getattr(event, "category", None)
         if category:
             grouped[category].append(event)
-
     lines: list[str] = []
     for category in category_order:
         category_events = grouped.get(category, [])
@@ -151,8 +122,7 @@ def _render_category_sections(
             continue
         if lines:
             lines.append("")
-        lines.append(f"## {category}")
-        lines.append("")
+        lines.extend((f"## {category}", ""))
         for index, event in enumerate(category_events):
             if index:
                 lines.append("")
@@ -161,17 +131,8 @@ def _render_category_sections(
 
 
 def _sort_key(event: Renderable) -> tuple[str, int, str, str]:
-    venue = (
-        event.occurrences[0].display_venue
-        if isinstance(event, EditorialProgram) and event.occurrences
-        else event.display_venue
-    )
-    return (
-        event.start_date,
-        _sort_minutes(event.display_start_time),
-        event.title.casefold(),
-        venue.casefold(),
-    )
+    venue = event.occurrences[0].display_venue if isinstance(event, EditorialProgram) and event.occurrences else event.display_venue
+    return event.start_date, _sort_minutes(event.display_start_time), event.title.casefold(), venue.casefold()
 
 
 def _sort_minutes(value: str | None) -> int:
@@ -210,6 +171,28 @@ def _render_occurrence_location(occurrence: ProgramOccurrence) -> str:
 def _render_occurrence_summary(occurrence: ProgramOccurrence) -> str:
     location = _render_occurrence_location(occurrence)
     return f"{location} {occurrence.display_time}" if occurrence.display_time else location
+
+
+def _render_credit_parts(value: object) -> list[str]:
+    parts: list[str] = []
+    organization = getattr(value, "display_organization", None)
+    organization_url = getattr(value, "display_organization_url", None)
+    artist = getattr(value, "display_artist", None)
+    artist_url = getattr(value, "display_artist_url", None)
+    if organization:
+        label = _markdown_link(organization, organization_url) if organization_url else organization
+        parts.append(f"Host: {label}")
+    if artist:
+        label = _markdown_link(artist, artist_url) if artist_url else artist
+        parts.append(f"Artist: {label}")
+    return parts
+
+
+def _shared_credit_parts(occurrences: Sequence[ProgramOccurrence]) -> list[str]:
+    if not occurrences:
+        return []
+    first = _render_credit_parts(occurrences[0])
+    return first if all(_render_credit_parts(item) == first for item in occurrences[1:]) else []
 
 
 def _markdown_link(label: str, url: str) -> str:
