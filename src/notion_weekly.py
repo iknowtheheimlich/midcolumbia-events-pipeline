@@ -7,7 +7,11 @@ date can place the occurrence inside the requested publication window.
 
 from __future__ import annotations
 
+import csv
 from datetime import date, datetime, timedelta
+import json
+from pathlib import Path
+import re
 from typing import Any, Iterable
 
 
@@ -31,6 +35,29 @@ _WEEKDAY_INDEX = {
     "sunday": 6,
     "sun": 6,
 }
+_MARKDOWN_VENUE_RE = re.compile(
+    r"^\[(?P<label>[^]]+)]\((?P<url>[^)]+)\)(?:,\s*(?P<city>.+))?$"
+)
+
+
+def load_notion_weekly_rows(path: Path) -> list[dict[str, Any]]:
+    """Load a Notion weekly export from JSON or CSV."""
+    suffix = path.suffix.casefold()
+    if suffix == ".csv":
+        with path.open("r", encoding="utf-8-sig", newline="") as handle:
+            return [dict(row) for row in csv.DictReader(handle)]
+    if suffix == ".json":
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(payload, list):
+            rows = payload
+        elif isinstance(payload, dict) and isinstance(payload.get("results"), list):
+            rows = payload["results"]
+        else:
+            raise ValueError("Notion weekly JSON must be a row list or contain a results list")
+        if not all(isinstance(row, dict) for row in rows):
+            raise ValueError("Notion weekly export rows must be objects")
+        return [dict(row) for row in rows]
+    raise ValueError("Notion weekly export must be .csv or .json")
 
 
 def materialize_weekly_events(
@@ -56,9 +83,11 @@ def materialize_weekly_events(
             continue
 
         title = _text(row.get("Event Name"))
-        venue = _text(row.get("Venue")) or _text(row.get("Venue Name"))
-        venue_url = _text(row.get("Venue URL")) or _text(row.get("Website"))
-        city = _text(row.get("City"))
+        reddit_combo = _text(row.get("Venue Reddit Combo"))
+        combo_venue, combo_url, combo_city = _parse_reddit_combo(reddit_combo)
+        venue = _text(row.get("Venue")) or _text(row.get("Venue Name")) or combo_venue
+        venue_url = _text(row.get("Venue URL")) or _text(row.get("Website")) or combo_url
+        city = _text(row.get("City")) or combo_city
         time_notes = _text(row.get("Time, Price, Notes"))
         if not title or not venue:
             continue
@@ -69,23 +98,24 @@ def materialize_weekly_events(
             continue
         seen.add(key)
 
-        events.append(
-            {
-                "title": title,
-                "start_date": event_date.isoformat(),
-                "start_time": start_time,
-                "end_time": end_time,
-                "venue": venue,
-                "city": city,
-                "url": venue_url,
-                "source": "NotionWeekly",
-                "category": "Weekly Events",
-                "description": _text(row.get("Notes Recurring")),
-                "publication_target": "MAIN",
-                "is_weekly": True,
-                "time_price_notes": time_notes,
-            }
-        )
+        event = {
+            "title": title,
+            "start_date": event_date.isoformat(),
+            "start_time": start_time,
+            "end_time": end_time,
+            "venue": venue,
+            "city": city,
+            "url": venue_url,
+            "source": "NotionWeekly",
+            "category": "Weekly Events",
+            "description": _text(row.get("Notes Recurring")),
+            "publication_target": "MAIN",
+            "is_weekly": True,
+            "time_price_notes": time_notes,
+        }
+        if reddit_combo:
+            event["venue_reddit_combo"] = reddit_combo
+        events.append(event)
 
     return events
 
@@ -126,7 +156,11 @@ def _parse_time_range(value: str) -> tuple[str | None, str | None]:
     token = value.split(" ", 1)[0].strip()
     if "-" in token:
         start, end = token.split("-", 1)
-        shared_suffix = end.strip().casefold()[-1:] if end.strip().casefold().endswith(("a", "p")) else ""
+        shared_suffix = (
+            end.strip().casefold()[-1:]
+            if end.strip().casefold().endswith(("a", "p"))
+            else ""
+        )
         if shared_suffix and not start.strip().casefold().endswith(("a", "p")):
             start = f"{start}{shared_suffix}"
         return _normalize_time(start), _normalize_time(end)
@@ -154,6 +188,17 @@ def _normalize_time(value: str) -> str | None:
     if not 0 <= hour <= 23 or not 0 <= minute <= 59:
         return None
     return f"{hour:02d}:{minute:02d}"
+
+
+def _parse_reddit_combo(value: str) -> tuple[str, str, str]:
+    match = _MARKDOWN_VENUE_RE.match(value.strip()) if value else None
+    if not match:
+        return "", "", ""
+    return (
+        match.group("label").strip(),
+        match.group("url").strip(),
+        (match.group("city") or "").strip(),
+    )
 
 
 def _truthy(value: Any) -> bool:
