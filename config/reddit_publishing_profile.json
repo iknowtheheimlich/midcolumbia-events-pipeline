@@ -19,7 +19,8 @@
     "Tours",
     "Festivals/Fair",
     "Estate/Yard/Garage Sales",
-    "Faith Based"
+    "Faith Based",
+    "Weekly Events"
   ],
   "publication_targets": {
     "MAIN": [
@@ -36,7 +37,8 @@
       "Markets",
       "Tours",
       "Festivals/Fair",
-      "Estate/Yard/Garage Sales"
+      "Estate/Yard/Garage Sales",
+      "Weekly Events"
     ],
     "COMMUNITY": [
       "Classes/Workshops",
