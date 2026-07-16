@@ -1,3 +1,5 @@
+import json
+
 import httpx
 
 from src.notion_review_push import push_presentation_review
@@ -23,7 +25,7 @@ def test_creates_flagged_host_review_record() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path.endswith("/query"):
             return httpx.Response(200, json={"results": []})
-        created.append(request.json())
+        created.append(json.loads(request.content.decode("utf-8")))
         return httpx.Response(200, json={"id": "new-page"})
 
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
