@@ -24,7 +24,7 @@ def test_materializes_enabled_weekly_row_on_matching_weekday() -> None:
         {
             "title": "Trivia Night",
             "start_date": "2026-07-15",
-            "start_time": "06:30",
+            "start_time": "18:30",
             "end_time": "20:30",
             "venue": "Solar Spirits",
             "city": "Richland",
