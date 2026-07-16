@@ -35,7 +35,10 @@ def build_presentation_review(events: Iterable[dict[str, Any]]) -> list[Presenta
             reasons = [*reasons, "unresolved_venue"]
 
         for reason in reasons:
-            if reason == "unresolved_host":
+            if reason == "unresolved_artist":
+                kind = "ARTIST"
+                detected = _text(event.get("detected_artist"))
+            elif reason == "unresolved_host":
                 kind = "HOST"
                 detected = _text(event.get("detected_host"))
             elif reason == "unresolved_venue":
@@ -43,7 +46,7 @@ def build_presentation_review(events: Iterable[dict[str, Any]]) -> list[Presenta
                 detected = _text(event.get("venue"))
             else:
                 kind = "PRESENTATION"
-                detected = _text(event.get("venue") or event.get("organization"))
+                detected = _text(event.get("venue") or event.get("organization") or event.get("artist"))
             if not detected:
                 continue
             key = (kind, detected.casefold(), str(reason))
