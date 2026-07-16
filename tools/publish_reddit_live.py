@@ -22,6 +22,7 @@ from src.harvest_telemetry import (
     append_harvest_telemetry,
     build_harvest_telemetry_records,
 )
+from src.mission_run_summary import write_production_mission_control
 from src.notion_weekly import load_notion_weekly_rows, materialize_weekly_events
 from src.pipeline import PipelineResult, SourceBatch, run_pipeline
 from src.pipeline_inspector import DEFAULT_INSPECTOR_PATH, write_pipeline_inspector
@@ -195,6 +196,45 @@ def main() -> int:
             rendered_lines=[render_program_line(program) for program in programs],
         )
 
+    run_warnings = [
+        f"{result.source_name}: {result.error}"
+        for result in harvest_results
+        if result.error
+    ]
+    mission_artifact_paths = {
+        "main_reddit": main_output,
+        "community_reddit": community_output,
+        "publisher_audit": audit_output,
+        "supplemental_details": supplemental_output,
+        "completeness_audit": completeness_output,
+        "event_knowledge_graph": graph_output,
+        "source_metrics": metrics_output,
+        "harvest_telemetry": telemetry_output,
+        "review_training": review_training_output,
+    }
+    if inspector_output:
+        mission_artifact_paths["pipeline_inspector"] = inspector_output
+
+    mission_report, mission_outputs = write_production_mission_control(
+        week_start=args.week_start.isoformat(),
+        production_status=health.status,
+        source_health=health.sources,
+        source_durations_ms=harvest_durations_ms,
+        counts={
+            "harvested": len(pipeline.all_events),
+            "deduplicated": len(pipeline.deduplicated_publisher_ready_events),
+            "weekly": len(weekly_projection),
+            "main": len(main_publishable),
+            "main_programs": len(main_programs),
+            "community": len(community_publishable),
+            "community_programs": len(community_programs),
+            "review": len(review),
+            "rejected": len(rejected),
+        },
+        artifacts=mission_artifact_paths,
+        warnings=run_warnings,
+    )
+
     print(f"Production status: {health.status}{' (override)' if health.degraded and args.allow_degraded else ''}")
     for item in health.failed_required_sources:
         print(f"  {item.source_name}: {item.status} - {item.reason or 'live coverage unavailable'}")
@@ -209,6 +249,10 @@ def main() -> int:
     print(f"Community events: {len(community_publishable)} -> {len(community_programs)} programs")
     print(f"Review queue: {len(review)}")
     print(f"Rejected: {len(rejected)}")
+    print(f"Mission: {mission_report.mission_id}")
+    print(f"Mission Control: {'READY TO PUBLISH' if mission_report.ready_to_publish else 'HOLD FOR REVIEW'}")
+    print(f"Mission dashboard: {mission_outputs['latest_dashboard']}")
+    print(f"Mission archive: {mission_outputs['archive_dashboard'].parent}")
     print(f"Main artifact: {main_output}")
     print(f"Community artifact: {community_output}")
     print(f"Audit artifact: {audit_output}")
@@ -218,9 +262,8 @@ def main() -> int:
     print(f"Source metrics: {metrics_output}")
     print(f"Harvest telemetry: {telemetry_output}")
     print(f"Review training: {review_training_output}")
-    for result in harvest_results:
-        if result.error:
-            print(f"Warning: {result.source_name}: {result.error}")
+    for warning in run_warnings:
+        print(f"Warning: {warning}")
     return 2 if blocked else 0
 
 
