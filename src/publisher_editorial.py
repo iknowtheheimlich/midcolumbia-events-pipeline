@@ -1,14 +1,4 @@
-"""Deterministic editorial policy for publisher-facing events.
-
-Attempt_30_PublisherEditorialRules
-Attempt_33_PublishingContract
-Attempt_34_NotionPresentationLayer
-Attempt_38_CategoryIntelligence
-Attempt_40_EditorialStyleIntelligence
-Attempt_42_ExplainableIntelligence
-Attempt_50_VenuePresentationProfile
-Attempt_60_TitleCanonicalization
-"""
+"""Deterministic editorial policy for publisher-facing events."""
 
 from __future__ import annotations
 
@@ -22,14 +12,12 @@ from src.publisher_projection import PublisherEvent
 from src.publishing_contract import PublishingProfile, format_compact_range
 
 _SPACE_RE = re.compile(r"\s+")
-
 VENUE_ALIASES = {
     "mid-columbia libraries": "Mid-Columbia Library",
     "mid columbia libraries": "Mid-Columbia Library",
     "mid columbia library": "Mid-Columbia Library",
     "richland public library": "Richland Library",
 }
-
 AUTO_SCOPES = {None, "LOCAL"}
 REVIEW_SCOPES = {"REVIEW", "REGIONAL_REVIEW"}
 REJECT_SCOPES = {"OUT_OF_AREA"}
@@ -67,6 +55,9 @@ class EditorialEvent:
     category_reason: str | None = None
     canonical_title: str | None = None
     style_reason: str | None = None
+    display_organization_url: str | None = None
+    display_artist: str | None = None
+    display_artist_url: str | None = None
     intelligence: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -75,29 +66,20 @@ class EditorialEvent:
         return payload
 
 
-def apply_editorial_rules(
-    event: PublisherEvent,
-    profile: PublishingProfile | None = None,
-) -> EditorialEvent:
+def apply_editorial_rules(event: PublisherEvent, profile: PublishingProfile | None = None) -> EditorialEvent:
     active_profile = profile or PublishingProfile.load()
     display_city = _clean_optional(event.display_city or event.city) or ""
     base_venue = _display_venue(event, display_city)
-
-    # Venue Reddit Combo is a curated, opaque Notion presentation fragment.
-    # All other venue presentation is already authoritative at projection time.
     style_city = None if event.venue_reddit_combo else display_city
     display_title, display_venue, style_reason = derive_display_fields(
-        event.title,
-        base_venue,
-        style_city,
-        category=event.category,
+        event.title, base_venue, style_city, category=event.category
     )
     display_organization = _display_organization(event, display_venue)
     semantic_category = active_profile.normalize_category(event.category)
-    explicit_target = getattr(event, "publication_target", None)
-    publication_target = active_profile.publication_target(semantic_category, explicit_target)
+    publication_target = active_profile.publication_target(
+        semantic_category, getattr(event, "publication_target", None)
+    )
     disposition, reason = _publication_disposition(event, publication_target)
-
     explanation = attach_intelligence(
         {"intelligence": normalize_intelligence(event.intelligence)},
         "display_style",
@@ -112,7 +94,6 @@ def apply_editorial_rules(
         1.0,
         event.venue_presentation_reason or "legacy_fallback",
     )["intelligence"]
-
     return EditorialEvent(
         title=display_title,
         start_date=event.start_date,
@@ -144,14 +125,14 @@ def apply_editorial_rules(
         category_reason=event.category_reason,
         canonical_title=event.title,
         style_reason=style_reason,
+        display_organization_url=event.organization_url if display_organization else None,
+        display_artist=_clean_optional(event.artist),
+        display_artist_url=event.artist_url,
         intelligence=explanation,
     )
 
 
-def prepare_editorial_events(
-    events: Iterable[PublisherEvent],
-    profile: PublishingProfile | None = None,
-) -> list[EditorialEvent]:
+def prepare_editorial_events(events: Iterable[PublisherEvent], profile: PublishingProfile | None = None) -> list[EditorialEvent]:
     active_profile = profile or PublishingProfile.load()
     return [apply_editorial_rules(event, active_profile) for event in events]
 
@@ -169,27 +150,14 @@ def rejected_events(events: Iterable[EditorialEvent]) -> list[EditorialEvent]:
 
 
 def main_events(events: Iterable[EditorialEvent]) -> list[EditorialEvent]:
-    return [
-        event
-        for event in events
-        if event.publication_disposition == "AUTO_PUBLISH"
-        and event.publication_target in {"MAIN", "BOTH"}
-    ]
+    return [event for event in events if event.publication_disposition == "AUTO_PUBLISH" and event.publication_target in {"MAIN", "BOTH"}]
 
 
 def community_events(events: Iterable[EditorialEvent]) -> list[EditorialEvent]:
-    return [
-        event
-        for event in events
-        if event.publication_disposition == "AUTO_PUBLISH"
-        and event.publication_target in {"COMMUNITY", "BOTH"}
-    ]
+    return [event for event in events if event.publication_disposition == "AUTO_PUBLISH" and event.publication_target in {"COMMUNITY", "BOTH"}]
 
 
-def _publication_disposition(
-    event: PublisherEvent,
-    publication_target: str,
-) -> tuple[str, str | None]:
+def _publication_disposition(event: PublisherEvent, publication_target: str) -> tuple[str, str | None]:
     classification = (event.content_classification or "EVENT").upper()
     if event.content_rejection_reason or classification != "EVENT":
         return "REJECT", event.content_rejection_reason or f"content_{classification.casefold()}"
@@ -199,12 +167,11 @@ def _publication_disposition(
         return "REVIEW", "missing_or_unknown_category"
     if not event.city or not event.city.strip():
         return "REVIEW", "missing_city"
-    scope = event.geographic_scope
-    if scope in REJECT_SCOPES:
+    if event.geographic_scope in REJECT_SCOPES:
         return "REJECT", "out_of_area"
-    if scope in REVIEW_SCOPES:
+    if event.geographic_scope in REVIEW_SCOPES:
         return "REVIEW", "geographic_review"
-    if scope in AUTO_SCOPES:
+    if event.geographic_scope in AUTO_SCOPES:
         return "AUTO_PUBLISH", None
     return "REVIEW", "unknown_geographic_scope"
 
@@ -221,8 +188,6 @@ def _display_venue(event: PublisherEvent, city: str) -> str:
         return _clean_text(event.venue_reddit_combo)
     if event.display_venue:
         return _clean_text(event.display_venue)
-
-    # Compatibility fallback for manually constructed PublisherEvent instances.
     venue = _normalize_venue(event.venue)
     parent = _normalize_venue(event.parent_venue) if event.parent_venue else None
     detail = _clean_optional(event.venue_detail)
@@ -243,19 +208,14 @@ def _display_organization(event: PublisherEvent, display_venue: str) -> str | No
     if not organization:
         return None
     normalized = _normalize_venue(organization)
-    suppressed = {
-        display_venue.casefold(),
-        _normalize_venue(event.venue).casefold(),
-    }
+    suppressed = {display_venue.casefold(), _normalize_venue(event.venue).casefold()}
     if event.parent_venue:
         suppressed.add(_normalize_venue(event.parent_venue).casefold())
     return None if normalized.casefold() in suppressed else normalized
 
 
 def _remove_duplicate_city(venue: str, city: str) -> str:
-    escaped = re.escape(city)
-    cleaned = re.sub(rf"\s*(?:,|\s+-\s+)\s*{escaped}\s*$", "", venue, flags=re.IGNORECASE)
-    return cleaned.strip()
+    return re.sub(rf"\s*(?:,|\s+-\s+)\s*{re.escape(city)}\s*$", "", venue, flags=re.IGNORECASE).strip()
 
 
 def _normalize_venue(value: str) -> str:
