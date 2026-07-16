@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Iterable
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
@@ -23,12 +24,17 @@ _HOST_ALIASES = {
     "instagram.com": "www.instagram.com",
     "youtube.com": "www.youtube.com",
 }
+_SCHEME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
 
 
 def canonicalize_url(value: str | None) -> str | None:
     """Return a stable direct URL, stripping tracking noise and fragments."""
     text = str(value or "").strip()
     if not text:
+        return None
+
+    # Reject explicit non-web schemes before treating a value as a bare hostname.
+    if _SCHEME_RE.match(text) and not text.casefold().startswith(("http://", "https://")):
         return None
     if "://" not in text:
         text = f"https://{text}"
@@ -40,7 +46,10 @@ def canonicalize_url(value: str | None) -> str | None:
 
     host = parsed.hostname.casefold()
     host = _HOST_ALIASES.get(host, host)
-    port = parsed.port
+    try:
+        port = parsed.port
+    except ValueError:
+        return None
     netloc = host
     if port and not ((scheme == "http" and port == 80) or (scheme == "https" and port == 443)):
         netloc = f"{host}:{port}"
