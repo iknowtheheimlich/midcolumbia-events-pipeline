@@ -28,6 +28,7 @@ EXPECTED_CATEGORY_ORDER = (
     "Festivals/Fair",
     "Estate/Yard/Garage Sales",
     "Faith Based",
+    "Weekly Events",
 )
 
 
@@ -44,6 +45,7 @@ def test_profile_routes_categories_to_separate_posts():
     assert profile.publication_target("Music/Comedy") == "MAIN"
     assert profile.publication_target("Food & Drink") == "MAIN"
     assert profile.publication_target("Lectures/Talks") == "MAIN"
+    assert profile.publication_target("Weekly Events") == "MAIN"
     assert profile.publication_target("Community Programs") == "COMMUNITY"
     assert profile.publication_target(None) == "REVIEW"
 
