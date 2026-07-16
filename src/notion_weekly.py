@@ -64,7 +64,7 @@ def materialize_weekly_events(
             continue
 
         start_time, end_time = _parse_time_range(time_notes)
-        key = (title.casefold(), venue.casefold(), event_date.isoformat(), (start_time or ""))
+        key = (title.casefold(), venue.casefold(), event_date.isoformat(), start_time or "")
         if key in seen:
             continue
         seen.add(key)
@@ -126,6 +126,9 @@ def _parse_time_range(value: str) -> tuple[str | None, str | None]:
     token = value.split(" ", 1)[0].strip()
     if "-" in token:
         start, end = token.split("-", 1)
+        shared_suffix = end.strip().casefold()[-1:] if end.strip().casefold().endswith(("a", "p")) else ""
+        if shared_suffix and not start.strip().casefold().endswith(("a", "p")):
+            start = f"{start}{shared_suffix}"
         return _normalize_time(start), _normalize_time(end)
     return _normalize_time(token), None
 
@@ -154,7 +157,10 @@ def _normalize_time(value: str) -> str | None:
 
 
 def _truthy(value: Any) -> bool:
-    return value in _TRUE_VALUES or (isinstance(value, str) and value.strip().casefold() in {"true", "yes", "__yes__"})
+    return value in _TRUE_VALUES or (
+        isinstance(value, str)
+        and value.strip().casefold() in {"true", "yes", "__yes__"}
+    )
 
 
 def _text(value: Any) -> str:
