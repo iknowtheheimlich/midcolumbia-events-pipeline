@@ -1,6 +1,8 @@
+import csv
 from datetime import date
+import json
 
-from src.notion_weekly import materialize_weekly_events
+from src.notion_weekly import load_notion_weekly_rows, materialize_weekly_events
 
 
 def test_materializes_enabled_weekly_row_on_matching_weekday() -> None:
@@ -109,3 +111,50 @@ def test_deduplicates_same_event_venue_date_and_time() -> None:
     events = materialize_weekly_events([row, dict(row)], week_start=date(2026, 7, 13))
 
     assert len(events) == 1
+
+
+def test_uses_notion_venue_reddit_combo_as_authoritative_presentation() -> None:
+    events = materialize_weekly_events(
+        [
+            {
+                "Event Name": "Open Mic",
+                "Weekly": True,
+                "Generate This Week": True,
+                "Days of the Week": "Thursday",
+                "Time, Price, Notes": "7p",
+                "Venue Reddit Combo": "[The Emerald of Siam](https://www.emeraldofsiam.com/), Richland",
+            }
+        ],
+        week_start=date(2026, 7, 13),
+    )
+
+    assert events[0]["venue"] == "The Emerald of Siam"
+    assert events[0]["city"] == "Richland"
+    assert events[0]["url"] == "https://www.emeraldofsiam.com/"
+    assert events[0]["venue_reddit_combo"] == (
+        "[The Emerald of Siam](https://www.emeraldofsiam.com/), Richland"
+    )
+
+
+def test_loads_csv_export(tmp_path) -> None:
+    path = tmp_path / "weekly.csv"
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["Event Name", "Weekly"])
+        writer.writeheader()
+        writer.writerow({"Event Name": "Trivia Night", "Weekly": "Yes"})
+
+    assert load_notion_weekly_rows(path) == [
+        {"Event Name": "Trivia Night", "Weekly": "Yes"}
+    ]
+
+
+def test_loads_json_results_export(tmp_path) -> None:
+    path = tmp_path / "weekly.json"
+    path.write_text(
+        json.dumps({"results": [{"Event Name": "Trivia Night", "Weekly": True}]}),
+        encoding="utf-8",
+    )
+
+    assert load_notion_weekly_rows(path) == [
+        {"Event Name": "Trivia Night", "Weekly": True}
+    ]
