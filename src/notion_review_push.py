@@ -15,6 +15,7 @@ from src.presentation_review import PresentationReviewItem
 NOTION_API_VERSION = "2026-03-11"
 DEFAULT_VENUES_DATA_SOURCE_ID = "36238f31-1eb0-8033-bd62-000ba0ba9470"
 DEFAULT_HOSTS_DATA_SOURCE_ID = "34e38f31-1eb0-8008-90fa-000bac2c29a4"
+DEFAULT_ARTISTS_DATA_SOURCE_ID = "173808c6-7d5b-4597-80b9-364984324fe5"
 
 
 def push_presentation_review(
@@ -23,6 +24,7 @@ def push_presentation_review(
     *,
     venues_data_source_id: str = DEFAULT_VENUES_DATA_SOURCE_ID,
     hosts_data_source_id: str = DEFAULT_HOSTS_DATA_SOURCE_ID,
+    artists_data_source_id: str = DEFAULT_ARTISTS_DATA_SOURCE_ID,
     client: httpx.Client | None = None,
 ) -> dict[str, int]:
     """Create missing review records and return created/skipped counts."""
@@ -38,6 +40,9 @@ def push_presentation_review(
             elif item.kind == "HOST":
                 data_source_id = hosts_data_source_id
                 title_property = "Host Name"
+            elif item.kind == "ARTIST":
+                data_source_id = artists_data_source_id
+                title_property = "Artist Name"
             else:
                 counts["skipped_unsupported"] += 1
                 continue
