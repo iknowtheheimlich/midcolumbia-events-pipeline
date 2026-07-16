@@ -22,6 +22,7 @@ from src.harvest_telemetry import (
     append_harvest_telemetry,
     build_harvest_telemetry_records,
 )
+from src.notion_weekly import load_notion_weekly_rows, materialize_weekly_events
 from src.pipeline import PipelineResult, SourceBatch, run_pipeline
 from src.pipeline_inspector import DEFAULT_INSPECTOR_PATH, write_pipeline_inspector
 from src.program_intelligence import group_editorial_programs
@@ -44,6 +45,7 @@ def main() -> int:
     parser.add_argument("--days", type=int, default=7)
     parser.add_argument("--months", type=int, default=2)
     parser.add_argument("--registry", type=Path, default=DEFAULT_REGISTRY)
+    parser.add_argument("--notion-weekly-export", type=Path, help="Optional Notion weekly-event export (.csv or .json)")
     parser.add_argument("--output", type=Path, help="Legacy alias for --output-main")
     parser.add_argument("--output-main", type=Path)
     parser.add_argument("--output-community", type=Path)
@@ -69,6 +71,8 @@ def main() -> int:
         parser.error("--output-inspector requires --inspect-title")
     if args.review_corrections and not args.review_corrections.exists():
         parser.error(f"review corrections not found: {args.review_corrections}")
+    if args.notion_weekly_export and not args.notion_weekly_export.exists():
+        parser.error(f"Notion weekly export not found: {args.notion_weekly_export}")
     if not args.registry.exists():
         parser.error(f"venue registry not found: {args.registry}. Run python -m tools.import_venue_registry first.")
 
@@ -96,6 +100,17 @@ def main() -> int:
     blocked = health.degraded and not args.allow_degraded
 
     batches = [SourceBatch(source_name=result.source_name, events=result.normalized_events) for result in harvest_results]
+    notion_weekly_events: list[dict[str, object]] = []
+    if args.notion_weekly_export:
+        notion_rows = load_notion_weekly_rows(args.notion_weekly_export)
+        notion_weekly_events = materialize_weekly_events(
+            notion_rows,
+            week_start=args.week_start,
+            days=args.days,
+        )
+        batches.append(SourceBatch(source_name="NotionWeekly", events=notion_weekly_events))
+        source_names.append("NotionWeekly")
+
     pipeline = run_pipeline(
         batches,
         deduplicate=True,
@@ -163,6 +178,7 @@ def main() -> int:
         if blocked:
             inspector_output = degraded_artifact_path(inspector_output)
         collected = [event for result in harvest_results for event in result.normalized_events]
+        collected.extend(notion_weekly_events)
         programs = [*main_programs, *community_programs]
         write_pipeline_inspector(
             args.inspect_title,
@@ -182,8 +198,10 @@ def main() -> int:
     print(f"Production status: {health.status}{' (override)' if health.degraded and args.allow_degraded else ''}")
     for item in health.failed_required_sources:
         print(f"  {item.source_name}: {item.status} - {item.reason or 'live coverage unavailable'}")
-    print(f"Sources: {len(harvest_results)} ({', '.join(source_names)})")
+    print(f"Sources: {len(source_names)} ({', '.join(source_names)})")
     print(f"Harvested events: {len(pipeline.all_events)}")
+    if args.notion_weekly_export:
+        print(f"Notion weekly events: {len(notion_weekly_events)}")
     print(f"Content rejected: {len(pipeline.content_rejected_events)}")
     print(f"Deduplicated publisher events: {len(pipeline.deduplicated_publisher_ready_events)}")
     print(f"Weekly events: {len(weekly_projection)}")
