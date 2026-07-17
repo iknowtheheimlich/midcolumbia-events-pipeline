@@ -6,6 +6,7 @@ def test_registry_contains_only_promoted_dominant_venue_hints():
     hints = load_venue_category_hints()
     assert hints["art your way"].category == "Classes/Workshops"
     assert hints["cbc planetarium"].category == "Lectures/Talks"
+    assert hints["cpcco planetarium cbc"].category == "Lectures/Talks"
     assert hints["jokers comedy club"].category == "Music/Comedy"
     assert "bookwalter winery" not in hints
     assert "benton county fairgrounds" not in hints
@@ -22,6 +23,20 @@ def test_art_your_way_prior_classifies_paint_your_pet_without_title_keyword_rule
     decision = classify_event({"title": "Paint Your Pet", "venue_registry_name": "Art YOUR Way"})
     assert decision.category == "Classes/Workshops"
     assert decision.reason.startswith("venue_hint=Art YOUR Way")
+
+
+def test_observed_cpcco_planetarium_alias_classifies_opaque_show_titles():
+    for title in (
+        "The Little Star That Could",
+        "Unseen Universe",
+        "Black Holes: The Other Side of Infinity",
+        "Fractal Explorations",
+        "Robot Explorers",
+    ):
+        decision = classify_event({"title": title, "venue": "CPCCo Planetarium - CBC"})
+        assert decision.category == "Lectures/Talks"
+        assert decision.confidence == 0.94
+        assert decision.reason == "venue_hint=CPCCo Planetarium - CBC;strength=strong"
 
 
 def test_explicit_fundraiser_title_overrides_art_your_way_prior():
