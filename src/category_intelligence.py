@@ -70,7 +70,7 @@ _EXPLICIT_TITLE_RULES: tuple[CategoryRule, ...] = (
 _TITLE_RULES: tuple[CategoryRule, ...] = (
     _rule("Estate/Yard/Garage Sales", 0.99, "estate_or_yard_sale", r"\b(?:estate|yard|garage|rummage) sale\b"),
     _rule("Karaoke/Open Mic", 0.99, "karaoke_or_open_mic", r"\b(?:karaoke|open[ -]?mic)\b"),
-    _rule("Trivia/Game Night", 0.98, "trivia_or_game_night", r"\b(?:trivia|music bingo|bingo night|game night|speed puzzling|gaming guild)\b"),
+    _rule("Trivia/Game Night", 0.98, "trivia_or_game_night", r"\b(?:trivia|music bingo|bingo night|game night|speed puzzling)\b"),
     _rule("Markets", 0.98, "market", r"\b(?:farmers'? market|night market|community market|vendor market|market)\b"),
     _rule("Fundraisers", 0.97, "fundraiser", r"\b(?:fundrais(?:er|ing)|benefit concert|donor party|charity)\b"),
     _rule("Tours", 0.97, "tour", r"\b(?:guided|walking|museum|b reactor) tour\b|\batomic explorations\b"),
@@ -78,7 +78,7 @@ _TITLE_RULES: tuple[CategoryRule, ...] = (
         "Sports",
         0.97,
         "sports_competition",
-        r"\b(?:baseball|basketball|football|soccer|volleyball|run club|5k|10k|tournament|classic|showdown|game vs\.?|dust devils|alumni game)\b|\brace\s*#?\d+\b",
+        r"\b(?:baseball|basketball|football|soccer|volleyball|run club|5k|10k|tournament|classic|showdown|game vs\.?|dust devils|alumni game)\b",
     ),
     _rule(
         "Lectures/Talks",
