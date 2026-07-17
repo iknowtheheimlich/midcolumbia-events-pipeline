@@ -96,6 +96,28 @@ def test_render_post_uses_profile_category_order_within_date() -> None:
     assert post.index("## Music/Comedy") < post.index("Concert")
 
 
+def test_render_post_preserves_categories_missing_from_profile() -> None:
+    post = render_reddit_post(
+        [
+            editorial_event(
+                title="Known Event",
+                semantic_category="Events/Hangouts",
+            ),
+            editorial_event(
+                title="Unexpected Event",
+                semantic_category="Community Event",
+                category="Community Event",
+            ),
+        ],
+        category_order=("Events/Hangouts",),
+        footnote="",
+    )
+
+    assert "Known Event" in post
+    assert "## Community Event" in post
+    assert "Unexpected Event" in post
+
+
 def test_render_post_excludes_review_and_rejected_events() -> None:
     post = render_reddit_post(
         [

@@ -115,8 +115,17 @@ def _render_category_sections(events: Sequence[Renderable], category_order: Sequ
         category = event.semantic_category or getattr(event, "category", None)
         if category:
             grouped[category].append(event)
+
+    configured_categories = list(dict.fromkeys(category_order))
+    configured_category_set = set(configured_categories)
+    unexpected_categories = sorted(
+        category
+        for category in grouped
+        if category not in configured_category_set
+    )
+
     lines: list[str] = []
-    for category in category_order:
+    for category in (*configured_categories, *unexpected_categories):
         category_events = grouped.get(category, [])
         if not category_events:
             continue
