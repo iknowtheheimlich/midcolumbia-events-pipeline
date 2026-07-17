@@ -41,6 +41,41 @@ def test_materializes_enabled_weekly_row_on_matching_weekday() -> None:
     ]
 
 
+def test_materializes_plural_weekday_from_live_notion_values() -> None:
+    events = materialize_weekly_events(
+        [
+            {
+                "Event Name": "Monday Night Poker",
+                "Weekly": True,
+                "Generate This Week": True,
+                "Days of the Week": "Mondays",
+                "Time, Price, Notes": "6-10p",
+                "Venue": "Venue",
+            }
+        ],
+        week_start=date(2026, 7, 20),
+    )
+
+    assert [event["start_date"] for event in events] == ["2026-07-20"]
+
+
+def test_materializes_each_day_for_multi_day_weekly_row() -> None:
+    events = materialize_weekly_events(
+        [
+            {
+                "Event Name": "Line Dancing Classes",
+                "Weekly": True,
+                "Generate This Week": True,
+                "Days of the Week": "Mondays & Thursdays",
+                "Venue": "Venue",
+            }
+        ],
+        week_start=date(2026, 7, 20),
+    )
+
+    assert [event["start_date"] for event in events] == ["2026-07-20", "2026-07-23"]
+
+
 def test_requires_weekly_and_generate_flags() -> None:
     rows = [
         {
