@@ -4,6 +4,11 @@
     "category_confidence": 0.96,
     "hint_strength": "strong"
   },
+  "Alley Kat Artisans": {
+    "category_hint": "Classes/Workshops",
+    "category_confidence": 0.95,
+    "hint_strength": "strong"
+  },
   "CBC Planetarium": {
     "category_hint": "Lectures/Talks",
     "category_confidence": 0.94,
