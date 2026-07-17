@@ -38,6 +38,7 @@ from src.supplemental_detail_audit import DEFAULT_SUPPLEMENTAL_DETAIL_PATH, writ
 from src.venue_registry import VenueRegistry
 
 DEFAULT_REGISTRY = Path("generated/venue_registry/registry.json")
+EDITORIAL_REVIEW_REASONS = {"missing_or_unknown_category"}
 
 
 def main() -> int:
@@ -131,6 +132,8 @@ def main() -> int:
     community_programs = group_editorial_programs(community_publishable)
     review = review_events(editorial)
     rejected = rejected_events(editorial)
+    editorial_reviews = [event for event in review if event.editorial_reason in EDITORIAL_REVIEW_REASONS]
+    publication_blockers = [event for event in review if event.editorial_reason not in EDITORIAL_REVIEW_REASONS]
     profile = PublishingProfile.load()
 
     main_output = args.output_main or args.output or default_main_artifact_path()
@@ -229,6 +232,8 @@ def main() -> int:
             "community": len(community_publishable),
             "community_programs": len(community_programs),
             "review": len(review),
+            "publication_blockers": len(publication_blockers),
+            "editorial_reviews": len(editorial_reviews),
             "rejected": len(rejected),
         },
         artifacts=mission_artifact_paths,
@@ -247,7 +252,7 @@ def main() -> int:
     print(f"Weekly events: {len(weekly_projection)}")
     print(f"Main events: {len(main_publishable)} -> {len(main_programs)} programs")
     print(f"Community events: {len(community_publishable)} -> {len(community_programs)} programs")
-    print(f"Review queue: {len(review)}")
+    print(f"Review queue: {len(review)} ({len(publication_blockers)} blockers, {len(editorial_reviews)} editorial)")
     print(f"Rejected: {len(rejected)}")
     print(f"Mission: {mission_report.mission_id}")
     print(f"Mission Control: {'READY TO PUBLISH' if mission_report.ready_to_publish else 'HOLD FOR REVIEW'}")
