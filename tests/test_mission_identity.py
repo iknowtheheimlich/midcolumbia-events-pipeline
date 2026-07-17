@@ -37,7 +37,8 @@ def test_captain_console_names_blockers() -> None:
     )
 
     assert report.ready_to_publish is False
-    assert "source health failure" in report.captain_summary
-    assert "2 review item(s)" in report.captain_summary
+    assert report.captain_summary.startswith("Launch held:")
+    assert "source coverage" in report.captain_summary
+    assert "2 publication blocker(s)" in report.captain_summary
     assert "1 rejected item(s)" in report.captain_summary
     assert "regression failure" in report.captain_summary
