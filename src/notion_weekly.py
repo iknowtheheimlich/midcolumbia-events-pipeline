@@ -18,26 +18,34 @@ from typing import Any, Iterable
 _TRUE_VALUES = {True, 1, "1", "true", "yes", "__YES__"}
 _WEEKDAY_INDEX = {
     "monday": 0,
+    "mondays": 0,
     "mon": 0,
     "tuesday": 1,
+    "tuesdays": 1,
     "tue": 1,
     "tues": 1,
     "wednesday": 2,
+    "wednesdays": 2,
     "wed": 2,
     "thursday": 3,
+    "thursdays": 3,
     "thu": 3,
     "thur": 3,
     "thurs": 3,
     "friday": 4,
+    "fridays": 4,
     "fri": 4,
     "saturday": 5,
+    "saturdays": 5,
     "sat": 5,
     "sunday": 6,
+    "sundays": 6,
     "sun": 6,
 }
 _MARKDOWN_VENUE_RE = re.compile(
     r"^\[(?P<label>[^]]+)]\((?P<url>[^)]+)\)(?:,\s*(?P<city>.+))?$"
 )
+_WEEKDAY_SPLIT_RE = re.compile(r"\s*(?:&|,|/|\band\b)\s*", re.IGNORECASE)
 
 
 def load_notion_weekly_rows(path: Path) -> list[dict[str, Any]]:
@@ -78,8 +86,8 @@ def materialize_weekly_events(
         if not _truthy(row.get("Weekly")) or not _truthy(row.get("Generate This Week")):
             continue
 
-        event_date = _resolve_date(row, week_start, week_end)
-        if event_date is None:
+        event_dates = _resolve_dates(row, week_start, week_end)
+        if not event_dates:
             continue
 
         title = _text(row.get("Event Name"))
@@ -93,49 +101,58 @@ def materialize_weekly_events(
             continue
 
         start_time, end_time = _parse_time_range(time_notes)
-        key = (title.casefold(), venue.casefold(), event_date.isoformat(), start_time or "")
-        if key in seen:
-            continue
-        seen.add(key)
+        for event_date in event_dates:
+            key = (title.casefold(), venue.casefold(), event_date.isoformat(), start_time or "")
+            if key in seen:
+                continue
+            seen.add(key)
 
-        event = {
-            "title": title,
-            "start_date": event_date.isoformat(),
-            "start_time": start_time,
-            "end_time": end_time,
-            "venue": venue,
-            "city": city,
-            "url": venue_url,
-            "source": "NotionWeekly",
-            "category": "Weekly Events",
-            "description": _text(row.get("Notes Recurring")),
-            "publication_target": "MAIN",
-            "is_weekly": True,
-            "time_price_notes": time_notes,
-        }
-        if reddit_combo:
-            event["venue_reddit_combo"] = reddit_combo
-        events.append(event)
+            event = {
+                "title": title,
+                "start_date": event_date.isoformat(),
+                "start_time": start_time,
+                "end_time": end_time,
+                "venue": venue,
+                "city": city,
+                "url": venue_url,
+                "source": "NotionWeekly",
+                "category": "Weekly Events",
+                "description": _text(row.get("Notes Recurring")),
+                "publication_target": "MAIN",
+                "is_weekly": True,
+                "time_price_notes": time_notes,
+            }
+            if reddit_combo:
+                event["venue_reddit_combo"] = reddit_combo
+            events.append(event)
 
     return events
 
 
-def _resolve_date(row: dict[str, Any], week_start: date, week_end: date) -> date | None:
+def _resolve_dates(row: dict[str, Any], week_start: date, week_end: date) -> list[date]:
     explicit = _parse_date(row.get("Date")) or _parse_date(row.get("date:Date:start"))
     if explicit is not None:
-        return explicit if week_start <= explicit < week_end else None
+        return [explicit] if week_start <= explicit < week_end else []
 
-    weekday = _weekday(row.get("Days of the Week"))
-    if weekday is None:
-        return None
-    offset = (weekday - week_start.weekday()) % 7
-    candidate = week_start + timedelta(days=offset)
-    return candidate if candidate < week_end else None
+    dates: list[date] = []
+    for weekday in _weekdays(row.get("Days of the Week")):
+        offset = (weekday - week_start.weekday()) % 7
+        candidate = week_start + timedelta(days=offset)
+        if candidate < week_end and candidate not in dates:
+            dates.append(candidate)
+    return sorted(dates)
 
 
-def _weekday(value: Any) -> int | None:
+def _weekdays(value: Any) -> list[int]:
     text = _text(value).casefold().strip(" .")
-    return _WEEKDAY_INDEX.get(text)
+    if not text:
+        return []
+    weekdays: list[int] = []
+    for token in _WEEKDAY_SPLIT_RE.split(text):
+        weekday = _WEEKDAY_INDEX.get(token.strip(" ."))
+        if weekday is not None and weekday not in weekdays:
+            weekdays.append(weekday)
+    return weekdays
 
 
 def _parse_date(value: Any) -> date | None:
