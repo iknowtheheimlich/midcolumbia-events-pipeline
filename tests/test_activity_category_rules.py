@@ -1,8 +1,8 @@
 from src.category_intelligence import classify_event
 
 
-def event(title: str) -> dict[str, object]:
-    return {
+def event(title: str, **overrides: object) -> dict[str, object]:
+    values: dict[str, object] = {
         "title": title,
         "venue": "Test Venue",
         "city": "Richland",
@@ -12,6 +12,8 @@ def event(title: str) -> dict[str, object]:
         "geo_scope": "LOCAL",
         "content_kind": "EVENT",
     }
+    values.update(overrides)
+    return values
 
 
 def test_repeated_library_activity_titles_are_classified() -> None:
@@ -20,12 +22,17 @@ def test_repeated_library_activity_titles_are_classified() -> None:
         "Paint-A-Saurus": "Classes/Workshops",
         "Fiber & Friends": "Classes/Workshops",
         "T-shirt Memory Quilt/ monthly block": "Classes/Workshops",
-        "Gaming Guild": "Trivia/Game Night",
     }
 
     for title, category in expected.items():
         decision = classify_event(event(title))
         assert decision.category == category, title
+
+
+def test_library_gaming_guild_uses_library_context() -> None:
+    decision = classify_event(event("Library Gaming Guild"))
+    assert decision.category == "Community Programs"
+    assert decision.reason == "title_rule=library_or_community_program"
 
 
 def test_obvious_instruction_and_health_titles_are_classified() -> None:
@@ -42,7 +49,6 @@ def test_obvious_instruction_and_health_titles_are_classified() -> None:
 
 def test_obvious_sports_theater_faith_and_community_titles_are_classified() -> None:
     expected = {
-        "Race #8": "Sports",
         "Alumni Game": "Sports",
         "Disney's Newsies": "Art/Theater",
         "FHE/ Noche de Hogar Barrio": "Faith Based",
@@ -57,7 +63,10 @@ def test_obvious_sports_theater_faith_and_community_titles_are_classified() -> N
 
 def test_rules_do_not_overgeneralize_ambiguous_words() -> None:
     for title in (
+        "Race #7",
+        "Race #8",
         "A Race Against Time",
+        "Gaming Guild",
         "Game Developers Networking",
         "Painting the Future of Healthcare",
         "Education Funding Committee Meeting",
