@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from src.mission_control import MissionControlReport, write_dashboard, write_flight_recorder
+from src.mission_trends import write_mission_trends
 
 DEFAULT_LATEST_DIR = Path("artifacts/mission_control/latest")
 DEFAULT_ARCHIVE_DIR = Path("artifacts/mission_control/archive")
@@ -17,7 +18,7 @@ def write_mission_artifacts(
     latest_dir: Path = DEFAULT_LATEST_DIR,
     archive_dir: Path = DEFAULT_ARCHIVE_DIR,
 ) -> dict[str, Path]:
-    """Write stable latest files and a unique timestamped mission archive."""
+    """Write stable latest files, a timestamped archive, and longitudinal trends."""
     stamp = _archive_stamp(report.generated_at)
     mission_dir = archive_dir / f"{report.mission_id}_{stamp}"
 
@@ -31,6 +32,12 @@ def write_mission_artifacts(
             report, mission_dir / "flight_recorder.json"
         ),
     }
+    trend_outputs = write_mission_trends(
+        archive_dir=archive_dir,
+        output_dir=latest_dir.parent / "trends",
+    )
+    outputs["mission_trends_json"] = trend_outputs["json"]
+    outputs["mission_trends_html"] = trend_outputs["html"]
     return outputs
 
 
