@@ -9,6 +9,11 @@
     "category_confidence": 0.94,
     "hint_strength": "strong"
   },
+  "CPCCo Planetarium - CBC": {
+    "category_hint": "Lectures/Talks",
+    "category_confidence": 0.94,
+    "hint_strength": "strong"
+  },
   "Jokers Comedy Club": {
     "category_hint": "Music/Comedy",
     "category_confidence": 0.95,
