@@ -22,7 +22,7 @@ def event(**overrides) -> EditorialEvent:
         display_time="6:30p",
         display_venue="Solar Spirits",
         display_city="Richland",
-        display_organization=None,
+        display_organization="Frichette Winery",
         publication_url="https://example.org/event",
         publication_disposition="REVIEW",
         editorial_reason="missing_or_unknown_category",
@@ -44,6 +44,7 @@ def event(**overrides) -> EditorialEvent:
         category_reason="no_category_rule_matched",
         canonical_title="Visiting Winemaker: Frichette Winery takes over Solar Spirits!",
         style_reason="unchanged",
+        display_organization_url="https://frichettewinery.com",
         intelligence={"category": {"value": None, "confidence": 0.0, "reason": "no_category_rule_matched"}},
     )
     values.update(overrides)
@@ -63,33 +64,42 @@ def test_training_records_are_deterministically_sorted() -> None:
     assert [record.title for record in records] == ["Alpha", "Zulu"]
 
 
-def test_training_record_contains_actionable_source_and_review_context() -> None:
+def test_training_record_contains_full_editorial_context() -> None:
     record = build_review_training_records([event()])[0]
     assert record.publication_url == "https://example.org/event"
     assert record.publication_disposition == "REVIEW"
     assert record.editorial_reason == "missing_or_unknown_category"
     assert record.category_reason == "no_category_rule_matched"
+    assert record.host == "Frichette Winery"
+    assert record.host_url == "https://frichettewinery.com"
+    assert record.description == "A visiting winemaker tasting event."
+    assert record.duplicate_sources == ("VisitTriCities", "AllEvents")
 
 
-def test_correction_attaches_by_fingerprint(tmp_path: Path) -> None:
+def test_editorial_correction_attaches_by_fingerprint(tmp_path: Path) -> None:
     target = event()
     fingerprint = review_fingerprint(target)
     corrections_path = tmp_path / "corrections.json"
     corrections_path.write_text(
-        json.dumps({"corrections": [{"fingerprint": fingerprint, "action": "CATEGORY", "correct_category": "Food & Drink"}]}),
+        json.dumps({"corrections": [{
+            "fingerprint": fingerprint,
+            "action": "EDITORIAL",
+            "decision": "INCLUDE",
+            "corrected_title": "Visiting Winemaker at Solar Spirits",
+            "corrected_venue": "Solar Spirits",
+            "corrected_host": "Frichette Winery",
+            "correct_category": "Food & Drink",
+        }]}),
         encoding="utf-8",
     )
     output = tmp_path / "review.json"
     records = write_review_training_artifact([target], output, corrections_path=corrections_path)
-    assert records[0].correction == {
-        "fingerprint": fingerprint,
-        "action": "CATEGORY",
-        "correct_category": "Food & Drink",
-    }
+    assert records[0].correction["action"] == "EDITORIAL"
+    assert records[0].correction["correct_category"] == "Food & Drink"
     payload = json.loads(output.read_text(encoding="utf-8"))
-    assert payload["schema_version"] == 2
+    assert payload["schema_version"] == 3
     assert payload["record_count"] == 1
-    assert payload["records"][0]["publication_url"] == "https://example.org/event"
+    assert payload["records"][0]["host"] == "Frichette Winery"
 
 
 def test_invalid_or_duplicate_corrections_fail_loudly(tmp_path: Path) -> None:
