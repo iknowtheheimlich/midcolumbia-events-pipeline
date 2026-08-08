@@ -138,3 +138,27 @@
 {"duration_ms": 4160, "error": null, "events": 173, "required": true, "reused_fixture": false, "source": "RichlandLibrary", "status": "LIVE", "timestamp": "2026-07-15T03:15:01.880769Z"}
 {"duration_ms": 18059, "error": null, "events": 225, "required": true, "reused_fixture": false, "source": "AllEvents", "status": "LIVE", "timestamp": "2026-07-15T03:15:01.880769Z"}
 {"duration_ms": 1, "error": null, "events": 87, "required": false, "reused_fixture": false, "source": "LegacyUnifiedCSV", "status": "OPTIONAL", "timestamp": "2026-07-15T03:15:01.880769Z"}
+{"duration_ms": 12162, "error": "URLError: <urlopen error [Errno 11001] getaddrinfo failed>", "events": 24, "required": true, "reused_fixture": true, "source": "VisitTriCities", "status": "PARTIAL", "timestamp": "2026-07-17T22:45:00.922752Z"}
+{"duration_ms": 11476, "error": null, "events": 141, "required": true, "reused_fixture": false, "source": "TriCityVibe", "status": "LIVE", "timestamp": "2026-07-17T22:45:00.922752Z"}
+{"duration_ms": 572, "error": null, "events": 43, "required": true, "reused_fixture": false, "source": "MidColumbiaLibraries", "status": "LIVE", "timestamp": "2026-07-17T22:45:00.922752Z"}
+{"duration_ms": 4295, "error": null, "events": 175, "required": true, "reused_fixture": false, "source": "RichlandLibrary", "status": "LIVE", "timestamp": "2026-07-17T22:45:00.922752Z"}
+{"duration_ms": 18235, "error": null, "events": 145, "required": true, "reused_fixture": false, "source": "AllEvents", "status": "LIVE", "timestamp": "2026-07-17T22:45:00.922752Z"}
+{"duration_ms": 1, "error": null, "events": 87, "required": false, "reused_fixture": false, "source": "LegacyUnifiedCSV", "status": "OPTIONAL", "timestamp": "2026-07-17T22:45:00.922752Z"}
+{"duration_ms": 7894, "error": null, "events": 141, "required": true, "reused_fixture": false, "source": "VisitTriCities", "status": "LIVE", "timestamp": "2026-07-17T22:46:50.003595Z"}
+{"duration_ms": 5431, "error": null, "events": 141, "required": true, "reused_fixture": false, "source": "TriCityVibe", "status": "LIVE", "timestamp": "2026-07-17T22:46:50.003595Z"}
+{"duration_ms": 587, "error": null, "events": 43, "required": true, "reused_fixture": false, "source": "MidColumbiaLibraries", "status": "LIVE", "timestamp": "2026-07-17T22:46:50.003595Z"}
+{"duration_ms": 6131, "error": null, "events": 175, "required": true, "reused_fixture": false, "source": "RichlandLibrary", "status": "LIVE", "timestamp": "2026-07-17T22:46:50.003595Z"}
+{"duration_ms": 22849, "error": null, "events": 126, "required": true, "reused_fixture": false, "source": "AllEvents", "status": "LIVE", "timestamp": "2026-07-17T22:46:50.003595Z"}
+{"duration_ms": 1, "error": null, "events": 87, "required": false, "reused_fixture": false, "source": "LegacyUnifiedCSV", "status": "OPTIONAL", "timestamp": "2026-07-17T22:46:50.003595Z"}
+{"duration_ms": 3116, "error": null, "events": 141, "required": true, "reused_fixture": false, "source": "VisitTriCities", "status": "LIVE", "timestamp": "2026-07-17T23:07:52.407119Z"}
+{"duration_ms": 5254, "error": null, "events": 141, "required": true, "reused_fixture": false, "source": "TriCityVibe", "status": "LIVE", "timestamp": "2026-07-17T23:07:52.407119Z"}
+{"duration_ms": 557, "error": null, "events": 42, "required": true, "reused_fixture": false, "source": "MidColumbiaLibraries", "status": "LIVE", "timestamp": "2026-07-17T23:07:52.407119Z"}
+{"duration_ms": 4543, "error": null, "events": 175, "required": true, "reused_fixture": false, "source": "RichlandLibrary", "status": "LIVE", "timestamp": "2026-07-17T23:07:52.407119Z"}
+{"duration_ms": 18615, "error": null, "events": 133, "required": true, "reused_fixture": false, "source": "AllEvents", "status": "LIVE", "timestamp": "2026-07-17T23:07:52.407119Z"}
+{"duration_ms": 1, "error": null, "events": 87, "required": false, "reused_fixture": false, "source": "LegacyUnifiedCSV", "status": "OPTIONAL", "timestamp": "2026-07-17T23:07:52.407119Z"}
+{"duration_ms": 872, "error": null, "events": 127, "required": true, "reused_fixture": false, "source": "VisitTriCities", "status": "LIVE", "timestamp": "2026-07-19T19:38:04.422036Z"}
+{"duration_ms": 5051, "error": null, "events": 120, "required": true, "reused_fixture": false, "source": "TriCityVibe", "status": "LIVE", "timestamp": "2026-07-19T19:38:04.422036Z"}
+{"duration_ms": 338, "error": null, "events": 42, "required": true, "reused_fixture": false, "source": "MidColumbiaLibraries", "status": "LIVE", "timestamp": "2026-07-19T19:38:04.422036Z"}
+{"duration_ms": 4078, "error": null, "events": 175, "required": true, "reused_fixture": false, "source": "RichlandLibrary", "status": "LIVE", "timestamp": "2026-07-19T19:38:04.422036Z"}
+{"duration_ms": 18188, "error": null, "events": 203, "required": true, "reused_fixture": false, "source": "AllEvents", "status": "LIVE", "timestamp": "2026-07-19T19:38:04.422036Z"}
+{"duration_ms": 1, "error": null, "events": 87, "required": false, "reused_fixture": false, "source": "LegacyUnifiedCSV", "status": "OPTIONAL", "timestamp": "2026-07-19T19:38:04.422036Z"}
