@@ -1,6 +1,7 @@
 import json
 
 from src.corpus_health import analyze_corpus_health, render_corpus_health
+from tests.history_helpers import finalizer_paths
 from tools.finalize_weekly_run import finalize_weekly_run
 
 
@@ -33,10 +34,11 @@ def test_weekly_finalizer_updates_history_and_health(tmp_path):
         {"event_id": "one", "title": "Game", "category": "Sports", "source": "Test", "start_date": "2026-07-01", "venue": "Stadium"},
         {"event_id": "two", "title": "Unknown"},
     ]), encoding="utf-8")
-    history = tmp_path / "history.jsonl"
-    artifacts = tmp_path / "artifacts"
+    paths = finalizer_paths(tmp_path)
+    history = paths["history_path"]
+    artifacts = paths["artifacts_dir"]
 
-    result = finalize_weekly_run(input_path, history_path=history, artifacts_dir=artifacts, run_reports=False)
+    result = finalize_weekly_run(input_path, **finalizer_paths(tmp_path), run_reports=False)
 
     assert result["inserted"] == 1
     assert result["skipped_unclassified"] == 1
@@ -52,11 +54,11 @@ def test_weekly_finalizer_is_idempotent(tmp_path):
     input_path.write_text(json.dumps([
         {"event_id": "one", "title": "Game", "category": "Sports", "source": "Test", "start_date": "2026-07-01"}
     ]), encoding="utf-8")
-    history = tmp_path / "history.jsonl"
-    artifacts = tmp_path / "artifacts"
+    paths = finalizer_paths(tmp_path)
+    history = paths["history_path"]
 
-    first = finalize_weekly_run(input_path, history_path=history, artifacts_dir=artifacts, run_reports=False)
-    second = finalize_weekly_run(input_path, history_path=history, artifacts_dir=artifacts, run_reports=False)
+    first = finalize_weekly_run(input_path, **finalizer_paths(tmp_path), run_reports=False)
+    second = finalize_weekly_run(input_path, **finalizer_paths(tmp_path), run_reports=False)
 
     assert first["inserted"] == 1
     assert second["inserted"] == 0
