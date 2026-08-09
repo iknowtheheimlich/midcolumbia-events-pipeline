@@ -1,5 +1,8 @@
 from dataclasses import replace
 
+import pytest
+
+from src.geography import classify_event
 from src.publisher_editorial import (
     apply_editorial_rules,
     auto_publish_events,
@@ -125,6 +128,25 @@ def test_out_of_area_event_is_rejected():
     result = apply_editorial_rules(make_event(geographic_scope="OUT_OF_AREA"))
     assert result.publication_disposition == "REJECT"
     assert result.editorial_reason == "out_of_area"
+    assert rejected_events([result]) == [result]
+
+
+@pytest.mark.parametrize(
+    ("city", "region"),
+    (("Prosser", "LOWER_VALLEY"), ("Grandview", "LOWER_VALLEY"), ("College Place", "WALLA_WALLA")),
+)
+def test_out_of_scope_region_is_rejected_without_geographic_review(city, region):
+    geography = classify_event({"city": city, "state": "WA"})
+    assert geography.region == region
+    assert geography.scope == "OUT_OF_AREA"
+
+    result = apply_editorial_rules(
+        make_event(city=city, geographic_scope=geography.scope, region=geography.region)
+    )
+
+    assert result.publication_disposition == "REJECT"
+    assert result.editorial_reason == "out_of_area"
+    assert result not in review_events([result])
     assert rejected_events([result]) == [result]
 
 

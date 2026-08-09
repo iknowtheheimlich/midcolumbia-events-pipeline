@@ -21,6 +21,12 @@ The publisher is not the authority on readiness. Mission Control records the run
 - Every production run writes stable latest artifacts and a timestamped archive.
 - Improvements begin with observed mission results, not speculative formatting changes.
 
+### Reddit publication geography
+
+For the weekly Reddit publication, `TRI_CITIES` is eligible for publication.
+`LOWER_VALLEY` and `WALLA_WALLA` are outside publication scope. Unknown or
+ambiguous geography remains subject to human review.
+
 ## Repository systems
 
 - `adapters/` — live source harvesting and normalization.
