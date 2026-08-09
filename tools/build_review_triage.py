@@ -20,19 +20,28 @@ def main() -> int:
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     args = parser.parse_args()
 
-    payload = json.loads(args.input.read_text(encoding="utf-8"))
-    records = payload.get("records", []) if isinstance(payload, dict) else []
-    if not isinstance(records, list) or not all(isinstance(item, dict) for item in records):
-        raise ValueError("review training artifact must contain an object list at 'records'")
-
-    triage = build_review_triage(records)
-    paths = write_review_triage(triage, args.output_dir)
+    triage, paths = build_review_triage_from_file(args.input, args.output_dir)
     print(f"Review records: {triage['record_count']}")
     print(f"Publication blockers: {triage['publication_blockers']}")
     print(f"Editorial reviews: {triage['editorial_reviews']}")
     for name, path in paths.items():
         print(f"{name}: {path}")
     return 0
+
+
+def build_review_triage_from_file(
+    input_path: Path,
+    output_dir: Path,
+) -> tuple[dict[str, Any], dict[str, Path]]:
+    payload = json.loads(input_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict) or "records" not in payload:
+        raise ValueError("review training artifact must contain an object list at 'records'")
+    records = payload["records"]
+    if not isinstance(records, list) or not all(isinstance(item, dict) for item in records):
+        raise ValueError("review training artifact must contain an object list at 'records'")
+
+    triage = build_review_triage(records)
+    return triage, write_review_triage(triage, output_dir)
 
 
 def write_review_triage(triage: dict[str, Any], output_dir: Path) -> dict[str, Path]:

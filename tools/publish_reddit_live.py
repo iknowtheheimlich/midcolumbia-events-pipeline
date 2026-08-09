@@ -36,6 +36,7 @@ from src.source_attribution import build_source_attribution
 from src.source_metrics import DEFAULT_SOURCE_METRICS_PATH, build_source_metrics, write_source_metrics
 from src.supplemental_detail_audit import DEFAULT_SUPPLEMENTAL_DETAIL_PATH, write_supplemental_detail_audit
 from src.venue_registry import VenueRegistry
+from tools.build_review_triage import build_review_triage_from_file
 
 DEFAULT_REGISTRY = Path("generated/venue_registry/registry.json")
 EDITORIAL_REVIEW_REASONS = {"missing_or_unknown_category"}
@@ -175,6 +176,10 @@ def main() -> int:
     )
     write_source_metrics(source_metrics, metrics_output)
     write_review_training_artifact(review, review_training_output, corrections_path=args.review_corrections)
+    _, review_triage_outputs = build_review_triage_from_file(
+        review_training_output,
+        review_training_output.parent / "triage",
+    )
 
     inspector_output: Path | None = None
     if args.inspect_title:
@@ -214,6 +219,9 @@ def main() -> int:
         "source_metrics": metrics_output,
         "harvest_telemetry": telemetry_output,
         "review_training": review_training_output,
+        "review_triage_json": review_triage_outputs["json"],
+        "review_triage_csv": review_triage_outputs["csv"],
+        "review_triage_report": review_triage_outputs["report"],
     }
     if inspector_output:
         mission_artifact_paths["pipeline_inspector"] = inspector_output
@@ -267,6 +275,7 @@ def main() -> int:
     print(f"Source metrics: {metrics_output}")
     print(f"Harvest telemetry: {telemetry_output}")
     print(f"Review training: {review_training_output}")
+    print(f"Review triage (blockers first): {review_triage_outputs['report']}")
     for warning in run_warnings:
         print(f"Warning: {warning}")
     return 2 if blocked else 0
