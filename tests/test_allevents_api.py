@@ -1,12 +1,32 @@
 from datetime import date
+from email.message import Message
 import json
+from pathlib import Path
+from urllib.error import URLError
+
+import pytest
 
 from adapters.allevents.api import (
     CITY_QUERIES,
+    _decode_api_response,
     _request_payload,
+    harvest_allevents_api,
     normalize_api_event,
     normalize_api_responses,
 )
+from adapters.registry import get_adapter
+from src.harvest_health import assess_harvest_health
+
+
+class _Response:
+    def __init__(self, body: bytes, *, status: int = 200, content_type: str) -> None:
+        self.status = status
+        self._body = body
+        self.headers = Message()
+        self.headers["Content-Type"] = content_type
+
+    def read(self) -> bytes:
+        return self._body
 
 
 def _row(**overrides):
@@ -33,6 +53,79 @@ def _row(**overrides):
     }
     row.update(overrides)
     return row
+
+
+def test_rejects_observed_html_session_response_with_diagnostic_context():
+    response = _Response(
+        ("Not available at this moment" + "x" * 200).encode("utf-8"),
+        content_type="text/html; charset=UTF-8",
+    )
+
+    with pytest.raises(RuntimeError) as captured:
+        _decode_api_response(response)
+
+    diagnostic = str(captured.value)
+    assert "AllEvents session/API rejection" in diagnostic
+    assert "HTTP 200" in diagnostic
+    assert "Content-Type 'text/html'" in diagnostic
+    assert "Not available at this moment" in diagnostic
+    assert len(diagnostic.split("response prefix: ", 1)[1].strip("'")) <= 160
+
+
+def test_accepts_valid_json_response_without_changing_payload():
+    payload = {"error": 0, "page": 1, "search_result": []}
+    response = _Response(
+        json.dumps(payload).encode("utf-8"),
+        content_type="application/json; charset=utf-8",
+    )
+
+    assert _decode_api_response(response) == payload
+
+
+def test_rejected_city_is_attributed_and_successful_city_results_remain_usable(monkeypatch):
+    target = date(2026, 7, 19)
+
+    def fetch_json(_url, *, body, headers):
+        del headers
+        payload = json.loads(body)
+        if payload["city"] == "Pasco":
+            raise RuntimeError(
+                "AllEvents session/API rejection: HTTP 200; Content-Type 'text/html'; "
+                "response prefix: 'Not available at this moment'"
+            )
+        return {"error": 0, "search_result": [_row(event_id=payload["city"])]}
+
+    monkeypatch.setattr("adapters.allevents.api.save_raw_fixture", lambda *_args: None)
+    monkeypatch.setattr("adapters.allevents.api.generated_raw_path", lambda _adapter: Path("raw.json"))
+    adapter = get_adapter("AllEvents")
+    result = harvest_allevents_api(adapter, week_start=target, days=1, fetch_json=fetch_json)
+    health = assess_harvest_health([adapter], [result])
+
+    assert result.normalized_events
+    assert "2026-07-19|Pasco: RuntimeError: AllEvents session/API rejection" in result.error
+    assert health.sources[0].status == "PARTIAL"
+    assert health.sources[0].reason == result.error
+
+
+def test_dns_failure_remains_distinct_from_session_rejection(monkeypatch):
+    def fetch_json(_url, *, body, headers):
+        del headers
+        payload = json.loads(body)
+        if payload["city"] == "Pasco":
+            raise URLError("[Errno 11001] getaddrinfo failed")
+        return {"error": 0, "search_result": [_row(event_id=payload["city"])]}
+
+    monkeypatch.setattr("adapters.allevents.api.save_raw_fixture", lambda *_args: None)
+    monkeypatch.setattr("adapters.allevents.api.generated_raw_path", lambda _adapter: Path("raw.json"))
+    result = harvest_allevents_api(
+        get_adapter("AllEvents"),
+        week_start=date(2026, 7, 19),
+        days=1,
+        fetch_json=fetch_json,
+    )
+
+    assert "2026-07-19|Pasco: URLError: <urlopen error [Errno 11001] getaddrinfo failed>" in result.error
+    assert "session/API rejection" not in result.error
 
 
 def test_city_queries_do_not_seed_hermiston():

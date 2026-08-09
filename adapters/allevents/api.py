@@ -126,20 +126,59 @@ def _build_session_fetcher() -> Callable[..., Any]:
     def fetch_json(url: str, *, body: bytes, headers: dict[str, str]) -> Any:
         request = urllib.request.Request(url, data=body, headers=headers, method="POST")
         with opener.open(request, timeout=30) as response:
-            charset = response.headers.get_content_charset() or "utf-8"
-            text = response.read().decode(charset, errors="replace")
-        return _decode_api_json(text)
+            return _decode_api_response(response)
 
     return fetch_json
 
 
-def _decode_api_json(text: str) -> Any:
+def _decode_api_response(response: Any) -> Any:
+    status = getattr(response, "status", None)
+    if status is None:
+        status = response.getcode()
+    content_type = response.headers.get_content_type().casefold()
+    charset = response.headers.get_content_charset() or "utf-8"
+    text = response.read().decode(charset, errors="replace")
+    cleaned = text.lstrip("\ufeff \t\r\n")
+
+    if content_type != "application/json" and not content_type.endswith("+json"):
+        prefix = _response_prefix(cleaned)
+        if cleaned.casefold().startswith("not available at this moment"):
+            reason = "AllEvents session/API rejection"
+        else:
+            reason = "AllEvents returned unexpected response media type"
+        raise RuntimeError(
+            f"{reason}: HTTP {status}; Content-Type {content_type!r}; "
+            f"response prefix: {prefix!r}"
+        )
+
+    return _decode_api_json(
+        text,
+        status=status,
+        content_type=content_type,
+    )
+
+
+def _decode_api_json(
+    text: str,
+    *,
+    status: Any | None = None,
+    content_type: str | None = None,
+) -> Any:
     cleaned = text.lstrip("\ufeff \t\r\n")
     try:
         return json.loads(cleaned)
     except json.JSONDecodeError as exc:
-        prefix = cleaned[:160].replace("\r", "\\r").replace("\n", "\\n")
-        raise RuntimeError(f"AllEvents returned non-JSON response prefix: {prefix!r}") from exc
+        prefix = _response_prefix(cleaned)
+        context = ""
+        if status is not None and content_type is not None:
+            context = f"HTTP {status}; Content-Type {content_type!r}; "
+        raise RuntimeError(
+            f"AllEvents returned non-JSON response: {context}response prefix: {prefix!r}"
+        ) from exc
+
+
+def _response_prefix(text: str) -> str:
+    return text[:160].replace("\r", "\\r").replace("\n", "\\n")
 
 
 def normalize_api_responses(responses: dict[str, Any]) -> list[CanonicalEvent]:
