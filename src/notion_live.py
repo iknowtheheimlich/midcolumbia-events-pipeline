@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import httpx
 
 NOTION_API_VERSION = "2026-03-11"
 DEFAULT_WEEKLY_DATA_SOURCE_ID = "22138f31-1eb0-8026-a8c7-000bbecdf680"
+_STATE_POSTAL_RE = re.compile(
+    r"^(?:[A-Z]{2}|Washington|Oregon|Idaho)(?:\s+\d{5}(?:-\d{4})?)?$",
+    re.IGNORECASE,
+)
 
 
 def fetch_live_weekly_rows(
@@ -157,6 +162,10 @@ def _rollup_text(value: Any) -> str:
 
 def _city_from_address(address: str) -> str:
     parts = [part.strip() for part in address.split(",") if part.strip()]
+    if parts and parts[-1].casefold() in {"usa", "united states"}:
+        parts.pop()
+    if len(parts) >= 2 and _STATE_POSTAL_RE.fullmatch(parts[-1]):
+        return parts[-2]
     return parts[-3] if len(parts) >= 3 else ""
 
 

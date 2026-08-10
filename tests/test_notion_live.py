@@ -2,7 +2,7 @@ import json
 
 import httpx
 
-from src.notion_live import fetch_live_weekly_rows
+from src.notion_live import _city_from_address, fetch_live_weekly_rows
 
 
 def _rich_text(value: str) -> dict:
@@ -11,6 +11,14 @@ def _rich_text(value: str) -> dict:
 
 def _title(value: str) -> dict:
     return {"type": "title", "title": [{"plain_text": value}]}
+
+
+def test_city_from_address_supports_state_zip_without_country() -> None:
+    assert _city_from_address("530 Columbia Point Drive, Richland, WA 99352") == "Richland"
+
+
+def test_city_from_address_supports_trailing_country() -> None:
+    assert _city_from_address("3300 W Clearwater Ave, Kennewick, WA 99336, USA") == "Kennewick"
 
 
 def test_fetches_enabled_weekly_rows_and_enriches_venue() -> None:
