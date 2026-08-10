@@ -43,6 +43,8 @@ class ProductionDispositions:
                 action, cohort_index, selector_index, disposition = matches[0]
                 matched.add((action, cohort_index, selector_index))
                 if action == "RESOLVE":
+                    if disposition.get("title"):
+                        copied["title"] = disposition["title"]
                     copied["start_time"] = disposition["start_time"]
                     copied["end_time"] = disposition.get("end_time")
                 else:
@@ -51,9 +53,9 @@ class ProductionDispositions:
                 copied["intelligence"] = attach_intelligence(
                     {"intelligence": copied.get("intelligence") or {}},
                     "captain_disposition",
-                    {"mission_id": self.mission_id, "action": action, "cohort": disposition["cohort"], "evidence": disposition["evidence"], "detail": disposition.get("detail")},
+                    {"mission_id": self.mission_id, "action": action, "cohort": disposition["cohort"], "evidence": disposition["evidence"], "evidence_url": disposition.get("evidence_url"), "evidence_authority": disposition.get("evidence_authority"), "detail": disposition.get("detail")},
                     1.0,
-                    "captain_approved_preserved_evidence",
+                    disposition.get("decision_reason", "captain_approved_preserved_evidence"),
                 )["intelligence"]
             output.append(copied)
         self._require_all_selectors(matched)

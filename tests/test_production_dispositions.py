@@ -21,20 +21,55 @@ def _event(source: str, source_event_id: str, *, start_time: str, title: str = "
     }
 
 
-def test_mc_2026_033_disposition_manifest_is_exact_and_leaves_sunday_unresolved() -> None:
+def test_mc_2026_033_disposition_manifest_covers_all_conflict_cohorts_and_exclusions() -> None:
     dispositions = ProductionDispositions.load("2026-08-10", DEFAULT_PRODUCTION_DISPOSITIONS_PATH)
 
     assert dispositions is not None
     assert dispositions.mission_id == "MC-2026-033"
-    assert len(dispositions.resolutions) == 9
+    assert len(dispositions.resolutions) == 10
     assert len(dispositions.exclusions) == 3
     selector_ids = {
         selector.get("source_event_id")
         for cohort in (*dispositions.resolutions, *dispositions.exclusions)
         for selector in cohort["selectors"]
     }
-    assert "200030535883055" not in selector_ids
-    assert "200030535883258" not in selector_ids
+    assert "200030535883055" in selector_ids
+    assert "200030535883258" in selector_ids
+    assert {cohort["reason"] for cohort in dispositions.exclusions} == {"captain_excluded_this_week"}
+    excluded_cohorts = {cohort["cohort"] for cohort in dispositions.exclusions}
+    assert any(cohort.startswith("HAPO Center regional concert cohort") for cohort in excluded_cohorts)
+    assert any(cohort.startswith("Richland Estate Sale") for cohort in excluded_cohorts)
+    assert any(cohort.startswith("Team Policy Debate Camp") for cohort in excluded_cohorts)
+    # Ten corrected cohorts plus the deliberately excluded HAPO conflict account
+    # for all eleven conflicting-occurrence cohorts from the Captain review.
+    assert len(dispositions.resolutions) + 1 == 11
+
+
+def test_sports_page_external_authority_resolves_to_one_supported_occurrence() -> None:
+    dispositions = ProductionDispositions.load("2026-08-10", DEFAULT_PRODUCTION_DISPOSITIONS_PATH)
+    assert dispositions is not None
+    sunday_disposition = ProductionDispositions(
+        dispositions.mission_id,
+        dispositions.week_start,
+        (dispositions.resolutions[-1],),
+        (),
+    )
+    sunday = sunday_disposition.apply([
+        {**_event("AllEvents", "200030535883055", start_time="09:00", title="R0CK'N Bingo"), "start_date": "2026-08-16", "venue": "Sports Page Bar & Grill"},
+        {**_event("AllEvents", "200030535883258", start_time="08:00", title="R0CK'N Bingo + Rockstar Trivia"), "start_date": "2026-08-16", "venue": "Sports Page Bar & Grill"},
+    ])
+    result = resolve_occurrences(sunday)
+
+    assert len(result.events) == 1
+    event = result.events[0]
+    assert event["title"] == "Game Night Live R0CK'N Bingo"
+    assert event["start_time"] == "16:00"
+    assert event["end_time"] == "18:00"
+    assert not event.get("publication_blocker_reason")
+    decision = event["intelligence"]["captain_disposition"]
+    assert decision["reason"] == "captain_approved_external_authority"
+    assert decision["value"]["evidence_authority"] == "first_party_organizer_schedule"
+    assert decision["value"]["evidence_url"] == "https://gamenightlive.com/washington-tri-cities/"
 
 
 def test_evidence_resolution_corrects_exact_records_before_occurrence_resolution() -> None:
