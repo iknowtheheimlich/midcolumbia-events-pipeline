@@ -169,6 +169,8 @@ def _mark_conflicting_occurrences(events: list[dict[str, Any]]) -> list[dict[str
 
 
 def _is_conflicting_pair(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    if _is_completed_captain_exclusion(left) or _is_completed_captain_exclusion(right):
+        return False
     if normalize_text(left.get("start_date")) != normalize_text(right.get("start_date")):
         return False
     if not _venue_match_reason(left, right):
@@ -178,6 +180,10 @@ def _is_conflicting_pair(left: dict[str, Any], right: dict[str, Any]) -> bool:
         return False
     title_score, _ = _title_similarity(left, right)
     return title_score >= 0.92 or _strong_title_containment(left, right)
+
+
+def _is_completed_captain_exclusion(event: dict[str, Any]) -> bool:
+    return str(event.get("captain_disposition") or "").upper() == "EXCLUDE"
 
 
 def _strong_title_containment(left: dict[str, Any], right: dict[str, Any]) -> bool:

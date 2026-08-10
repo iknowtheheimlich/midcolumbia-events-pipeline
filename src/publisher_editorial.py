@@ -22,6 +22,7 @@ VENUE_ALIASES = {
 AUTO_SCOPES = {None, "LOCAL"}
 REVIEW_SCOPES = {"REVIEW", "REGIONAL_REVIEW"}
 REJECT_SCOPES = {"OUT_OF_AREA"}
+COMPLETED_REJECTION_REASONS = {"out_of_area", "publication_suppressed", "captain_excluded_this_week"}
 
 
 @dataclass(frozen=True)
@@ -179,6 +180,8 @@ def _publication_disposition(
     classification = (event.content_classification or "EVENT").upper()
     if event.content_rejection_reason or classification != "EVENT":
         return "REJECT", event.content_rejection_reason or f"content_{classification.casefold()}"
+    if (event.captain_disposition or "").upper() == "EXCLUDE":
+        return "REJECT", event.captain_disposition_reason or "captain_excluded_this_week"
     if event.publication_blocker_reason:
         return "REVIEW", event.publication_blocker_reason
     if not display_venue.strip():

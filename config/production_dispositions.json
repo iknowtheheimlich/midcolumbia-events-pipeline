@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "missions": [
+    {
+      "mission_id": "MC-2026-033",
+      "week_start": "2026-08-10",
+      "resolutions": [
+        {"cohort":"All Genre Karaoke — Daisy Ranch Saloon — 2026-08-11","start_time":"20:00","end_time":"02:00","evidence":"VisitTriCities description explicitly states every Tuesday from 8pm-2am.","selectors":[{"source":"VisitTriCities","source_event_id":"1298225"},{"source":"NotionWeekly","title":"Karaoke","start_date":"2026-08-11","venue_contains":"Daisy Ranch Saloon"}]},
+        {"cohort":"Game Night Live Trivia — Sports Page Bar & Grill — 2026-08-12","start_time":"19:00","end_time":null,"evidence":"The curated weekly template states 7pm; the AllEvents description says the game occurs at night.","selectors":[{"source":"AllEvents","source_event_id":"200030515871259"},{"source":"NotionWeekly","title":"Game Night Live Trivia","start_date":"2026-08-12","venue_contains":"Sports Page Bar & Grill"}]},
+        {"cohort":"The Night Hawks — Upchurch Vineyard — 2026-08-13","start_time":"17:00","end_time":"20:00","detail":"music 17:30-19:30","evidence":"VisitTriCities description explicitly states 5-8pm, with music from 5:30-7:30pm.","selectors":[{"source":"VisitTriCities","source_event_id":"1289089"},{"source":"AllEvents","source_event_id":"100001990897041645"}]},
+        {"cohort":"Barchitects LEGO League — Moonshot Brewing — 2026-08-13","start_time":"18:00","end_time":null,"evidence":"Both descriptions call the program an evening event; VisitTriCities supplies the 6pm start. No event end is explicit.","selectors":[{"source":"VisitTriCities","source_event_id":"1301014"},{"source":"AllEvents","source_event_id":"200030343621730"}]},
+        {"cohort":"Four Shillings Short — Richland Public Library — 2026-08-13","start_time":"17:30","end_time":"19:00","evidence":"Richland Library's structured record is corroborated by the preserved VisitTriCities acquisition at 5:30-7pm.","selectors":[{"source":"AllEvents","source_event_id":"200030498519137"},{"source":"RichlandLibrary","source_event_id":"16157107"}]},
+        {"cohort":"Eli Young Band — Umatilla County Fair — 2026-08-14","start_time":"21:00","end_time":null,"evidence":"The preserved AllEvents description explicitly states 9:00 PM.","selectors":[{"source":"AllEvents","source_event_id":"3200030368824440"},{"source":"AllEvents","source_event_id":"2300030334109758"}]},
+        {"cohort":"Fallout — Ty's Bar & Grill — 2026-08-14","start_time":"19:00","end_time":null,"evidence":"TriCityVibe supplies the 7pm start and the AllEvents description independently identifies a nighttime event.","selectors":[{"source":"TriCityVibe","source_event_id":"fallout-ds-wicked-cider"},{"source":"AllEvents","source_event_id":"200030434710129"}]},
+        {"cohort":"Neon Interstate — Iconic Brewing — 2026-08-15","start_time":"19:00","end_time":"22:00","evidence":"TriCityVibe supplies 7-10pm; the competing AllEvents description is only TBD.","selectors":[{"source":"TriCityVibe","source_event_id":"mia-lenay-live-wine-social"},{"source":"AllEvents","source_event_id":"200030495629604"}]},
+        {"cohort":"Stompin'Ground Rodeo Kickoff — Longbranch Saloon — 2026-08-15","start_time":"20:00","end_time":null,"evidence":"The AllEvents description explicitly says music starts at 8:00 PM, corroborating TriCityVibe.","selectors":[{"source":"TriCityVibe","source_event_id":"dakota-poorman-live-longbranch-saloon"},{"source":"AllEvents","source_event_id":"200030485698206"}]}
+      ],
+      "exclusions": [
+        {"cohort":"HAPO Center regional concert cohort — 2026-08-15","reason":"captain_excluded_this_week","evidence":"Preserved descriptions conflict between 3pm and 7pm and do not establish whether the listings are distinct.","selectors":[{"source":"AllEvents","source_event_id":"3300030346137209"},{"source":"AllEvents","source_event_id":"3300030436561402"},{"source":"AllEvents","source_event_id":"2300030372129110"}]},
+        {"cohort":"Richland Estate Sale — 2026-08-13","reason":"captain_excluded_this_week","evidence":"The source explicitly says the address will be posted later; no venue is established.","selectors":[{"source":"AllEvents","source_event_id":"200030527358744"}]},
+        {"cohort":"Team Policy Debate Camp — 2026-08-13","reason":"captain_excluded_this_week","evidence":"The preserved source provides only Richland, Washington and no venue authority.","selectors":[{"source":"AllEvents","source_event_id":"200030489981013"}]}
+      ]
+    }
+  ]
+}

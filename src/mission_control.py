@@ -84,12 +84,13 @@ def build_mission_control_report(
     blocker_count = clean_counts.get("publication_blockers", review_count if not has_split_review else 0)
     editorial_count = clean_counts.get("editorial_reviews", max(review_count - blocker_count, 0))
     rejected_count = clean_counts.get("rejected", 0)
+    unresolved_rejected_count = clean_counts.get("unresolved_rejections", rejected_count)
     regression_ok = clean_regression.get("passed", True) is not False
     ready = (
         production_status.upper() in HEALTHY_STATUSES
         and not required_source_failure
         and blocker_count == 0
-        and rejected_count == 0
+        and unresolved_rejected_count == 0
         and regression_ok
     )
     captain_summary, recommendation = _captain_console(
@@ -97,7 +98,7 @@ def build_mission_control_report(
         required_source_failure=required_source_failure,
         blocker_count=blocker_count,
         editorial_count=editorial_count,
-        rejected_count=rejected_count,
+        unresolved_rejected_count=unresolved_rejected_count,
         regression_ok=regression_ok,
         warning_count=len(clean_warnings),
     )
@@ -230,7 +231,7 @@ def _captain_console(
     required_source_failure: bool,
     blocker_count: int,
     editorial_count: int,
-    rejected_count: int,
+    unresolved_rejected_count: int,
     regression_ok: bool,
     warning_count: int,
 ) -> tuple[str, str]:
@@ -248,8 +249,8 @@ def _captain_console(
         blockers.append("source coverage")
     if blocker_count:
         blockers.append(f"{blocker_count} publication blocker(s)")
-    if rejected_count:
-        blockers.append(f"{rejected_count} rejected item(s)")
+    if unresolved_rejected_count:
+        blockers.append(f"{unresolved_rejected_count} rejected item(s)")
     if not regression_ok:
         blockers.append("regression failure")
     summary = "Launch held: " + ", ".join(blockers or ["production status is not nominal"]) + "."

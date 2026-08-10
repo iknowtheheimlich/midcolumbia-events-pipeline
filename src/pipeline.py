@@ -12,6 +12,7 @@ from src.event_completeness import enrich_event_completeness
 from src.geography import enrich_event_geography
 from src.intelligence import attach_intelligence
 from src.occurrence_resolution import resolve_occurrences
+from src.production_dispositions import ProductionDispositions
 from src.publisher_editorial import (
     EditorialEvent,
     auto_publish_events,
@@ -102,6 +103,7 @@ def run_pipeline(
     enrich_categories: bool = False,
     enrich_time_semantics: bool = False,
     enrich_completeness: bool = False,
+    production_dispositions: ProductionDispositions | None = None,
 ) -> PipelineResult:
     """Run source batches through shared enrichment and publisher preparation.
 
@@ -119,6 +121,8 @@ def run_pipeline(
         enrich_time_semantics=enrich_time_semantics,
         enrich_completeness=enrich_completeness,
     )
+    if production_dispositions is not None:
+        all_events = production_dispositions.apply(all_events)
 
     content_rejected: list[dict[str, Any]] = []
     publisher_candidates = all_events

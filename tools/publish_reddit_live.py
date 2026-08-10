@@ -26,9 +26,10 @@ from src.mission_run_summary import write_production_mission_control
 from src.notion_weekly import load_notion_weekly_rows, materialize_weekly_events
 from src.pipeline import PipelineResult, SourceBatch, run_pipeline
 from src.pipeline_inspector import DEFAULT_INSPECTOR_PATH, write_pipeline_inspector
+from src.production_dispositions import DEFAULT_PRODUCTION_DISPOSITIONS_PATH, ProductionDispositions
 from src.program_intelligence import group_editorial_programs
 from src.publisher_audit import default_audit_path, write_publisher_audit
-from src.publisher_editorial import EditorialEvent, community_events, main_events, rejected_events, review_events
+from src.publisher_editorial import COMPLETED_REJECTION_REASONS, EditorialEvent, community_events, main_events, rejected_events, review_events
 from src.publishing_contract import PublishingProfile
 from src.reddit_renderer import default_community_artifact_path, default_main_artifact_path, render_program_line, write_reddit_artifact
 from src.review_trainer import DEFAULT_REVIEW_TRAINING_PATH, write_review_training_artifact
@@ -60,6 +61,7 @@ def main() -> int:
     parser.add_argument("--output-completeness-audit", type=Path)
     parser.add_argument("--output-event-graph", type=Path)
     parser.add_argument("--review-corrections", type=Path, help="Optional curated JSON corrections keyed by review fingerprint")
+    parser.add_argument("--production-dispositions", type=Path, default=DEFAULT_PRODUCTION_DISPOSITIONS_PATH)
     parser.add_argument("--allow-degraded", action="store_true", help="Permit normal artifact paths despite failed live-source coverage")
     parser.add_argument("--inspect-title", help="Write an HTML trace for records containing this title or text")
     parser.add_argument("--output-inspector", type=Path)
@@ -76,6 +78,8 @@ def main() -> int:
         parser.error(f"review corrections not found: {args.review_corrections}")
     if args.notion_weekly_export and not args.notion_weekly_export.exists():
         parser.error(f"Notion weekly export not found: {args.notion_weekly_export}")
+    if not args.production_dispositions.exists():
+        parser.error(f"production dispositions not found: {args.production_dispositions}")
     if not args.registry.exists():
         parser.error(f"venue registry not found: {args.registry}. Run python -m tools.import_venue_registry first.")
 
@@ -114,6 +118,9 @@ def main() -> int:
         batches.append(SourceBatch(source_name="NotionWeekly", events=notion_weekly_events))
         source_names.append("NotionWeekly")
 
+    production_dispositions = ProductionDispositions.load(
+        args.week_start.isoformat(), args.production_dispositions
+    )
     pipeline = run_pipeline(
         batches,
         deduplicate=True,
@@ -123,6 +130,7 @@ def main() -> int:
         screen_content=True,
         enrich_categories=True,
         enrich_time_semantics=True,
+        production_dispositions=production_dispositions,
     )
 
     weekly_projection = [event for event in pipeline.publisher_projection if _in_week(event.start_date, args.week_start, args.days)]
@@ -133,6 +141,8 @@ def main() -> int:
     community_programs = group_editorial_programs(community_publishable)
     review = review_events(editorial)
     rejected = rejected_events(editorial)
+    completed_rejections = [event for event in rejected if event.editorial_reason in COMPLETED_REJECTION_REASONS]
+    unresolved_rejections = [event for event in rejected if event.editorial_reason not in COMPLETED_REJECTION_REASONS]
     editorial_reviews = [event for event in review if event.editorial_reason in EDITORIAL_REVIEW_REASONS]
     publication_blockers = [event for event in review if event.editorial_reason not in EDITORIAL_REVIEW_REASONS]
     profile = PublishingProfile.load()
@@ -243,6 +253,8 @@ def main() -> int:
             "publication_blockers": len(publication_blockers),
             "editorial_reviews": len(editorial_reviews),
             "rejected": len(rejected),
+            "completed_rejections": len(completed_rejections),
+            "unresolved_rejections": len(unresolved_rejections),
         },
         artifacts=mission_artifact_paths,
         warnings=run_warnings,

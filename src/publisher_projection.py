@@ -66,6 +66,8 @@ class PublisherEvent:
     artist_url: str | None = None
     publication_blocker_reason: str | None = None
     publication_blocker_details: tuple[dict[str, Any], ...] = ()
+    captain_disposition: str | None = None
+    captain_disposition_reason: str | None = None
     intelligence: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -137,6 +139,8 @@ def project_event(event: dict[str, Any]) -> PublisherEvent:
         artist_url=_optional_text(event.get("artist_url")),
         publication_blocker_reason=_optional_text(event.get("publication_blocker_reason")),
         publication_blocker_details=tuple(event.get("publication_blocker_details") or ()),
+        captain_disposition=_optional_text(event.get("captain_disposition")),
+        captain_disposition_reason=_optional_text(event.get("captain_disposition_reason")),
         intelligence=normalize_intelligence(event.get("intelligence")),
     )
 

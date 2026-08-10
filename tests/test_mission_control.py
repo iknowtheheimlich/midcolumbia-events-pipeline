@@ -52,6 +52,59 @@ def test_legacy_review_count_remains_a_launch_gate() -> None:
     assert report.ready_to_publish is False
 
 
+def test_completed_out_of_area_rejections_do_not_hold_a_clean_mission() -> None:
+    report = build_mission_control_report(
+        week_start="2026-08-10",
+        production_status="HEALTHY",
+        source_health=[SourceHealthSummary("AllEvents", "HEALTHY")],
+        counts={
+            "publication_blockers": 0,
+            "editorial_reviews": 4,
+            "rejected": 27,
+            "completed_rejections": 27,
+            "unresolved_rejections": 0,
+        },
+        regression={"passed": True},
+    )
+
+    assert report.ready_to_publish is True
+    assert report.counts["rejected"] == 27
+
+
+def test_unresolved_rejection_still_holds_publication() -> None:
+    report = build_mission_control_report(
+        week_start="2026-08-10",
+        production_status="HEALTHY",
+        source_health=[SourceHealthSummary("AllEvents", "HEALTHY")],
+        counts={"publication_blockers": 0, "rejected": 1, "unresolved_rejections": 1},
+        regression={"passed": True},
+    )
+
+    assert report.ready_to_publish is False
+    assert "1 rejected item(s)" in report.captain_summary
+
+
+def test_conflicting_occurrence_and_missing_venue_counts_each_hold_publication() -> None:
+    for reason in ("conflicting_occurrence", "missing_venue"):
+        report = build_mission_control_report(
+            week_start="2026-08-10",
+            production_status="HEALTHY",
+            source_health=[SourceHealthSummary("AllEvents", "HEALTHY")],
+            counts={
+                "publication_blockers": 1,
+                "editorial_reviews": 0,
+                "rejected": 27,
+                "completed_rejections": 27,
+                "unresolved_rejections": 0,
+            },
+            warnings=[reason],
+            regression={"passed": True},
+        )
+
+        assert report.ready_to_publish is False
+        assert "1 publication blocker(s)" in report.captain_summary
+
+
 def test_writes_json_and_dashboard_with_expected_operational_content(tmp_path: Path) -> None:
     report = build_mission_control_report(
         week_start="2026-07-13",
