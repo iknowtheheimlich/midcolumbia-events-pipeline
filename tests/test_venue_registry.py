@@ -1,5 +1,48 @@
+import json
+
+import pytest
+
 from src.pipeline import SourceBatch, run_pipeline
 from src.venue_registry import VenueRecord, VenueRegistry, normalize_venue_key
+from tools.import_venue_registry import load_notion_csv
+
+
+@pytest.mark.parametrize(
+    ("venue_name", "website"),
+    [
+        ("Iconic Brewing", "https://Facebook"),
+        (
+            "The Academy of Children's Theatre",
+            "https://www.academyofchildrenstheatre.org/https://app.arts-people.com/index.php",
+        ),
+    ],
+)
+def test_registry_rejects_observed_malformed_venue_authority(venue_name: str, website: str) -> None:
+    with pytest.raises(ValueError, match=venue_name):
+        VenueRecord(venue_name=venue_name, website=website)
+
+
+def test_registry_json_rejects_malformed_display_url_without_source_fallback(tmp_path) -> None:
+    path = tmp_path / "registry.json"
+    path.write_text(
+        json.dumps([{"venue_name": "Iconic Brewing", "display_url": "https://Facebook"}]),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="display_url"):
+        VenueRegistry.from_json(path)
+
+
+def test_notion_import_rejects_malformed_venue_website(tmp_path) -> None:
+    path = tmp_path / "venues.csv"
+    path.write_text(
+        "Venue Name,Official Name,Address,Place ID,Plus Code,Venue Website,Venue Type Description\n"
+        "Iconic Brewing,Iconic Brewing,Richland,place,plus,https://Facebook,Brewery\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="Iconic Brewing"):
+        load_notion_csv(path)
 
 
 def test_normalize_venue_key_handles_ampersands_and_punctuation():

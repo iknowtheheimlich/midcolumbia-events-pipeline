@@ -10,6 +10,7 @@ from typing import Iterable, Sequence, TypeAlias
 from src.program_intelligence import EditorialProgram, ProgramOccurrence
 from src.publisher_editorial import EditorialEvent
 from src.publishing_contract import PublishingProfile
+from src.url_canonicalizer import validate_public_http_url
 
 Renderable: TypeAlias = EditorialEvent | EditorialProgram
 DEFAULT_FOOTNOTE = (
@@ -205,6 +206,7 @@ def _shared_credit_parts(occurrences: Sequence[ProgramOccurrence]) -> list[str]:
 
 
 def _markdown_link(label: str, url: str) -> str:
+    validate_public_http_url(url, field=f"Markdown destination for {label!r}")
     clean_label = label.replace("[", "\\[").replace("]", "\\]")
     clean_url = url.replace(" ", "%20").replace(")", "%29")
     return f"[{clean_label}]({clean_url})"

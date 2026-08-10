@@ -25,6 +25,29 @@ _HOST_ALIASES = {
     "youtube.com": "www.youtube.com",
 }
 _SCHEME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
+_EMBEDDED_WEB_SCHEME_RE = re.compile(r"https?://", re.IGNORECASE)
+
+
+def validate_public_http_url(value: str | None, *, field: str = "URL") -> str:
+    """Validate a public HTTP(S) destination without changing its presentation."""
+    text = str(value or "").strip()
+    if not text:
+        raise ValueError(f"{field} is empty")
+    if not text.casefold().startswith(("http://", "https://")):
+        raise ValueError(f"{field} must use http:// or https://: {text!r}")
+    if len(_EMBEDDED_WEB_SCHEME_RE.findall(text)) != 1:
+        raise ValueError(f"{field} contains an embedded absolute URL: {text!r}")
+
+    parsed = urlsplit(text)
+    if parsed.scheme.casefold() not in {"http", "https"} or not parsed.hostname:
+        raise ValueError(f"{field} is not a valid HTTP(S) URL: {text!r}")
+    if "." not in parsed.hostname:
+        raise ValueError(f"{field} hostname is not a public domain: {parsed.hostname!r}")
+    try:
+        parsed.port
+    except ValueError as exc:
+        raise ValueError(f"{field} has an invalid port: {text!r}") from exc
+    return text
 
 
 def canonicalize_url(value: str | None) -> str | None:
@@ -38,6 +61,11 @@ def canonicalize_url(value: str | None) -> str | None:
         return None
     if "://" not in text:
         text = f"https://{text}"
+
+    try:
+        validate_public_http_url(text)
+    except ValueError:
+        return None
 
     parsed = urlsplit(text)
     scheme = parsed.scheme.casefold()

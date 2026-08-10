@@ -57,6 +57,18 @@ def test_render_event_line_preserves_reddit_contract() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    "destination",
+    [
+        "https://Facebook",
+        "https://www.academyofchildrenstheatre.org/https://app.arts-people.com/index.php",
+    ],
+)
+def test_final_artifact_rejects_malformed_markdown_destinations(destination: str) -> None:
+    with pytest.raises(ValueError, match="Markdown destination"):
+        render_event_line(editorial_event(publication_url=destination))
+
+
 def test_render_event_line_supports_compact_time_range() -> None:
     line = render_event_line(editorial_event(display_end_time="20:00", display_time="6-8p"))
 

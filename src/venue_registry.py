@@ -8,6 +8,8 @@ from pathlib import Path
 import re
 from typing import Any, Iterable
 
+from src.url_canonicalizer import validate_public_http_url
+
 
 _SPACE_RE = re.compile(r"\s+")
 _NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
@@ -44,6 +46,11 @@ class VenueRecord:
     suppress_display_city: bool = False
     short_name: str | None = None
     parent_display_name: str | None = None
+
+    def __post_init__(self) -> None:
+        for field_name, value in (("website", self.website), ("display_url", self.display_url)):
+            if value:
+                validate_public_http_url(value, field=f"venue {self.venue_name!r} {field_name}")
 
     @property
     def canonical_name(self) -> str:
