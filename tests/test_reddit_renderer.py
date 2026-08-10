@@ -69,6 +69,11 @@ def test_final_artifact_rejects_malformed_markdown_destinations(destination: str
         render_event_line(editorial_event(publication_url=destination))
 
 
+def test_final_artifact_rejects_empty_markdown_label() -> None:
+    with pytest.raises(ValueError, match="Markdown link label is empty"):
+        render_event_line(editorial_event(display_venue=""))
+
+
 def test_render_event_line_supports_compact_time_range() -> None:
     line = render_event_line(editorial_event(display_end_time="20:00", display_time="6-8p"))
 

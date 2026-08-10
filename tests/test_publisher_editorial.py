@@ -117,6 +117,69 @@ def test_missing_category_routes_to_review():
     assert result.editorial_reason == "missing_or_unknown_category"
 
 
+def test_empty_post_presentation_venue_routes_to_explicit_review():
+    result = apply_editorial_rules(
+        make_event(venue="Richland, Washington", city="Richland", category="Music/Comedy")
+    )
+
+    assert result.display_venue == ""
+    assert result.publication_disposition == "REVIEW"
+    assert result.editorial_reason == "missing_venue"
+
+
+def test_facebook_share_external_url_falls_back_to_stable_source_with_audit_reason():
+    result = apply_editorial_rules(
+        make_event(
+            title="Sip & Sing",
+            source_url="https://www.visittri-cities.com/sip-sing/",
+            external_url="https://www.facebook.com/share/1EgaqDHA6R/",
+        )
+    )
+
+    assert result.publication_url == "https://www.visittri-cities.com/sip-sing/"
+    assert result.publication_url_reason == "external_facebook_share_rejected_source_fallback"
+    assert result.publication_disposition == "AUTO_PUBLISH"
+
+
+def test_facebook_share_without_stable_source_routes_to_review():
+    result = apply_editorial_rules(
+        make_event(
+            external_url="https://www.facebook.com/share/1EgaqDHA6R/",
+            source_url="https://www.facebook.com/share/source/",
+        )
+    )
+
+    assert result.publication_disposition == "REVIEW"
+    assert result.editorial_reason == "invalid_publication_url"
+
+
+def test_invalid_authoritative_display_url_cannot_fall_back_to_source():
+    result = apply_editorial_rules(
+        make_event(
+            display_url="https://www.facebook.com/share/venue-record/",
+            source_url="https://source.example/stable-event",
+        )
+    )
+
+    assert result.publication_disposition == "REVIEW"
+    assert result.editorial_reason == "invalid_publication_url"
+    assert result.publication_url == "https://www.facebook.com/share/venue-record/"
+
+
+def test_conflicting_occurrence_blocker_survives_editorial_projection():
+    details = ({"source": "AllEvents", "reason": "conflicting_occurrence"},)
+    result = apply_editorial_rules(
+        make_event(
+            publication_blocker_reason="conflicting_occurrence",
+            publication_blocker_details=details,
+        )
+    )
+
+    assert result.publication_disposition == "REVIEW"
+    assert result.editorial_reason == "conflicting_occurrence"
+    assert result.publication_blocker_details == details
+
+
 def test_regional_event_routes_to_review():
     result = apply_editorial_rules(make_event(geographic_scope="REGIONAL_REVIEW"))
     assert result.publication_disposition == "REVIEW"

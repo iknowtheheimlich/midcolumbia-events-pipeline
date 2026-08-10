@@ -61,6 +61,11 @@ _EXPLICIT_END_RE = re.compile(
     r"(?P<hour>\d{1,2})(?::(?P<minute>\d{2}))?\s*(?P<meridiem>a\.?m\.?|p\.?m\.?)\b",
     re.IGNORECASE,
 )
+_EXPLICIT_OPEN_ENDED_START_RE = re.compile(
+    r"(?<!\d)(?P<hour>\d{1,2})(?::(?P<minute>\d{2}))?\s*"
+    r"(?P<meridiem>a\.?m\.?|p\.?m\.?)\s*(?:[-\u2013\u2014â€“â€”]|to)\s*(?:close|onward)\b",
+    re.IGNORECASE,
+)
 
 CITY_QUERIES: tuple[dict[str, str], ...] = (
     {"city": "Kennewick", "latitude": "46.2086683", "longitude": "-119.1199480"},
@@ -213,15 +218,21 @@ def normalize_api_event(row: dict[str, Any]) -> CanonicalEvent | None:
         start, end = explicit_times
         time_reason = end_reason = "description_explicit_time_range"
     else:
-        start, time_reason = _api_datetime(row, "start_time", title)
-        if start is None:
-            return None
-        end, end_reason = _api_datetime(
-            row,
-            "end_time",
-            title,
-            force_wall_clock=time_reason == "wall_clock_epoch_repaired",
-        )
+        explicit_start = _explicit_open_ended_description_start(row)
+        if explicit_start is not None:
+            start = explicit_start
+            end = None
+            time_reason = end_reason = "description_explicit_open_ended_start"
+        else:
+            start, time_reason = _api_datetime(row, "start_time", title)
+            if start is None:
+                return None
+            end, end_reason = _api_datetime(
+                row,
+                "end_time",
+                title,
+                force_wall_clock=time_reason == "wall_clock_epoch_repaired",
+            )
 
     venue_data = row.get("venue") if isinstance(row.get("venue"), dict) else {}
     venue = _clean(venue_data.get("venue") or row.get("location")) or "Online"
@@ -306,6 +317,25 @@ def _explicit_description_times(row: dict[str, Any]) -> tuple[datetime, datetime
     if end <= start:
         end += timedelta(days=1)
     return start, end
+
+
+def _explicit_open_ended_description_start(row: dict[str, Any]) -> datetime | None:
+    description = _clean_description(row.get("description")) or ""
+    if not description or _OVERNIGHT_CUE_RE.search(description):
+        return None
+    match = _EXPLICIT_OPEN_ENDED_START_RE.search(description)
+    if not match:
+        return None
+    try:
+        stamp = int(str(row.get("start_time")))
+    except (TypeError, ValueError):
+        return None
+    offset = _timezone_offset(row.get("timezone"), stamp)
+    event_date = datetime.fromtimestamp(stamp, timezone.utc).date()
+    return datetime.combine(event_date, datetime.min.time(), tzinfo=offset).replace(
+        hour=_hour24(int(match.group("hour")), match.group("meridiem")),
+        minute=int(match.group("minute") or 0),
+    )
 
 
 def _hour24(hour: int, meridiem: str) -> int:

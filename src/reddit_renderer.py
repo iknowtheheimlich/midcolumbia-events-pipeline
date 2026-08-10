@@ -206,6 +206,8 @@ def _shared_credit_parts(occurrences: Sequence[ProgramOccurrence]) -> list[str]:
 
 
 def _markdown_link(label: str, url: str) -> str:
+    if not label.strip():
+        raise ValueError("Markdown link label is empty")
     validate_public_http_url(url, field=f"Markdown destination for {label!r}")
     clean_label = label.replace("[", "\\[").replace("]", "\\]")
     clean_url = url.replace(" ", "%20").replace(")", "%29")

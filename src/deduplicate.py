@@ -118,6 +118,7 @@ def merge_group(group: list[dict[str, Any]]) -> dict[str, Any]:
     primary["sources"] = sources
     primary["source_urls"] = urls
     primary["duplicate_count"] = len(group)
+    primary["dedupe_provenance"] = [summarize_source_event(event) for event in group]
     return primary
 
 
@@ -130,6 +131,8 @@ def summarize_source_event(event: dict[str, Any]) -> dict[str, Any]:
         "venue": event.get("venue"),
         "start_date": event.get("start_date"),
         "start_time": event.get("start_time"),
+        "end_time": event.get("end_time"),
+        "source_event_id": event.get("source_event_id"),
         "completeness_percent": event.get("completeness_percent"),
     }
 

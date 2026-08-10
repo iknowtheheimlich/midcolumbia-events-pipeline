@@ -1,6 +1,11 @@
 import pytest
 
-from src.url_canonicalizer import canonicalize_url, canonicalize_urls, validate_public_http_url
+from src.url_canonicalizer import (
+    canonicalize_url,
+    canonicalize_urls,
+    is_facebook_share_url,
+    validate_public_http_url,
+)
 
 
 def test_strips_tracking_and_fragment_without_shortening_domain() -> None:
@@ -46,4 +51,31 @@ def test_rejects_malformed_public_destinations(value: str) -> None:
     ],
 )
 def test_accepts_ordinary_public_destinations(value: str) -> None:
+    assert validate_public_http_url(value) == value
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "https://www.facebook.com/share/1EgaqDHA6R/",
+        "https://facebook.com/sharer.php?u=https%3A%2F%2Fexample.com",
+        "https://m.facebook.com/share.php?u=https%3A%2F%2Fexample.com",
+    ],
+)
+def test_rejects_facebook_share_and_redirect_destinations(value: str) -> None:
+    assert is_facebook_share_url(value)
+    with pytest.raises(ValueError, match="share/redirect"):
+        validate_public_http_url(value)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "https://www.facebook.com/events/123456789/",
+        "https://www.facebook.com/p/Iconic-Brewing-100063920740478/",
+        "https://www.facebook.com/iconicbrewing/",
+    ],
+)
+def test_accepts_direct_facebook_destinations(value: str) -> None:
+    assert not is_facebook_share_url(value)
     assert validate_public_http_url(value) == value

@@ -10,6 +10,7 @@ from src.editorial_style import derive_display_fields
 from src.intelligence import attach_intelligence, normalize_intelligence
 from src.publisher_projection import PublisherEvent
 from src.publishing_contract import PublishingProfile, format_compact_range
+from src.url_canonicalizer import is_facebook_share_url, validate_public_http_url
 
 _SPACE_RE = re.compile(r"\s+")
 VENUE_ALIASES = {
@@ -58,11 +59,14 @@ class EditorialEvent:
     display_organization_url: str | None = None
     display_artist: str | None = None
     display_artist_url: str | None = None
+    publication_url_reason: str | None = None
+    publication_blocker_details: tuple[dict[str, Any], ...] = ()
     intelligence: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["duplicate_sources"] = list(self.duplicate_sources)
+        payload["publication_blocker_details"] = list(self.publication_blocker_details)
         return payload
 
 
@@ -79,7 +83,13 @@ def apply_editorial_rules(event: PublisherEvent, profile: PublishingProfile | No
     publication_target = active_profile.publication_target(
         semantic_category, getattr(event, "publication_target", None)
     )
-    disposition, reason = _publication_disposition(event, publication_target)
+    publication_url, publication_url_reason, url_blocker = _publication_url(event)
+    disposition, reason = _publication_disposition(
+        event,
+        publication_target,
+        display_venue=display_venue,
+        url_blocker=url_blocker,
+    )
     explanation = attach_intelligence(
         {"intelligence": normalize_intelligence(event.intelligence)},
         "display_style",
@@ -104,7 +114,7 @@ def apply_editorial_rules(event: PublisherEvent, profile: PublishingProfile | No
         display_venue=display_venue,
         display_city=display_city,
         display_organization=display_organization,
-        publication_url=_publication_url(event),
+        publication_url=publication_url,
         publication_disposition=disposition,
         editorial_reason=reason,
         publication_target=publication_target,
@@ -128,6 +138,8 @@ def apply_editorial_rules(event: PublisherEvent, profile: PublishingProfile | No
         display_organization_url=event.organization_url if display_organization else None,
         display_artist=_clean_optional(event.artist),
         display_artist_url=event.artist_url,
+        publication_url_reason=publication_url_reason,
+        publication_blocker_details=event.publication_blocker_details,
         intelligence=explanation,
     )
 
@@ -157,10 +169,22 @@ def community_events(events: Iterable[EditorialEvent]) -> list[EditorialEvent]:
     return [event for event in events if event.publication_disposition == "AUTO_PUBLISH" and event.publication_target in {"COMMUNITY", "BOTH"}]
 
 
-def _publication_disposition(event: PublisherEvent, publication_target: str) -> tuple[str, str | None]:
+def _publication_disposition(
+    event: PublisherEvent,
+    publication_target: str,
+    *,
+    display_venue: str,
+    url_blocker: str | None,
+) -> tuple[str, str | None]:
     classification = (event.content_classification or "EVENT").upper()
     if event.content_rejection_reason or classification != "EVENT":
         return "REJECT", event.content_rejection_reason or f"content_{classification.casefold()}"
+    if event.publication_blocker_reason:
+        return "REVIEW", event.publication_blocker_reason
+    if not display_venue.strip():
+        return "REVIEW", "missing_venue"
+    if url_blocker:
+        return "REVIEW", url_blocker
     if publication_target == "SUPPRESS":
         return "REJECT", "publication_suppressed"
     if publication_target == "REVIEW":
@@ -176,11 +200,30 @@ def _publication_disposition(event: PublisherEvent, publication_target: str) -> 
     return "REVIEW", "unknown_geographic_scope"
 
 
-def _publication_url(event: PublisherEvent) -> str:
-    for value in (event.display_url, event.external_url, event.eventbrite_url, event.source_url):
-        if value and value.strip():
-            return value.strip()
-    return event.source_url
+def _publication_url(event: PublisherEvent) -> tuple[str, str | None, str | None]:
+    candidates = (
+        ("display_url", event.display_url),
+        ("external_url", event.external_url),
+        ("eventbrite_url", event.eventbrite_url),
+        ("source_url", event.source_url),
+    )
+    for field, value in candidates:
+        text = str(value or "").strip()
+        if not text:
+            continue
+        try:
+            validate_public_http_url(text, field=field)
+        except ValueError:
+            if field == "external_url" and is_facebook_share_url(text):
+                source = str(event.source_url or "").strip()
+                try:
+                    validate_public_http_url(source, field="source_url")
+                except ValueError:
+                    return text, None, "invalid_publication_url"
+                return source, "external_facebook_share_rejected_source_fallback", None
+            return text, None, "invalid_publication_url"
+        return text, field, None
+    return event.source_url, None, "invalid_publication_url"
 
 
 def _display_venue(event: PublisherEvent, city: str) -> str:

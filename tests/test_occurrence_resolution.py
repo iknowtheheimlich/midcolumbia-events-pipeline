@@ -57,6 +57,101 @@ def test_does_not_merge_legitimate_different_session_times() -> None:
     )
 
     assert len(result.events) == 2
+    assert all(item["publication_blocker_reason"] == "conflicting_occurrence" for item in result.events)
+
+
+def test_conflicting_occurrence_quarantines_every_member_with_complete_provenance() -> None:
+    result = resolve_occurrences(
+        [
+            event(
+                source="NotionWeekly",
+                source_event_id="weekly-sports-page",
+                url="https://sportspagewa.com/",
+                start_time="19:00",
+                end_time="21:00",
+            ),
+            event(
+                source="AllEvents",
+                source_event_id="200030515871259",
+                url="https://allevents.in/kennewick/event/200030515871259",
+                start_time="12:00",
+                end_time="14:00",
+            ),
+        ]
+    )
+
+    assert len(result.events) == 2
+    assert result.groups[-1]["kind"] == "conflicting_occurrence"
+    details = result.events[0]["publication_blocker_details"]
+    assert {item["source"] for item in details} == {"NotionWeekly", "AllEvents"}
+    assert {item["source_event_id"] for item in details} == {
+        "weekly-sports-page",
+        "200030515871259",
+    }
+    assert {item["source_url"] for item in details} == {
+        "https://sportspagewa.com/",
+        "https://allevents.in/kennewick/event/200030515871259",
+    }
+    assert {item["start_time"] for item in details} == {"19:00", "12:00"}
+    assert all(item["reason"] == "conflicting_occurrence" for item in details)
+
+
+def test_strongly_contained_title_with_conflicting_time_is_quarantined() -> None:
+    result = resolve_occurrences(
+        [
+            event(title="Neon Interstate", start_time="19:00"),
+            event(
+                title="Neon Interstate Live at Iconic Brewing",
+                source="AllEvents",
+                url="https://allevents.example/neon",
+                start_time="12:00",
+            ),
+        ]
+    )
+
+    assert len(result.events) == 2
+    assert all(item["publication_blocker_reason"] == "conflicting_occurrence" for item in result.events)
+
+
+def test_overlapping_concert_roster_with_conflicting_time_is_quarantined() -> None:
+    result = resolve_occurrences(
+        [
+            event(
+                title=(
+                    "Los Rieleros Del Norte, Voz De Mando, Banda Rancho Viejo De Julio "
+                    "Aramburo La Bandononona, Banda Zeta, Banda Pequeños Musical in Pasco"
+                ),
+                start_time="08:00",
+            ),
+            event(
+                title="Pequenos Musical Los Rieleros Del Norte & Voz de Mando",
+                source="AllEvents",
+                source_event_id="2300030372129110",
+                url="https://allevents.in/pasco/event/2300030372129110",
+                start_time="12:00",
+            ),
+        ]
+    )
+
+    assert len(result.events) == 2
+    assert all(item["publication_blocker_reason"] == "conflicting_occurrence" for item in result.events)
+
+
+def test_different_same_venue_events_remain_publishable_and_separate() -> None:
+    result = resolve_occurrences(
+        [
+            event(title="Jazz Jams", start_time="18:00"),
+            event(
+                title="Comedy Showcase",
+                source="TriCityVibe",
+                url="https://vibe.example/comedy",
+                start_time="20:00",
+            ),
+        ]
+    )
+
+    assert len(result.events) == 2
+    assert all(not item.get("publication_blocker_reason") for item in result.events)
 
 
 def test_does_not_merge_same_title_at_different_venues() -> None:

@@ -26,6 +26,19 @@ _HOST_ALIASES = {
 }
 _SCHEME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
 _EMBEDDED_WEB_SCHEME_RE = re.compile(r"https?://", re.IGNORECASE)
+_FACEBOOK_SHARE_PATH_RE = re.compile(r"^/(?:share(?:/|$)|sharer(?:\.php)?(?:/|$)|share\.php(?:/|$))", re.IGNORECASE)
+
+
+def is_facebook_share_url(value: str | None) -> bool:
+    """Return whether a URL is a Facebook share/redirect destination."""
+    text = str(value or "").strip()
+    if not text:
+        return False
+    parsed = urlsplit(text)
+    host = (parsed.hostname or "").casefold()
+    return host in {"facebook.com", "www.facebook.com", "m.facebook.com"} and bool(
+        _FACEBOOK_SHARE_PATH_RE.match(parsed.path or "/")
+    )
 
 
 def validate_public_http_url(value: str | None, *, field: str = "URL") -> str:
@@ -43,6 +56,8 @@ def validate_public_http_url(value: str | None, *, field: str = "URL") -> str:
         raise ValueError(f"{field} is not a valid HTTP(S) URL: {text!r}")
     if "." not in parsed.hostname:
         raise ValueError(f"{field} hostname is not a public domain: {parsed.hostname!r}")
+    if is_facebook_share_url(text):
+        raise ValueError(f"{field} is a Facebook share/redirect destination: {text!r}")
     try:
         parsed.port
     except ValueError as exc:

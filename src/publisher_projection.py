@@ -64,12 +64,15 @@ class PublisherEvent:
     organization_url: str | None = None
     artist: str | None = None
     artist_url: str | None = None
+    publication_blocker_reason: str | None = None
+    publication_blocker_details: tuple[dict[str, Any], ...] = ()
     intelligence: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["source_urls"] = list(self.source_urls)
         payload["duplicate_sources"] = list(self.duplicate_sources)
+        payload["publication_blocker_details"] = list(self.publication_blocker_details)
         return payload
 
 
@@ -132,6 +135,8 @@ def project_event(event: dict[str, Any]) -> PublisherEvent:
         organization_url=_optional_text(event.get("organization_url")),
         artist=_first_text(event, "artist_registry_name", "artist", "performer"),
         artist_url=_optional_text(event.get("artist_url")),
+        publication_blocker_reason=_optional_text(event.get("publication_blocker_reason")),
+        publication_blocker_details=tuple(event.get("publication_blocker_details") or ()),
         intelligence=normalize_intelligence(event.get("intelligence")),
     )
 

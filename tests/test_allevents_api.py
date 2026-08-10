@@ -212,6 +212,39 @@ def test_description_range_overrides_conflicting_epoch():
     assert event["source_time_reason"] == "description_explicit_time_range"
 
 
+@pytest.mark.parametrize(
+    "description",
+    [
+        "A Quiet Life performs Friday. 9 PM - Close.",
+        "People Our Age Suck takes the stage at 9 PM – Close.",
+    ],
+)
+def test_explicit_open_ended_description_time_overrides_conflicting_epoch(description: str):
+    event = normalize_api_event(
+        _row(
+            event_id="200030492623509",
+            start_time="1786750800",
+            end_time="1786754400",
+            description=description,
+        )
+    )
+
+    assert event is not None
+    assert event["start_time"] == "21:00"
+    assert event.get("end_time") is None
+    assert event["source_time_reason"] == "description_explicit_open_ended_start"
+
+
+def test_vague_description_does_not_override_api_epoch():
+    event = normalize_api_event(
+        _row(description="Live music throughout the evening.")
+    )
+
+    assert event is not None
+    assert event["start_time"] == "11:00"
+    assert event["source_time_reason"] == "utc_epoch_converted"
+
+
 def test_description_start_and_end_cues_override_conflicting_epoch():
     event = normalize_api_event(
         _row(

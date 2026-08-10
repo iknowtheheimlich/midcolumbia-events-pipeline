@@ -107,7 +107,119 @@ def resolve_occurrences(events: Iterable[dict[str, Any]]) -> OccurrenceResolutio
                 }
             )
 
+    conflict_groups = _mark_conflicting_occurrences(output)
+    groups.extend(conflict_groups)
     return OccurrenceResolutionResult(events=output, groups=groups, skipped_low_quality=skipped)
+
+
+def _mark_conflicting_occurrences(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Quarantine likely duplicate occurrences carrying materially different times."""
+    parents = list(range(len(events)))
+
+    def find(index: int) -> int:
+        while parents[index] != index:
+            parents[index] = parents[parents[index]]
+            index = parents[index]
+        return index
+
+    def union(left: int, right: int) -> None:
+        a, b = find(left), find(right)
+        if a != b:
+            parents[b] = a
+
+    for left in range(len(events)):
+        for right in range(left + 1, len(events)):
+            if _is_conflicting_pair(events[left], events[right]):
+                union(left, right)
+
+    cohorts: dict[int, list[int]] = {}
+    for index in range(len(events)):
+        cohorts.setdefault(find(index), []).append(index)
+
+    groups: list[dict[str, Any]] = []
+    for indexes in cohorts.values():
+        if len(indexes) < 2:
+            continue
+        details = tuple(
+            detail
+            for index in indexes
+            for detail in _conflict_details(events[index])
+        )
+        reason = "same_date+same_canonical_venue+similar_title+conflicting_start_time"
+        for index in indexes:
+            events[index]["publication_blocker_reason"] = "conflicting_occurrence"
+            events[index]["publication_blocker_details"] = list(details)
+            add_decision(
+                events[index],
+                "occurrence_conflict",
+                {"cohort_size": len(indexes)},
+                1.0,
+                reason,
+            )
+        groups.append(
+            {
+                "kind": "conflicting_occurrence",
+                "canonical_title": events[indexes[0]].get("title"),
+                "confidence": 1.0,
+                "reason": reason,
+                "source_events": list(details),
+            }
+        )
+    return groups
+
+
+def _is_conflicting_pair(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    if normalize_text(left.get("start_date")) != normalize_text(right.get("start_date")):
+        return False
+    if not _venue_match_reason(left, right):
+        return False
+    delta = _time_delta_minutes(left.get("start_time"), right.get("start_time"))
+    if delta is None or delta <= 10:
+        return False
+    title_score, _ = _title_similarity(left, right)
+    return title_score >= 0.92 or _strong_title_containment(left, right)
+
+
+def _strong_title_containment(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    """Recognize a substantial shared title core without choosing a time authority."""
+    a = set(_WORD_RE.findall(_identity_title(normalize_text(left.get("title")), left)))
+    b = set(_WORD_RE.findall(_identity_title(normalize_text(right.get("title")), right)))
+    if min(len(a), len(b)) < 3:
+        return False
+    overlap = len(a & b)
+    return overlap >= 3 and overlap / min(len(a), len(b)) >= 0.75
+
+
+def _conflict_details(event: dict[str, Any]) -> list[dict[str, Any]]:
+    provenance = event.get("occurrence_provenance") or event.get("dedupe_provenance") or [event]
+    identity = _venue_identity(event)
+    details: list[dict[str, Any]] = []
+    for item in provenance:
+        title = str(item.get("title") or event.get("title") or "")
+        details.append(
+            {
+                "source": item.get("source") or event.get("source"),
+                "source_event_id": item.get("source_event_id") or event.get("source_event_id"),
+                "source_url": item.get("url") or event.get("url"),
+                "title": title,
+                "normalized_title": _identity_title(normalize_text(title), event),
+                "start_date": item.get("start_date") or event.get("start_date"),
+                "start_time": item.get("start_time") or event.get("start_time"),
+                "end_time": item.get("end_time") or event.get("end_time"),
+                "venue": item.get("venue") or event.get("venue"),
+                "venue_identity": identity,
+                "reason": "conflicting_occurrence",
+            }
+        )
+    return details
+
+
+def _venue_identity(event: dict[str, Any]) -> str:
+    ids = sorted(_venue_ids(event))
+    if ids:
+        return f"venue_id:{ids[0]}"
+    names = sorted(_venue_names(event))
+    return f"venue_name:{names[0]}" if names else "venue_unknown"
 
 
 def compare_occurrences(left: dict[str, Any], right: dict[str, Any]) -> OccurrenceEvidence:
@@ -179,7 +291,11 @@ def _merge_cluster(group: list[dict[str, Any]], evidence: OccurrenceEvidence | N
         for url in sorted(_urls(event)):
             if url not in urls:
                 urls.append(url)
-        provenance.extend(event.get("occurrence_provenance") or [_summarize(event)])
+        provenance.extend(
+            event.get("occurrence_provenance")
+            or event.get("dedupe_provenance")
+            or [_summarize(event)]
+        )
 
     merged["sources"] = sources
     merged["duplicate_sources"] = sources
@@ -334,9 +450,11 @@ def _summarize(event: dict[str, Any]) -> dict[str, Any]:
     return {
         "title": event.get("title"),
         "source": event.get("source"),
+        "source_event_id": event.get("source_event_id"),
         "url": event.get("url"),
         "venue": event.get("venue"),
         "venue_id": event.get("venue_id"),
         "start_date": event.get("start_date"),
         "start_time": event.get("start_time"),
+        "end_time": event.get("end_time"),
     }
