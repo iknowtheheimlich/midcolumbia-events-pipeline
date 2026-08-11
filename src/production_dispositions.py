@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
+from src.geography import enrich_event_geography
 from src.intelligence import attach_intelligence
 
 
@@ -48,6 +49,9 @@ class ProductionDispositions:
                         copied["title"] = disposition["title"]
                     copied["start_time"] = disposition["start_time"]
                     copied["end_time"] = disposition.get("end_time")
+                    geography_correction = disposition.get("geography_correction")
+                    if geography_correction:
+                        copied = _apply_geography_correction(copied, geography_correction)
                     copied["production_disposition_cohort"] = disposition["cohort"]
                 else:
                     copied["captain_disposition"] = "EXCLUDE"
@@ -171,3 +175,36 @@ def _clean(value: Any) -> str:
 
 def _identity(event: Mapping[str, Any]) -> str:
     return f"{event.get('source')}:{event.get('source_event_id')}:{event.get('title')}"
+
+
+def _apply_geography_correction(
+    event: dict[str, Any], correction: Mapping[str, Any]
+) -> dict[str, Any]:
+    required = {"venue", "city", "state", "evidence_basis"}
+    missing = sorted(field for field in required if not _clean(correction.get(field)))
+    if missing:
+        raise ValueError(f"Captain geography correction missing fields: {missing}")
+
+    copied = dict(event)
+    copied["venue"] = str(correction["venue"]).strip()
+    copied["city"] = str(correction["city"]).strip()
+    copied["state"] = str(correction["state"]).strip()
+    copied["display_venue"] = copied["venue"]
+    copied["display_city"] = copied["city"]
+    copied["venue_presentation_reason"] = "captain_corrected_preserved_event_description"
+    copied = enrich_event_geography(copied)
+    copied = attach_intelligence(
+        copied,
+        "captain_geography_correction",
+        {
+            "venue": copied["venue"],
+            "city": copied["city"],
+            "state": copied["state"],
+            "evidence_basis": str(correction["evidence_basis"]).strip(),
+            "resulting_region": copied["geo_region"],
+            "resulting_scope": copied["geo_scope"],
+        },
+        1.0,
+        "captain_approved_event_description_geography",
+    )
+    return copied

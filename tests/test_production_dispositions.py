@@ -33,7 +33,7 @@ def test_mc_2026_033_disposition_manifest_covers_all_conflict_cohorts_and_exclus
 
     assert dispositions is not None
     assert dispositions.mission_id == "MC-2026-033"
-    assert len(dispositions.resolutions) == 15
+    assert len(dispositions.resolutions) == 16
     assert len(dispositions.exclusions) == 4
     selector_ids = {
         selector.get("source_event_id")
@@ -63,6 +63,75 @@ def test_mc_2026_033_disposition_manifest_covers_all_conflict_cohorts_and_exclus
     assert (artlab["start_time"], artlab["end_time"]) == ("13:00", "15:00")
     night_hawks = next(cohort for cohort in dispositions.resolutions if cohort["cohort"].startswith("The Night Hawks"))
     assert night_hawks["title"] == "The Night Hawks"
+
+
+def test_shinedown_geography_correction_uses_preserved_description_and_normal_policy() -> None:
+    configured = ProductionDispositions.load("2026-08-10", DEFAULT_PRODUCTION_DISPOSITIONS_PATH)
+    assert configured is not None
+    shinedown = next(
+        cohort
+        for cohort in configured.resolutions
+        if cohort["cohort"].startswith("Shinedown: Dance, Kid, Dance Act II Tour")
+    )
+    dispositions = ProductionDispositions(
+        configured.mission_id, configured.week_start, (shinedown,), ()
+    )
+    raw = {
+        **_event(
+            "AllEvents",
+            "200030090187451",
+            start_time="19:00",
+            title="Shinedown: Dance, Kid, Dance Act II Tour",
+        ),
+        "start_date": "2026-08-14",
+        "venue": "Spokane, Wa",
+        "city": "Kennewick",
+        "address": "Spokane, Wa, Kennewick, Washington, United States",
+        "latitude": "46.197710847525",
+        "longitude": "-119.20688577007",
+        "description": (
+            "Shinedown, Coheed and Cambria & From Ashes To New\n"
+            "Venue: Numerica Veterans Arena\nSpokane, WA\n"
+            "Date: 14 Aug, 2026 - 07:00 PM"
+        ),
+        "url": "https://allevents.in/kennewick/event/200030090187451",
+    }
+
+    corrected = dispositions.apply([raw])[0]
+    editorial = apply_editorial_rules(project_event(corrected))
+
+    assert raw["venue"] == "Spokane, Wa"
+    assert raw["city"] == "Kennewick"
+    assert corrected["venue"] == "Numerica Veterans Arena"
+    assert corrected["city"] == "Spokane"
+    assert corrected["state"] == "WA"
+    assert corrected["geo_region"] == "SPOKANE"
+    assert corrected["geo_scope"] == "OUT_OF_AREA"
+    assert corrected["url"] == raw["url"]
+    assert editorial.display_venue == "Numerica Veterans Arena"
+    assert editorial.display_city == "Spokane"
+    assert editorial.publication_disposition == "REJECT"
+    assert editorial.editorial_reason == "out_of_area"
+    assert editorial.editorial_reason in COMPLETED_REJECTION_REASONS
+    assert main_events([editorial]) == []
+    assert community_events([editorial]) == []
+    assert editorial.editorial_reason != "conflicting_locality_presentation"
+    audit = editorial.intelligence["captain_geography_correction"]
+    assert audit["reason"] == "captain_approved_event_description_geography"
+    assert audit["value"]["evidence_basis"].startswith(
+        "The preserved event description explicitly names Numerica Veterans Arena"
+    )
+    assert audit["value"]["resulting_scope"] == "OUT_OF_AREA"
+
+
+def test_unrelated_locality_conflict_still_routes_to_review() -> None:
+    event = _event("OtherSource", "other", start_time="19:00")
+    event.update({"venue": "Finley, Washington", "city": "Burbank"})
+
+    editorial = apply_editorial_rules(project_event(event))
+
+    assert editorial.publication_disposition == "REVIEW"
+    assert editorial.editorial_reason == "conflicting_locality_presentation"
 
 
 def test_sports_page_external_authority_resolves_to_one_supported_occurrence() -> None:
