@@ -60,6 +60,45 @@ def test_does_not_merge_legitimate_different_session_times() -> None:
     assert all(item["publication_blocker_reason"] == "conflicting_occurrence" for item in result.events)
 
 
+def test_explicit_non_overlapping_age_cohorts_are_distinct_sessions() -> None:
+    result = resolve_occurrences(
+        [
+            event(
+                title="Teen Yoga Trapeze Summer Camp (Ages 11-14)",
+                start_time="12:30",
+            ),
+            event(
+                title="Teen Yoga Trapeze Summer Camp (Ages 15-18)",
+                start_time="15:00",
+                source="AllEvents",
+                source_event_id="older-teens",
+                url="https://example.com/older-teens",
+            ),
+        ]
+    )
+
+    assert len(result.events) == 2
+    assert result.groups == []
+    assert all(not item.get("publication_blocker_reason") for item in result.events)
+
+
+def test_overlapping_age_cohorts_keep_conflict_protection() -> None:
+    result = resolve_occurrences(
+        [
+            event(title="Teen Yoga Trapeze Summer Camp (Ages 11-15)", start_time="12:30"),
+            event(
+                title="Teen Yoga Trapeze Summer Camp (Ages 15-18)",
+                start_time="15:00",
+                source="AllEvents",
+                url="https://example.com/older-teens",
+            ),
+        ]
+    )
+
+    assert len(result.events) == 2
+    assert all(item["publication_blocker_reason"] == "conflicting_occurrence" for item in result.events)
+
+
 def test_conflicting_occurrence_quarantines_every_member_with_complete_provenance() -> None:
     result = resolve_occurrences(
         [

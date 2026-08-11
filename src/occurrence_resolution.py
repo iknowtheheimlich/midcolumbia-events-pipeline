@@ -178,8 +178,30 @@ def _is_conflicting_pair(left: dict[str, Any], right: dict[str, Any]) -> bool:
     delta = _time_delta_minutes(left.get("start_time"), right.get("start_time"))
     if delta is None or delta <= 10:
         return False
+    if _explicit_non_overlapping_age_cohorts(left, right):
+        return False
     title_score, _ = _title_similarity(left, right)
     return title_score >= 0.92 or _strong_title_containment(left, right)
+
+
+_AGE_COHORT_RE = re.compile(r"\bages?\s*(\d{1,2})\s*[-\N{EN DASH}\N{EM DASH}]\s*(\d{1,2})\b", re.IGNORECASE)
+
+
+def _explicit_non_overlapping_age_cohorts(
+    left: dict[str, Any], right: dict[str, Any]
+) -> bool:
+    """Keep explicitly disjoint age sessions from becoming a time conflict."""
+    ranges: list[tuple[int, int]] = []
+    for event in (left, right):
+        match = _AGE_COHORT_RE.search(str(event.get("title") or ""))
+        if not match:
+            return False
+        lower, upper = (int(value) for value in match.groups())
+        if lower > upper:
+            return False
+        ranges.append((lower, upper))
+    left_range, right_range = ranges
+    return left_range[1] < right_range[0] or right_range[1] < left_range[0]
 
 
 def _is_completed_captain_exclusion(event: dict[str, Any]) -> bool:

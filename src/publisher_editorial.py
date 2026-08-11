@@ -13,6 +13,9 @@ from src.publishing_contract import PublishingProfile, format_compact_range
 from src.url_canonicalizer import is_facebook_share_url, strip_tracking_parameters, validate_public_http_url
 
 _SPACE_RE = re.compile(r"\s+")
+_VENUE_MARKDOWN_RE = re.compile(
+    r"^\[([^\]]+)\]\((https?://[^)]+)\)(?:\s*,\s*.*)?$", re.IGNORECASE
+)
 VENUE_ALIASES = {
     "mid-columbia libraries": "Mid-Columbia Library",
     "mid columbia libraries": "Mid-Columbia Library",
@@ -211,7 +214,9 @@ def _publication_disposition(
 
 
 def _publication_url(event: PublisherEvent) -> tuple[str, str | None, str | None]:
+    combo_url = _venue_combo_parts(event.venue_reddit_combo)[1]
     candidates = (
+        ("venue_reddit_combo", combo_url),
         ("display_url", event.display_url),
         ("external_url", event.external_url),
         ("eventbrite_url", event.eventbrite_url),
@@ -239,7 +244,8 @@ def _publication_url(event: PublisherEvent) -> tuple[str, str | None, str | None
 
 def _display_venue(event: PublisherEvent, city: str) -> str:
     if event.venue_reddit_combo:
-        return _clean_text(event.venue_reddit_combo)
+        combo_label, _ = _venue_combo_parts(event.venue_reddit_combo)
+        return combo_label or _clean_text(event.venue_reddit_combo)
     if event.display_venue:
         return _clean_text(event.display_venue)
     venue = _normalize_venue(event.venue)
@@ -255,6 +261,16 @@ def _display_venue(event: PublisherEvent, city: str) -> str:
         if venue.casefold() != parent.casefold():
             return f"{venue}, {parent}"
     return venue
+
+
+def _venue_combo_parts(value: str | None) -> tuple[str | None, str | None]:
+    text = _clean_optional(value)
+    if not text:
+        return None, None
+    match = _VENUE_MARKDOWN_RE.fullmatch(text)
+    if not match:
+        return None, None
+    return _clean_text(match.group(1)), match.group(2).strip()
 
 
 def _display_organization(event: PublisherEvent, display_venue: str) -> str | None:

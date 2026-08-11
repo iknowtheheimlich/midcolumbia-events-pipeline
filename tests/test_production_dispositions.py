@@ -28,7 +28,7 @@ def test_mc_2026_033_disposition_manifest_covers_all_conflict_cohorts_and_exclus
 
     assert dispositions is not None
     assert dispositions.mission_id == "MC-2026-033"
-    assert len(dispositions.resolutions) == 14
+    assert len(dispositions.resolutions) == 15
     assert len(dispositions.exclusions) == 3
     selector_ids = {
         selector.get("source_event_id")
@@ -46,12 +46,15 @@ def test_mc_2026_033_disposition_manifest_covers_all_conflict_cohorts_and_exclus
     # Ten corrected cohorts plus the deliberately excluded HAPO conflict account
     # for all eleven conflicting-occurrence cohorts from the Captain review.
     assert len(captain_conflicts) + 1 == 11
-    assert {cohort["cohort"] for cohort in dispositions.resolutions[10:]} == {
+    assert {cohort["cohort"] for cohort in dispositions.resolutions[10:14]} == {
         "Sip & Sing — Columbia Gardens — 2026-08-15",
         "Summer Market at Layered — 2026-08-15",
         "Groove Principal — Clover Island Concert Series — 2026-08-12",
         "Faith Martin and Casa Rosita Pop-Up — Hedges Family Estate — 2026-08-15",
     }
+    artlab = dispositions.resolutions[14]
+    assert artlab["cohort"] == "ArtLab for Kids — Richland Public Library — 2026-08-13"
+    assert (artlab["start_time"], artlab["end_time"]) == ("13:00", "15:00")
     night_hawks = next(cohort for cohort in dispositions.resolutions if cohort["cohort"].startswith("The Night Hawks"))
     assert night_hawks["title"] == "The Night Hawks"
 
@@ -207,6 +210,31 @@ def test_evidence_resolution_corrects_exact_records_before_occurrence_resolution
     assert not result.events[0].get("publication_blocker_reason")
 
 
+def test_artlab_preserved_evidence_resolves_exact_records_to_library_time() -> None:
+    configured = ProductionDispositions.load("2026-08-10", DEFAULT_PRODUCTION_DISPOSITIONS_PATH)
+    assert configured is not None
+    artlab = next(
+        cohort for cohort in configured.resolutions if cohort["cohort"].startswith("ArtLab for Kids")
+    )
+    dispositions = ProductionDispositions(
+        configured.mission_id, configured.week_start, (artlab,), ()
+    )
+
+    corrected = dispositions.apply([
+        _event("AllEvents", "200030538706203", start_time="06:00", title="ArtLab for Kids"),
+        _event("RichlandLibrary", "16753117", start_time="13:00", title="ArtLab for Kids"),
+    ])
+    result = resolve_occurrences(corrected)
+
+    assert len(result.events) == 1
+    assert result.events[0]["title"] == "ArtLab for Kids"
+    assert result.events[0]["start_time"] == "13:00"
+    assert result.events[0]["end_time"] == "15:00"
+    assert not result.events[0].get("publication_blocker_reason")
+    decision = result.events[0]["intelligence"]["captain_disposition"]
+    assert decision["reason"] == "launch_gate_resolved_preserved_first_party_evidence"
+
+
 def test_exact_disposition_cohort_consolidates_different_source_venue_presentations() -> None:
     dispositions = ProductionDispositions(
         "MC-2026-033",
@@ -245,7 +273,7 @@ def test_mc_2026_033_acceptance_duplicate_cohorts_each_resolve_once() -> None:
     dispositions = ProductionDispositions(
         configured.mission_id,
         configured.week_start,
-        configured.resolutions[10:],
+        configured.resolutions[10:14],
         (),
     )
     records = [

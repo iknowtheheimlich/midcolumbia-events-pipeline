@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import date, datetime
 from pathlib import Path
+import re
 from typing import Iterable, Sequence, TypeAlias
 
 from src.program_intelligence import EditorialProgram, ProgramOccurrence
@@ -163,19 +164,21 @@ def _date_heading(value: str) -> str:
 
 
 def _render_location(event: EditorialEvent) -> str:
-    value = event.display_venue.strip()
-    if value.startswith("[") and "](" in value:
-        return value
+    value = _plain_venue_label(event.display_venue)
     venue = _markdown_link(value, event.publication_url)
     return f"{venue}, {event.display_city}" if event.display_city else venue
 
 
 def _render_occurrence_location(occurrence: ProgramOccurrence) -> str:
-    value = occurrence.display_venue.strip()
-    if value.startswith("[") and "](" in value:
-        return value
+    value = _plain_venue_label(occurrence.display_venue)
     venue = _markdown_link(value, occurrence.publication_url)
     return f"{venue}, {occurrence.display_city}" if occurrence.display_city else venue
+
+
+def _plain_venue_label(value: str) -> str:
+    text = value.strip()
+    match = re.fullmatch(r"\[([^\]]+)\]\([^)]+\)(?:\s*,\s*.*)?", text)
+    return match.group(1).strip() if match else text
 
 
 def _render_occurrence_summary(occurrence: ProgramOccurrence) -> str:

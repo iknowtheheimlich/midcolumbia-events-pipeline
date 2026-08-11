@@ -98,6 +98,35 @@ def test_tracking_parameter_is_removed_at_publication_url_boundary():
     assert result.publication_url == "https://www.roundtablepizza.com/"
 
 
+def test_round_table_notion_combo_is_canonicalized_at_publication_boundary():
+    result = apply_editorial_rules(
+        make_event(
+            display_url="https://fallback.example/venue",
+            venue_reddit_combo=(
+                "[Round Table Kennewick]"
+                "(https://www.roundtablepizza.com/?olonwp=JjBtp_vMLk25gkYh_bnoiQ), Kennewick"
+            ),
+        )
+    )
+
+    assert result.display_venue == "Round Table Kennewick"
+    assert result.publication_url == "https://www.roundtablepizza.com/"
+    assert result.publication_url_reason == "venue_reddit_combo"
+
+
+def test_venue_combo_preserves_functional_query_parameters():
+    result = apply_editorial_rules(
+        make_event(
+            venue_reddit_combo=(
+                "[Registration Venue]"
+                "(https://example.com/visit?location=kennewick&olonwp=opaque), Kennewick"
+            ),
+        )
+    )
+
+    assert result.publication_url == "https://example.com/visit?location=kennewick"
+
+
 def test_balanced_quoted_source_title_remains_balanced_after_cleanup():
     result = apply_editorial_rules(
         make_event(title='Wellness Workshop: "Avoiding Scams"')

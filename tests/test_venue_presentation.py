@@ -54,7 +54,7 @@ def test_goose_ridge_presentation_survives_editorial_layer() -> None:
     assert editorial.intelligence["venue_presentation"]["reason"] == "profile_rule"
 
 
-def test_notion_combo_remains_opaque_and_authoritative() -> None:
+def test_notion_combo_remains_authoritative_but_uses_publication_url_path() -> None:
     projected = project_event(
         event(
             venue="Mid-Columbia Libraries - Kennewick Branch",
@@ -67,7 +67,6 @@ def test_notion_combo_remains_opaque_and_authoritative() -> None:
     )
     editorial = apply_editorial_rules(projected)
 
-    assert editorial.display_venue == (
-        "[Kennewick Mid-Columbia Library]"
-        "(https://midcolumbialibraries.org/branch/kennewick), Kennewick"
-    )
+    assert editorial.display_venue == "Kennewick Mid-Columbia Library"
+    assert editorial.publication_url == "https://midcolumbialibraries.org/branch/kennewick"
+    assert editorial.publication_url_reason == "venue_reddit_combo"

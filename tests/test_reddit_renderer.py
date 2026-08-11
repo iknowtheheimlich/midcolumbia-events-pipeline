@@ -57,6 +57,24 @@ def test_render_event_line_preserves_reddit_contract() -> None:
     )
 
 
+def test_renderer_cannot_bypass_clean_publication_url_with_prelinked_venue() -> None:
+    line = render_event_line(
+        editorial_event(
+            display_venue=(
+                "[Round Table Kennewick]"
+                "(https://www.roundtablepizza.com/?olonwp=JjBtp_vMLk25gkYh_bnoiQ), Kennewick"
+            ),
+            publication_url="https://www.roundtablepizza.com/",
+        )
+    )
+
+    assert line == (
+        "Science Night | [Round Table Kennewick](https://www.roundtablepizza.com/), "
+        "Richland | 6p"
+    )
+    assert "olonwp" not in line
+
+
 @pytest.mark.parametrize(
     "destination",
     [
