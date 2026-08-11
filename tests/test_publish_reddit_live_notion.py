@@ -6,14 +6,24 @@ import pytest
 import tools.publish_reddit_live_notion as wrapper
 
 
-def test_wrapper_writes_nothing_when_initial_notion_query_aborts(
+@pytest.mark.parametrize(
+    "failure",
+    [
+        httpx.ConnectError("[Errno 11001] getaddrinfo failed"),
+        httpx.ReadError(
+            "[WinError 10054] An existing connection was forcibly closed by the remote host"
+        ),
+    ],
+)
+def test_wrapper_writes_nothing_when_notion_acquisition_aborts(
     monkeypatch: pytest.MonkeyPatch,
+    failure: Exception,
 ) -> None:
     temp_file_requested = False
     publisher_called = False
 
     def failed_query(*args, **kwargs):
-        raise httpx.ConnectError("[Errno 11001] getaddrinfo failed")
+        raise failure
 
     def unexpected_temp_file(*args, **kwargs):
         nonlocal temp_file_requested
@@ -31,7 +41,7 @@ def test_wrapper_writes_nothing_when_initial_notion_query_aborts(
     monkeypatch.setattr(wrapper, "publish_main", unexpected_publisher)
     monkeypatch.setattr(sys, "argv", ["publish_reddit_live_notion"])
 
-    with pytest.raises(httpx.ConnectError):
+    with pytest.raises(type(failure)):
         wrapper.main()
 
     assert temp_file_requested is False

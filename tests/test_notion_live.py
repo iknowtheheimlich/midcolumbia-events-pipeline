@@ -26,6 +26,20 @@ def _resolver_connect_error() -> httpx.ConnectError:
         return error
 
 
+def _connection_reset_read_error() -> httpx.ReadError:
+    try:
+        raise ConnectionResetError(
+            10054,
+            "An existing connection was forcibly closed by the remote host",
+        )
+    except ConnectionResetError as cause:
+        error = httpx.ReadError(
+            "[WinError 10054] An existing connection was forcibly closed by the remote host"
+        )
+        error.__cause__ = cause
+        return error
+
+
 def test_city_from_address_supports_state_zip_without_country() -> None:
     assert _city_from_address("530 Columbia Point Drive, Richland, WA 99352") == "Richland"
 
@@ -250,3 +264,138 @@ def test_resolver_failure_during_pagination_is_not_retried() -> None:
             fetch_live_weekly_rows("token", client=client)
 
     assert requests == 2
+
+
+def test_venue_connection_reset_retries_exact_request_once_and_recovers(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    venue_requests: list[str] = []
+    sleeps: list[float] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/query"):
+            page = {
+                "properties": {
+                    "Event Name": _title("Event"),
+                    "Weekly": {"type": "checkbox", "checkbox": True},
+                    "Generate This Week": {"type": "checkbox", "checkbox": True},
+                    "🌆 Ultimate Venues": {
+                        "type": "relation",
+                        "relation": [{"id": "venue-1"}],
+                    },
+                }
+            }
+            return httpx.Response(200, json={"results": [page], "has_more": False})
+        venue_requests.append(str(request.url))
+        if len(venue_requests) == 1:
+            raise _connection_reset_read_error()
+        return httpx.Response(200, json={"properties": {"Venue Name": _title("Venue")}})
+
+    monkeypatch.setattr(notion_live.time, "sleep", sleeps.append)
+    caplog.set_level(logging.WARNING, logger="src.notion_live")
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        rows = fetch_live_weekly_rows("token", client=client)
+
+    assert rows[0]["Venue Name"] == "Venue"
+    assert venue_requests == [
+        "https://api.notion.com/v1/pages/venue-1",
+        "https://api.notion.com/v1/pages/venue-1",
+    ]
+    assert sleeps == [1.0]
+    assert "notion_venue_fetch_connection_reset timestamp=" in caplog.text
+    assert "notion_venue_fetch_connection_reset_recovered" in caplog.text
+    first_record = next(
+        record for record in caplog.records
+        if record.message.startswith("notion_venue_fetch_connection_reset timestamp=")
+    )
+    assert isinstance(first_record.exc_info[1], httpx.ReadError)
+
+
+def test_two_venue_connection_resets_abort_with_both_errors_preserved(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    errors = [_connection_reset_read_error(), _connection_reset_read_error()]
+    venue_requests = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal venue_requests
+        if request.url.path.endswith("/query"):
+            page = {
+                "properties": {
+                    "🌆 Ultimate Venues": {
+                        "type": "relation",
+                        "relation": [{"id": "venue-1"}],
+                    }
+                }
+            }
+            return httpx.Response(200, json={"results": [page], "has_more": False})
+        error = errors[venue_requests]
+        venue_requests += 1
+        raise error
+
+    monkeypatch.setattr(notion_live.time, "sleep", lambda _: None)
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        with pytest.raises(httpx.ReadError) as caught:
+            fetch_live_weekly_rows("token", client=client)
+
+    assert venue_requests == 2
+    assert caught.value is errors[1]
+    assert any("first_error=ReadError" in note for note in caught.value.__notes__)
+    assert any("first_attempt_timestamp=" in note for note in caught.value.__notes__)
+
+
+def test_unrelated_venue_read_error_is_not_retried(monkeypatch: pytest.MonkeyPatch) -> None:
+    venue_requests = 0
+    slept = False
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal venue_requests
+        if request.url.path.endswith("/query"):
+            page = {
+                "properties": {
+                    "🌆 Ultimate Venues": {
+                        "type": "relation",
+                        "relation": [{"id": "venue-1"}],
+                    }
+                }
+            }
+            return httpx.Response(200, json={"results": [page], "has_more": False})
+        venue_requests += 1
+        raise httpx.ReadError("TLS stream ended unexpectedly")
+
+    def unexpected_sleep(_: float) -> None:
+        nonlocal slept
+        slept = True
+
+    monkeypatch.setattr(notion_live.time, "sleep", unexpected_sleep)
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        with pytest.raises(httpx.ReadError, match="TLS stream ended"):
+            fetch_live_weekly_rows("token", client=client)
+
+    assert venue_requests == 1
+    assert slept is False
+
+
+def test_venue_http_error_is_not_retried() -> None:
+    venue_requests = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal venue_requests
+        if request.url.path.endswith("/query"):
+            page = {
+                "properties": {
+                    "🌆 Ultimate Venues": {
+                        "type": "relation",
+                        "relation": [{"id": "venue-1"}],
+                    }
+                }
+            }
+            return httpx.Response(200, json={"results": [page], "has_more": False})
+        venue_requests += 1
+        return httpx.Response(401, json={"message": "unauthorized"})
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        with pytest.raises(httpx.HTTPStatusError):
+            fetch_live_weekly_rows("token", client=client)
+
+    assert venue_requests == 1

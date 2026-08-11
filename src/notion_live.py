@@ -19,7 +19,9 @@ _STATE_POSTAL_RE = re.compile(
 )
 _LOGGER = logging.getLogger(__name__)
 _INITIAL_QUERY_RETRY_DELAY_SECONDS = 1.0
+_VENUE_FETCH_RETRY_DELAY_SECONDS = 1.0
 _WINDOWS_WSAHOST_NOT_FOUND = 11001
+_WINDOWS_WSAECONNRESET = 10054
 
 
 def fetch_live_weekly_rows(
@@ -159,9 +161,11 @@ def _utc_timestamp() -> str:
 
 
 def _fetch_venue(client: httpx.Client, token: str, page_id: str) -> dict[str, str]:
-    response = client.get(
-        f"https://api.notion.com/v1/pages/{page_id}",
+    response = _get_venue_page(
+        client,
+        url=f"https://api.notion.com/v1/pages/{page_id}",
         headers=_headers(token),
+        page_id=page_id,
     )
     response.raise_for_status()
     page = response.json()
@@ -177,6 +181,83 @@ def _fetch_venue(client: httpx.Client, token: str, page_id: str) -> dict[str, st
         "Venue URL": website,
         "City": city,
     }
+
+
+def _get_venue_page(
+    client: httpx.Client,
+    *,
+    url: str,
+    headers: dict[str, str],
+    page_id: str,
+) -> httpx.Response:
+    try:
+        return client.get(url, headers=headers)
+    except httpx.ReadError as first_error:
+        if not _is_windows_connection_reset(first_error):
+            raise
+
+        first_timestamp = _utc_timestamp()
+        _LOGGER.warning(
+            "notion_venue_fetch_connection_reset timestamp=%s page_id=%s "
+            "retry_in_seconds=%s error=%r",
+            first_timestamp,
+            page_id,
+            _VENUE_FETCH_RETRY_DELAY_SECONDS,
+            first_error,
+            exc_info=True,
+        )
+        time.sleep(_VENUE_FETCH_RETRY_DELAY_SECONDS)
+        try:
+            response = client.get(url, headers=headers)
+        except httpx.ReadError as second_error:
+            second_timestamp = _utc_timestamp()
+            second_error.add_note(
+                "Notion venue fetch connection-reset retry failed; "
+                f"page_id={page_id}; first_attempt_timestamp={first_timestamp}; "
+                f"first_error={first_error!r}; second_attempt_timestamp={second_timestamp}"
+            )
+            _LOGGER.error(
+                "notion_venue_fetch_connection_reset_retry_failed page_id=%s "
+                "first_timestamp=%s second_timestamp=%s first_error=%r second_error=%r",
+                page_id,
+                first_timestamp,
+                second_timestamp,
+                first_error,
+                second_error,
+                exc_info=True,
+            )
+            raise
+
+        _LOGGER.warning(
+            "notion_venue_fetch_connection_reset_recovered page_id=%s "
+            "first_failure_timestamp=%s",
+            page_id,
+            first_timestamp,
+        )
+        return response
+
+
+def _is_windows_connection_reset(error: BaseException) -> bool:
+    pending: list[BaseException] = [error]
+    seen: set[int] = set()
+    while pending:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        if (
+            isinstance(current, OSError)
+            and (
+                getattr(current, "winerror", None) == _WINDOWS_WSAECONNRESET
+                or current.errno == _WINDOWS_WSAECONNRESET
+            )
+        ):
+            return True
+        if current.__cause__ is not None:
+            pending.append(current.__cause__)
+        if current.__context__ is not None:
+            pending.append(current.__context__)
+    return False
 
 
 def _page_to_row(page: dict[str, Any]) -> dict[str, Any]:
