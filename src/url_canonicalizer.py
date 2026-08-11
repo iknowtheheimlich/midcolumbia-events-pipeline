@@ -16,6 +16,7 @@ _TRACKING_KEYS = {
     "ref",
     "ref_src",
     "source",
+    "olonwp",
 }
 _TRACKING_PREFIXES = ("utm_",)
 _HOST_ALIASES = {
@@ -117,6 +118,17 @@ def canonicalize_urls(values: Iterable[str]) -> tuple[str, ...]:
         if normalized and normalized not in result:
             result.append(normalized)
     return tuple(result)
+
+
+def strip_tracking_parameters(value: str) -> str:
+    """Remove recognized tracking query keys without otherwise rewriting a URL."""
+    text = str(value or "").strip()
+    parsed = urlsplit(text)
+    pairs = parse_qsl(parsed.query, keep_blank_values=True)
+    retained = [(key, val) for key, val in pairs if not _is_tracking_key(key)]
+    if len(retained) == len(pairs):
+        return text
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(retained), parsed.fragment))
 
 
 def _is_tracking_key(key: str) -> bool:

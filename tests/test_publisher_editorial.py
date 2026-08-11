@@ -90,6 +90,32 @@ def test_external_url_is_preferred_over_listing_url():
     assert result.publication_url == "https://tickets.example/register"
 
 
+def test_tracking_parameter_is_removed_at_publication_url_boundary():
+    result = apply_editorial_rules(
+        make_event(display_url="https://www.roundtablepizza.com/?olonwp=opaque")
+    )
+
+    assert result.publication_url == "https://www.roundtablepizza.com/"
+
+
+def test_balanced_quoted_source_title_remains_balanced_after_cleanup():
+    result = apply_editorial_rules(
+        make_event(title='Wellness Workshop: "Avoiding Scams"')
+    )
+
+    assert result.title == 'Wellness Workshop: "Avoiding Scams"'
+    assert result.publication_disposition == "AUTO_PUBLISH"
+
+
+def test_malformed_unbalanced_quoted_title_routes_to_review():
+    result = apply_editorial_rules(
+        make_event(title='Wellness Workshop: "Avoiding Scams')
+    )
+
+    assert result.publication_disposition == "REVIEW"
+    assert result.editorial_reason == "malformed_title_punctuation"
+
+
 def test_time_is_formatted_using_compact_contract():
     result = apply_editorial_rules(make_event(start_time="09:30", end_time="11:00"))
     assert result.display_time == "9:30-11a"

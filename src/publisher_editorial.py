@@ -10,7 +10,7 @@ from src.editorial_style import derive_display_fields
 from src.intelligence import attach_intelligence, normalize_intelligence
 from src.publisher_projection import PublisherEvent
 from src.publishing_contract import PublishingProfile, format_compact_range
-from src.url_canonicalizer import is_facebook_share_url, validate_public_http_url
+from src.url_canonicalizer import is_facebook_share_url, strip_tracking_parameters, validate_public_http_url
 
 _SPACE_RE = re.compile(r"\s+")
 VENUE_ALIASES = {
@@ -79,6 +79,9 @@ def apply_editorial_rules(event: PublisherEvent, profile: PublishingProfile | No
     display_title, display_venue, style_reason = derive_display_fields(
         event.title, base_venue, style_city, category=event.category
     )
+    if not _has_unbalanced_quotes(event.title) and _has_unbalanced_quotes(display_title):
+        display_title = event.title
+        style_reason = "+".join(filter(None, (style_reason, "balanced_quote_preserved")))
     display_organization = _display_organization(event, display_venue)
     semantic_category = active_profile.normalize_category(event.category)
     publication_target = active_profile.publication_target(
@@ -89,6 +92,7 @@ def apply_editorial_rules(event: PublisherEvent, profile: PublishingProfile | No
         event,
         publication_target,
         display_venue=display_venue,
+        display_title=display_title,
         url_blocker=url_blocker,
     )
     explanation = attach_intelligence(
@@ -175,6 +179,7 @@ def _publication_disposition(
     publication_target: str,
     *,
     display_venue: str,
+    display_title: str,
     url_blocker: str | None,
 ) -> tuple[str, str | None]:
     classification = (event.content_classification or "EVENT").upper()
@@ -184,6 +189,8 @@ def _publication_disposition(
         return "REJECT", event.captain_disposition_reason or "captain_excluded_this_week"
     if event.publication_blocker_reason:
         return "REVIEW", event.publication_blocker_reason
+    if _has_unbalanced_quotes(display_title):
+        return "REVIEW", "malformed_title_punctuation"
     if not display_venue.strip():
         return "REVIEW", "missing_venue"
     if url_blocker:
@@ -214,6 +221,7 @@ def _publication_url(event: PublisherEvent) -> tuple[str, str | None, str | None
         text = str(value or "").strip()
         if not text:
             continue
+        text = strip_tracking_parameters(text)
         try:
             validate_public_http_url(text, field=field)
         except ValueError:
@@ -275,3 +283,8 @@ def _clean_text(value: str) -> str:
 
 def _clean_optional(value: str | None) -> str | None:
     return _clean_text(value) if value and value.strip() else None
+
+
+def _has_unbalanced_quotes(value: str) -> bool:
+    """Detect visible unbalanced double quotes without treating apostrophes as quotes."""
+    return value.count('"') % 2 == 1 or value.count("“") != value.count("”")

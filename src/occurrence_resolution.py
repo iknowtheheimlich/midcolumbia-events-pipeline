@@ -233,6 +233,11 @@ def compare_occurrences(left: dict[str, Any], right: dict[str, Any]) -> Occurren
     if normalize_text(left.get("start_date")) != normalize_text(right.get("start_date")):
         return OccurrenceEvidence(0.0, ("different_date",))
 
+    left_disposition = str(left.get("production_disposition_cohort") or "").strip()
+    right_disposition = str(right.get("production_disposition_cohort") or "").strip()
+    if left_disposition and left_disposition == right_disposition:
+        return OccurrenceEvidence(1.0, ("same_date", "same_production_disposition_cohort"))
+
     reasons: list[str] = ["same_date"]
     confidence = 0.20
 

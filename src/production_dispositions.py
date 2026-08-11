@@ -47,6 +47,7 @@ class ProductionDispositions:
                         copied["title"] = disposition["title"]
                     copied["start_time"] = disposition["start_time"]
                     copied["end_time"] = disposition.get("end_time")
+                    copied["production_disposition_cohort"] = disposition["cohort"]
                 else:
                     copied["captain_disposition"] = "EXCLUDE"
                     copied["captain_disposition_reason"] = disposition["reason"]

@@ -26,7 +26,7 @@ def test_mc_2026_033_disposition_manifest_covers_all_conflict_cohorts_and_exclus
 
     assert dispositions is not None
     assert dispositions.mission_id == "MC-2026-033"
-    assert len(dispositions.resolutions) == 10
+    assert len(dispositions.resolutions) == 14
     assert len(dispositions.exclusions) == 3
     selector_ids = {
         selector.get("source_event_id")
@@ -40,9 +40,18 @@ def test_mc_2026_033_disposition_manifest_covers_all_conflict_cohorts_and_exclus
     assert any(cohort.startswith("HAPO Center regional concert cohort") for cohort in excluded_cohorts)
     assert any(cohort.startswith("Richland Estate Sale") for cohort in excluded_cohorts)
     assert any(cohort.startswith("Team Policy Debate Camp") for cohort in excluded_cohorts)
+    captain_conflicts = dispositions.resolutions[:10]
     # Ten corrected cohorts plus the deliberately excluded HAPO conflict account
     # for all eleven conflicting-occurrence cohorts from the Captain review.
-    assert len(dispositions.resolutions) + 1 == 11
+    assert len(captain_conflicts) + 1 == 11
+    assert {cohort["cohort"] for cohort in dispositions.resolutions[10:]} == {
+        "Sip & Sing — Columbia Gardens — 2026-08-15",
+        "Summer Market at Layered — 2026-08-15",
+        "Groove Principal — Clover Island Concert Series — 2026-08-12",
+        "Faith Martin and Casa Rosita Pop-Up — Hedges Family Estate — 2026-08-15",
+    }
+    night_hawks = next(cohort for cohort in dispositions.resolutions if cohort["cohort"].startswith("The Night Hawks"))
+    assert night_hawks["title"] == "The Night Hawks"
 
 
 def test_sports_page_external_authority_resolves_to_one_supported_occurrence() -> None:
@@ -51,7 +60,7 @@ def test_sports_page_external_authority_resolves_to_one_supported_occurrence() -
     sunday_disposition = ProductionDispositions(
         dispositions.mission_id,
         dispositions.week_start,
-        (dispositions.resolutions[-1],),
+        (next(cohort for cohort in dispositions.resolutions if cohort["cohort"].startswith("Game Night Live R0CK'N Bingo")),),
         (),
     )
     sunday = sunday_disposition.apply([
@@ -100,6 +109,71 @@ def test_evidence_resolution_corrects_exact_records_before_occurrence_resolution
     assert result.events[0]["end_time"] == "21:00"
     assert result.events[0]["intelligence"]["captain_disposition"]["reason"] == "captain_approved_preserved_evidence"
     assert not result.events[0].get("publication_blocker_reason")
+
+
+def test_exact_disposition_cohort_consolidates_different_source_venue_presentations() -> None:
+    dispositions = ProductionDispositions(
+        "MC-2026-033",
+        "2026-08-10",
+        ({
+            "cohort": "Sip & Sing — exact acceptance cohort",
+            "title": "Sip & Sing",
+            "start_time": "16:00",
+            "end_time": "18:00",
+            "evidence": "same description and address",
+            "decision_reason": "acceptance_approved_preserved_evidence",
+            "selectors": [
+                {"source": "VisitTriCities", "source_event_id": "one"},
+                {"source": "TriCityVibe", "source_event_id": "two"},
+            ],
+        },),
+        (),
+    )
+    left = _event("VisitTriCities", "one", start_time="16:00", title="Sip & Sing")
+    left["venue"] = "421 E Columbia Dr"
+    right = _event("TriCityVibe", "two", start_time="16:00", title="Sip & Sing with Opera")
+    right["venue"] = "Columbia Gardens Wine and Artisan Village"
+
+    result = resolve_occurrences(dispositions.apply([left, right]))
+
+    assert len(result.events) == 1
+    assert result.events[0]["title"] == "Sip & Sing"
+    assert result.events[0]["start_time"] == "16:00"
+    assert result.events[0]["end_time"] == "18:00"
+    assert "same_production_disposition_cohort" in result.groups[0]["reason"]
+
+
+def test_mc_2026_033_acceptance_duplicate_cohorts_each_resolve_once() -> None:
+    configured = ProductionDispositions.load("2026-08-10", DEFAULT_PRODUCTION_DISPOSITIONS_PATH)
+    assert configured is not None
+    dispositions = ProductionDispositions(
+        configured.mission_id,
+        configured.week_start,
+        configured.resolutions[10:],
+        (),
+    )
+    records = [
+        {**_event("VisitTriCities", "1296002", start_time="16:00", title="Sip & Sing"), "start_date": "2026-08-15", "venue": "421 E Columbia Dr"},
+        {**_event("TriCityVibe", "ben-naught", start_time="16:00", title="Sip & Sing with Mid-Columbia Opera"), "start_date": "2026-08-15", "venue": "Columbia Gardens"},
+        {**_event("VisitTriCities", "1298972", start_time="10:00", title="Summer Market at Layered"), "start_date": "2026-08-15", "venue": "Layered Cake Artistry"},
+        {**_event("AllEvents", "200030413213756", start_time="10:00", title="Summer Market at Layered Cake Artistry"), "start_date": "2026-08-15", "venue": "117 W Kennewick Avenue"},
+        {**_event("TriCityVibe", "groove-principal-clover-island-concert-series", start_time="18:00", title="Groove Principal at the Clover Island Concert Series"), "start_date": "2026-08-12", "venue": "Clover Island Stage"},
+        {**_event("AllEvents", "100001984681812728", start_time="11:00", title="Clover Island Concert Series - Groove Principal"), "start_date": "2026-08-12", "venue": "Clover Island Inn"},
+        {**_event("VisitTriCities", "1300892", start_time="12:00", title="Live Music with Faith Martin and Casa Rosita Pop-Up"), "start_date": "2026-08-15", "venue": "53511 N Sunset Rd"},
+        {**_event("TriCityVibe", "faith-martin-at-hedges-wines", start_time="13:00", title="Faith Martin at Hedges Family Estate Wine"), "start_date": "2026-08-15", "venue": "Hedges Family Estate Wine"},
+    ]
+
+    result = resolve_occurrences(dispositions.apply(records))
+
+    assert len(result.events) == 4
+    resolved = {event["title"]: (event["start_time"], event["end_time"]) for event in result.events}
+    assert resolved == {
+        "Sip & Sing": ("16:00", "18:00"),
+        "Summer Market at Layered Cake Artistry": ("10:00", "16:00"),
+        "Groove Principal": ("18:00", None),
+        "Faith Martin and Casa Rosita Pop-Up": ("12:00", "16:00"),
+    }
+    assert all(not event.get("publication_blocker_reason") for event in result.events)
 
 
 def test_undisposed_conflicting_occurrence_remains_quarantined() -> None:

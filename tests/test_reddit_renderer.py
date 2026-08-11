@@ -80,6 +80,13 @@ def test_render_event_line_supports_compact_time_range() -> None:
     assert line.endswith("6-8p")
 
 
+def test_render_event_line_escapes_embedded_title_field_separator() -> None:
+    line = render_event_line(editorial_event(title="Killian vs. Southridge | FOOTBALL"))
+
+    assert line.startswith("Killian vs. Southridge \\| FOOTBALL | ")
+    assert line.count(" | ") == 2
+
+
 def test_render_post_groups_by_date_and_sorts_time() -> None:
     post = render_reddit_post(
         [

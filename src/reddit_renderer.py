@@ -47,7 +47,7 @@ def render_item_line(event: Renderable) -> str:
 
 
 def render_event_line(event: EditorialEvent) -> str:
-    parts = [event.title, _render_location(event)]
+    parts = [_render_title(event.title), _render_location(event)]
     if event.display_time:
         parts.append(event.display_time)
     parts.extend(_render_credit_parts(event))
@@ -57,7 +57,7 @@ def render_event_line(event: EditorialEvent) -> str:
 def render_program_line(program: EditorialProgram) -> str:
     if len(program.occurrences) == 1:
         occurrence = program.occurrences[0]
-        parts = [program.title, _render_occurrence_location(occurrence)]
+        parts = [_render_title(program.title), _render_occurrence_location(occurrence)]
         if occurrence.display_time:
             parts.append(occurrence.display_time)
         parts.extend(_render_credit_parts(occurrence))
@@ -70,12 +70,12 @@ def render_program_line(program: EditorialProgram) -> str:
     if len(venue_keys) == 1:
         occurrence = program.occurrences[0]
         time_chain = " • ".join(item.display_time or "time TBD" for item in program.occurrences)
-        parts = [program.title, _render_occurrence_location(occurrence), time_chain]
+        parts = [_render_title(program.title), _render_occurrence_location(occurrence), time_chain]
         parts.extend(_shared_credit_parts(program.occurrences))
         return " | ".join(parts)
 
     occurrence_chain = " • ".join(_render_occurrence_summary(item) for item in program.occurrences)
-    parts = [program.title, occurrence_chain]
+    parts = [_render_title(program.title), occurrence_chain]
     parts.extend(_shared_credit_parts(program.occurrences))
     return " | ".join(parts)
 
@@ -212,3 +212,8 @@ def _markdown_link(label: str, url: str) -> str:
     clean_label = label.replace("[", "\\[").replace("]", "\\]")
     clean_url = url.replace(" ", "%20").replace(")", "%29")
     return f"[{clean_label}]({clean_url})"
+
+
+def _render_title(value: str) -> str:
+    """Escape field separators while preserving the visible title punctuation."""
+    return value.replace("|", "\\|")

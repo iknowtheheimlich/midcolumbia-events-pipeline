@@ -5,6 +5,7 @@ from src.url_canonicalizer import (
     canonicalize_urls,
     is_facebook_share_url,
     validate_public_http_url,
+    strip_tracking_parameters,
 )
 
 
@@ -22,6 +23,12 @@ def test_deduplicates_equivalent_urls() -> None:
     assert canonicalize_urls(
         ["https://instagram.com/theband/?utm_medium=social", "https://www.instagram.com/theband"]
     ) == ("https://www.instagram.com/theband",)
+
+
+def test_strips_round_table_opaque_tracking_parameter_without_guessing_destination() -> None:
+    assert strip_tracking_parameters(
+        "https://www.roundtablepizza.com/?olonwp=JjBtp_vMLk25gkYh_bnoiQ"
+    ) == "https://www.roundtablepizza.com/"
 
 
 def test_rejects_non_http_destinations() -> None:

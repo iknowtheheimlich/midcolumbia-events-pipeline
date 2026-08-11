@@ -161,6 +161,18 @@ def test_non_music_action_words_are_not_truncated() -> None:
     assert reason == "unchanged"
 
 
+def test_music_cleanup_never_returns_orphaned_venue_fragment() -> None:
+    title, _, _ = derive_display_fields(
+        "LIVE MUSIC at Upchurch Vineyard - AUGUST",
+        "Upchurch Vineyard",
+        "Benton City",
+        category="Music/Comedy",
+        profile=profile(),
+    )
+
+    assert title == "LIVE MUSIC at Upchurch Vineyard - AUGUST"
+
+
 def test_editorial_event_preserves_canonical_title(monkeypatch) -> None:
     monkeypatch.setattr(
         "src.publisher_editorial.derive_display_fields",
