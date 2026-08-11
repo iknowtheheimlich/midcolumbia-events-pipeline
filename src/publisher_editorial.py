@@ -233,12 +233,12 @@ def _publication_disposition(
         return "REVIEW", url_blocker
     if publication_target == "SUPPRESS":
         return "REJECT", "publication_suppressed"
+    if event.geographic_scope in REJECT_SCOPES:
+        return "REJECT", "out_of_area"
     if publication_target == "REVIEW":
         return "REVIEW", "missing_or_unknown_category"
     if not event.city or not event.city.strip():
         return "REVIEW", "missing_city"
-    if event.geographic_scope in REJECT_SCOPES:
-        return "REJECT", "out_of_area"
     if event.geographic_scope in REVIEW_SCOPES:
         return "REVIEW", "geographic_review"
     if event.geographic_scope in AUTO_SCOPES:

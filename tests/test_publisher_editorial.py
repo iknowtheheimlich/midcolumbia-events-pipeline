@@ -277,6 +277,19 @@ def test_missing_category_routes_to_review():
     assert result.editorial_reason == "missing_or_unknown_category"
 
 
+def test_out_of_area_unknown_category_is_completed_rejection() -> None:
+    result = apply_editorial_rules(
+        make_event(category=None, geographic_scope="OUT_OF_AREA")
+    )
+
+    assert result.publication_disposition == "REJECT"
+    assert result.editorial_reason == "out_of_area"
+    assert rejected_events([result]) == [result]
+    assert review_events([result]) == []
+    assert main_events([result]) == []
+    assert community_events([result]) == []
+
+
 def test_locality_only_post_presentation_venue_remains_coherent():
     result = apply_editorial_rules(
         make_event(venue="Richland, Washington", city="Richland", category="Music/Comedy")

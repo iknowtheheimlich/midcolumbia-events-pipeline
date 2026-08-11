@@ -1,5 +1,6 @@
 import pytest
 
+from src.mission_control import SourceHealthSummary, build_mission_control_report
 from src.occurrence_resolution import resolve_occurrences
 from src.production_dispositions import DEFAULT_PRODUCTION_DISPOSITIONS_PATH, ProductionDispositions
 from src.publisher_editorial import (
@@ -94,6 +95,7 @@ def test_shinedown_geography_correction_uses_preserved_description_and_normal_po
             "Venue: Numerica Veterans Arena\nSpokane, WA\n"
             "Date: 14 Aug, 2026 - 07:00 PM"
         ),
+        "category": None,
         "url": "https://allevents.in/kennewick/event/200030090187451",
     }
 
@@ -116,6 +118,20 @@ def test_shinedown_geography_correction_uses_preserved_description_and_normal_po
     assert main_events([editorial]) == []
     assert community_events([editorial]) == []
     assert editorial.editorial_reason != "conflicting_locality_presentation"
+    report = build_mission_control_report(
+        week_start="2026-08-10",
+        production_status="HEALTHY",
+        source_health=[SourceHealthSummary("AllEvents", "HEALTHY")],
+        counts={
+            "publication_blockers": 0,
+            "editorial_reviews": 0,
+            "rejected": 1,
+            "completed_rejections": 1,
+            "unresolved_rejections": 0,
+        },
+        regression={"passed": True},
+    )
+    assert report.ready_to_publish is True
     audit = editorial.intelligence["captain_geography_correction"]
     assert audit["reason"] == "captain_approved_event_description_geography"
     assert audit["value"]["evidence_basis"].startswith(
