@@ -40,6 +40,21 @@ def _connection_reset_read_error() -> httpx.ReadError:
         return error
 
 
+def _connection_refused_connect_error() -> httpx.ConnectError:
+    try:
+        raise ConnectionRefusedError(
+            10061,
+            "No connection could be made because the target machine actively refused it",
+        )
+    except ConnectionRefusedError as cause:
+        error = httpx.ConnectError(
+            "[WinError 10061] No connection could be made because the target machine "
+            "actively refused it"
+        )
+        error.__cause__ = cause
+        return error
+
+
 def test_city_from_address_supports_state_zip_without_country() -> None:
     assert _city_from_address("530 Columbia Point Drive, Richland, WA 99352") == "Richland"
 
@@ -204,6 +219,66 @@ def test_two_initial_resolver_failures_abort_with_both_errors_preserved(
 
     assert requests == 2
     assert caught.value is errors[1]
+    assert any("first_error=ConnectError" in note for note in caught.value.__notes__)
+    assert any("first_attempt_timestamp=" in note for note in caught.value.__notes__)
+
+
+def test_initial_connection_refusal_retries_once_and_recovers(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    requests = 0
+    sleeps: list[float] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal requests
+        requests += 1
+        if requests == 1:
+            raise _connection_refused_connect_error()
+        return httpx.Response(200, json={"results": [], "has_more": False})
+
+    monkeypatch.setattr(notion_live.time, "sleep", sleeps.append)
+    caplog.set_level(logging.WARNING, logger="src.notion_live")
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        assert fetch_live_weekly_rows("token", client=client) == []
+
+    assert requests == 2
+    assert sleeps == [1.0]
+    assert "initial_notion_query_connection_refusal_failure" in caplog.text
+    assert "timestamp=" in caplog.text
+    assert "initial_notion_query_connection_refusal_recovered" in caplog.text
+    first_record = next(
+        record for record in caplog.records
+        if record.message.startswith("initial_notion_query_connection_refusal_failure")
+    )
+    assert isinstance(first_record.exc_info[1], httpx.ConnectError)
+    assert "10061" in repr(first_record.exc_info[1])
+
+
+def test_two_initial_connection_refusals_abort_with_both_errors_preserved(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    errors = [_connection_refused_connect_error(), _connection_refused_connect_error()]
+    requests = 0
+    sleeps: list[float] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal requests
+        error = errors[requests]
+        requests += 1
+        raise error
+
+    monkeypatch.setattr(notion_live.time, "sleep", sleeps.append)
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        with pytest.raises(httpx.ConnectError) as caught:
+            fetch_live_weekly_rows("token", client=client)
+
+    assert requests == 2
+    assert sleeps == [1.0]
+    assert caught.value is errors[1]
+    assert any(
+        "Initial Notion query connection_refusal retry failed" in note
+        for note in caught.value.__notes__
+    )
     assert any("first_error=ConnectError" in note for note in caught.value.__notes__)
     assert any("first_attempt_timestamp=" in note for note in caught.value.__notes__)
 

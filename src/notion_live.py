@@ -22,6 +22,7 @@ _INITIAL_QUERY_RETRY_DELAY_SECONDS = 1.0
 _VENUE_FETCH_RETRY_DELAY_SECONDS = 1.0
 _WINDOWS_WSAHOST_NOT_FOUND = 11001
 _WINDOWS_WSAECONNRESET = 10054
+_WINDOWS_WSAECONNREFUSED = 10061
 
 
 def fetch_live_weekly_rows(
@@ -96,12 +97,16 @@ def _post_initial_query(
     try:
         return client.post(url, headers=headers, json=json)
     except httpx.ConnectError as first_error:
-        if not _is_windows_getaddrinfo_failure(first_error):
+        is_resolver_failure = _is_windows_getaddrinfo_failure(first_error)
+        is_connection_refusal = _is_windows_connection_refused(first_error)
+        if not is_resolver_failure and not is_connection_refusal:
             raise
 
         first_timestamp = _utc_timestamp()
+        failure_kind = "resolver" if is_resolver_failure else "connection_refusal"
         _LOGGER.warning(
-            "initial_notion_query_resolver_failure timestamp=%s retry_in_seconds=%s error=%r",
+            "initial_notion_query_%s_failure timestamp=%s retry_in_seconds=%s error=%r",
+            failure_kind,
             first_timestamp,
             _INITIAL_QUERY_RETRY_DELAY_SECONDS,
             first_error,
@@ -113,13 +118,14 @@ def _post_initial_query(
         except httpx.ConnectError as second_error:
             second_timestamp = _utc_timestamp()
             second_error.add_note(
-                "Initial Notion query resolver retry failed; "
+                f"Initial Notion query {failure_kind} retry failed; "
                 f"first_attempt_timestamp={first_timestamp}; first_error={first_error!r}; "
                 f"second_attempt_timestamp={second_timestamp}"
             )
             _LOGGER.error(
-                "initial_notion_query_resolver_retry_failed first_timestamp=%s "
+                "initial_notion_query_%s_retry_failed first_timestamp=%s "
                 "second_timestamp=%s first_error=%r second_error=%r",
+                failure_kind,
                 first_timestamp,
                 second_timestamp,
                 first_error,
@@ -129,7 +135,8 @@ def _post_initial_query(
             raise
 
         _LOGGER.warning(
-            "initial_notion_query_resolver_recovered first_failure_timestamp=%s",
+            "initial_notion_query_%s_recovered first_failure_timestamp=%s",
+            failure_kind,
             first_timestamp,
         )
         return response
@@ -147,6 +154,29 @@ def _is_windows_getaddrinfo_failure(error: BaseException) -> bool:
             isinstance(current, socket.gaierror)
             and current.errno == _WINDOWS_WSAHOST_NOT_FOUND
             and "getaddrinfo failed" in str(current).casefold()
+        ):
+            return True
+        if current.__cause__ is not None:
+            pending.append(current.__cause__)
+        if current.__context__ is not None:
+            pending.append(current.__context__)
+    return False
+
+
+def _is_windows_connection_refused(error: BaseException) -> bool:
+    pending: list[BaseException] = [error]
+    seen: set[int] = set()
+    while pending:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        if (
+            isinstance(current, OSError)
+            and (
+                getattr(current, "winerror", None) == _WINDOWS_WSAECONNREFUSED
+                or current.errno == _WINDOWS_WSAECONNREFUSED
+            )
         ):
             return True
         if current.__cause__ is not None:

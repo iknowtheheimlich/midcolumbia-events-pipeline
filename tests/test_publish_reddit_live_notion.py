@@ -10,6 +10,10 @@ import tools.publish_reddit_live_notion as wrapper
     "failure",
     [
         httpx.ConnectError("[Errno 11001] getaddrinfo failed"),
+        httpx.ConnectError(
+            "[WinError 10061] No connection could be made because the target machine "
+            "actively refused it"
+        ),
         httpx.ReadError(
             "[WinError 10054] An existing connection was forcibly closed by the remote host"
         ),
