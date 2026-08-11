@@ -10,6 +10,7 @@ from src.publisher_editorial import (
     main_events,
 )
 from src.publisher_projection import project_event
+from src.reddit_renderer import render_reddit_post
 
 
 def _event(source: str, source_event_id: str, *, start_time: str, title: str = "Shared Event") -> dict:
@@ -34,8 +35,8 @@ def test_mc_2026_033_disposition_manifest_covers_all_conflict_cohorts_and_exclus
 
     assert dispositions is not None
     assert dispositions.mission_id == "MC-2026-033"
-    assert len(dispositions.resolutions) == 16
-    assert len(dispositions.exclusions) == 4
+    assert len(dispositions.resolutions) == 17
+    assert len(dispositions.exclusions) == 5
     selector_ids = {
         selector.get("source_event_id")
         for cohort in (*dispositions.resolutions, *dispositions.exclusions)
@@ -49,6 +50,7 @@ def test_mc_2026_033_disposition_manifest_covers_all_conflict_cohorts_and_exclus
     assert any(cohort.startswith("Richland Estate Sale") for cohort in excluded_cohorts)
     assert any(cohort.startswith("Team Policy Debate Camp") for cohort in excluded_cohorts)
     assert any(cohort.startswith("Perseid Meteor Shower Watch Party") for cohort in excluded_cohorts)
+    assert any(cohort.startswith("Solar Sessions, Blending Lab") for cohort in excluded_cohorts)
     captain_conflicts = dispositions.resolutions[:10]
     # Ten corrected cohorts plus the deliberately excluded HAPO conflict account
     # for all eleven conflicting-occurrence cohorts from the Captain review.
@@ -64,6 +66,116 @@ def test_mc_2026_033_disposition_manifest_covers_all_conflict_cohorts_and_exclus
     assert (artlab["start_time"], artlab["end_time"]) == ("13:00", "15:00")
     night_hawks = next(cohort for cohort in dispositions.resolutions if cohort["cohort"].startswith("The Night Hawks"))
     assert night_hawks["title"] == "The Night Hawks"
+
+
+def test_final_human_acceptance_dispositions_are_exact_and_preserve_raw_evidence() -> None:
+    configured = ProductionDispositions.load("2026-08-10", DEFAULT_PRODUCTION_DISPOSITIONS_PATH)
+    assert configured is not None
+    retreat = next(
+        cohort for cohort in configured.resolutions if cohort["cohort"].startswith("Women's Retreat")
+    )
+    solar = next(
+        cohort for cohort in configured.exclusions if cohort["cohort"].startswith("Solar Sessions")
+    )
+    dispositions = ProductionDispositions(
+        configured.mission_id, configured.week_start, (retreat,), (solar,)
+    )
+    raw_solar = {
+        **_event(
+            "AllEvents",
+            "100001996050056451",
+            start_time="11:30",
+            title="Solar Sessions, Blending Lab! An evening to sip, swirl, savor, and create!",
+        ),
+        "start_date": "2026-08-11",
+        "end_time": "13:30",
+        "venue": "Solar Spirits Distillery Cocktail Lounge",
+        "city": "Richland",
+        "description": "Ready to step into the winemaker's role for a night; a perfect night.",
+    }
+    raw_retreat = {
+        **_event(
+            "AllEvents",
+            "200030132700216",
+            start_time="06:00",
+            title="WOMEN's RETREAT - KENENEWICK WA!",
+        ),
+        "start_date": "2026-08-14",
+        "venue": "Hansen Park",
+        "city": "Kennewick",
+    }
+    unrelated = _event("AllEvents", "unrelated", start_time="09:00", title="Unrelated Event")
+
+    solar_event, retreat_event, unrelated_event = dispositions.apply(
+        [raw_solar, raw_retreat, unrelated]
+    )
+    solar_editorial = apply_editorial_rules(project_event(solar_event))
+    retreat_editorial = apply_editorial_rules(project_event(retreat_event))
+
+    assert raw_solar["title"].endswith("create!")
+    assert raw_solar["start_time"] == "11:30"
+    assert raw_solar["end_time"] == "13:30"
+    assert solar_event["start_time"] == "11:30"
+    assert solar_event["end_time"] == "13:30"
+    assert solar_editorial.publication_disposition == "REJECT"
+    assert solar_editorial.editorial_reason == "captain_excluded_this_week"
+    assert solar_editorial.editorial_reason in COMPLETED_REJECTION_REASONS
+    assert main_events([solar_editorial]) == []
+    assert community_events([solar_editorial]) == []
+    solar_audit = solar_editorial.intelligence["captain_disposition"]
+    assert solar_audit["reason"] == "contradictory_time_authority_insufficient"
+    assert "11:30 AM-1:30 PM" in solar_audit["value"]["evidence"]
+
+    assert raw_retreat["title"] == "WOMEN's RETREAT - KENENEWICK WA!"
+    assert retreat_event["title"] == "WOMEN's RETREAT - KENNEWICK WA"
+    assert retreat_event["start_time"] == "06:00"
+    assert retreat_event["city"] == "Kennewick"
+    rendered = render_reddit_post([retreat_editorial])
+    assert "WOMEN's RETREAT - KENNEWICK WA" in rendered
+    assert "KENENEWICK" not in rendered
+    retreat_audit = retreat_editorial.intelligence["captain_disposition"]
+    assert retreat_audit["reason"] == "captain_approved_exact_source_title_typo_correction"
+    assert "WOMEN's RETREAT - KENENEWICK WA!" in retreat_audit["value"]["evidence"]
+
+    assert unrelated_event == unrelated
+
+    report = build_mission_control_report(
+        week_start="2026-08-10",
+        production_status="HEALTHY",
+        source_health=[SourceHealthSummary("AllEvents", "HEALTHY")],
+        counts={
+            "publication_blockers": 0,
+            "editorial_reviews": 0,
+            "rejected": 1,
+            "completed_rejections": 1,
+            "unresolved_rejections": 0,
+        },
+        regression={"passed": True},
+    )
+    assert report.ready_to_publish is True
+
+
+def test_title_only_resolution_requires_no_time_change_and_no_generic_rule() -> None:
+    dispositions = ProductionDispositions(
+        "MC-2026-033",
+        "2026-08-10",
+        ({
+            "cohort": "exact title typo",
+            "title": "Correct Title",
+            "evidence": "exact source evidence",
+            "selectors": [{"source": "A", "source_event_id": "one"}],
+        },),
+        (),
+    )
+    target = _event("A", "one", start_time="08:15", title="Typo Title")
+    unrelated = _event("A", "two", start_time="09:30", title="Typo Title")
+
+    corrected, untouched = dispositions.apply([target, unrelated])
+
+    assert corrected["title"] == "Correct Title"
+    assert corrected["start_time"] == "08:15"
+    assert corrected["end_time"] is None
+    assert untouched == unrelated
 
 
 def test_shinedown_geography_correction_uses_preserved_description_and_normal_policy() -> None:

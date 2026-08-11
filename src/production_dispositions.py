@@ -47,8 +47,9 @@ class ProductionDispositions:
                 if action == "RESOLVE":
                     if disposition.get("title"):
                         copied["title"] = disposition["title"]
-                    copied["start_time"] = disposition["start_time"]
-                    copied["end_time"] = disposition.get("end_time")
+                    if "start_time" in disposition:
+                        copied["start_time"] = disposition["start_time"]
+                        copied["end_time"] = disposition.get("end_time")
                     geography_correction = disposition.get("geography_correction")
                     if geography_correction:
                         copied = _apply_geography_correction(copied, geography_correction)
@@ -100,6 +101,16 @@ class ProductionDispositions:
                 if action == "RESOLVE" and "required" not in roles:
                     raise ValueError(
                         f"RESOLVE Captain disposition requires a surviving selector: {cohort_index}"
+                    )
+                if action == "RESOLVE" and not any(
+                    field in cohort for field in ("title", "start_time", "geography_correction")
+                ):
+                    raise ValueError(
+                        f"RESOLVE Captain disposition requires a correction: {cohort_index}"
+                    )
+                if action == "RESOLVE" and "end_time" in cohort and "start_time" not in cohort:
+                    raise ValueError(
+                        f"RESOLVE Captain disposition cannot set end_time without start_time: {cohort_index}"
                     )
 
     def _attach_selector_audit(
