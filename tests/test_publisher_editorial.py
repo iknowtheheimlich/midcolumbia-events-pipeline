@@ -12,6 +12,7 @@ from src.publisher_editorial import (
     review_events,
 )
 from src.publisher_projection import PublisherEvent
+from src.reddit_renderer import render_event_line
 
 
 def make_event(**overrides):
@@ -57,6 +58,52 @@ def test_library_name_is_standardized():
 def test_duplicate_city_suffix_is_removed():
     result = apply_editorial_rules(make_event(venue="The REACH - Richland"))
     assert result.display_venue == "The REACH"
+
+
+@pytest.mark.parametrize(
+    ("venue", "expected_label"),
+    [
+        (
+            "Lifted Lotus Yoga Collective, Kennewick, WA, United States, Washington 99336",
+            "Lifted Lotus Yoga Collective",
+        ),
+        ("Ordinary Venue, Kennewick", "Ordinary Venue"),
+        ("Ordinary Venue, Kennewick, WA", "Ordinary Venue"),
+        ("Ordinary Venue, Kennewick, Washington", "Ordinary Venue"),
+        ("Ordinary Venue, Kennewick, United States", "Ordinary Venue"),
+        ("Ordinary Venue, Kennewick, 99336", "Ordinary Venue"),
+        ("Ordinary Venue, Kennewick, WA 99336, United States", "Ordinary Venue"),
+        ("Smith, Jones & Co., Kennewick, WA 99336", "Smith, Jones & Co."),
+        ("Washington Arts Hall", "Washington Arts Hall"),
+    ],
+)
+def test_publication_venue_uses_compact_city_contract(venue, expected_label):
+    result = apply_editorial_rules(
+        make_event(
+            venue=venue,
+            display_venue=venue,
+            display_city="Kennewick",
+            city="Kennewick",
+        )
+    )
+
+    assert result.display_venue == expected_label
+    assert render_event_line(result) == (
+        f"Community Event | [{expected_label}](https://library.example/event), Kennewick | 9:30-11a"
+    )
+
+
+def test_unrecognized_comma_suffix_is_not_treated_as_geography():
+    result = apply_editorial_rules(
+        make_event(
+            venue="Gallery, Kennewick, River Annex",
+            display_venue="Gallery, Kennewick, River Annex",
+            display_city="Kennewick",
+            city="Kennewick",
+        )
+    )
+
+    assert result.display_venue == "Gallery, Kennewick, River Annex"
 
 
 def test_parent_room_is_rendered_with_parent_venue():

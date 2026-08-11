@@ -16,6 +16,20 @@ _SPACE_RE = re.compile(r"\s+")
 _VENUE_MARKDOWN_RE = re.compile(
     r"^\[([^\]]+)\]\((https?://[^)]+)\)(?:\s*,\s*.*)?$", re.IGNORECASE
 )
+_POSTAL_CODE_RE = re.compile(r"(?:^|\s)\d{5}(?:-\d{4})?$")
+_COUNTRY_NAMES = {"united states", "united states of america", "usa", "us"}
+_US_STATE_NAMES = {
+    "alabama", "alaska", "arizona", "arkansas", "california", "colorado",
+    "connecticut", "delaware", "florida", "georgia", "hawaii", "idaho",
+    "illinois", "indiana", "iowa", "kansas", "kentucky", "louisiana",
+    "maine", "maryland", "massachusetts", "michigan", "minnesota",
+    "mississippi", "missouri", "montana", "nebraska", "nevada",
+    "new hampshire", "new jersey", "new mexico", "new york",
+    "north carolina", "north dakota", "ohio", "oklahoma", "oregon",
+    "pennsylvania", "rhode island", "south carolina", "south dakota",
+    "tennessee", "texas", "utah", "vermont", "virginia", "washington",
+    "west virginia", "wisconsin", "wyoming", "district of columbia",
+}
 VENUE_ALIASES = {
     "mid-columbia libraries": "Mid-Columbia Library",
     "mid columbia libraries": "Mid-Columbia Library",
@@ -245,22 +259,23 @@ def _publication_url(event: PublisherEvent) -> tuple[str, str | None, str | None
 def _display_venue(event: PublisherEvent, city: str) -> str:
     if event.venue_reddit_combo:
         combo_label, _ = _venue_combo_parts(event.venue_reddit_combo)
-        return combo_label or _clean_text(event.venue_reddit_combo)
-    if event.display_venue:
-        return _clean_text(event.display_venue)
-    venue = _normalize_venue(event.venue)
-    parent = _normalize_venue(event.parent_venue) if event.parent_venue else None
-    detail = _clean_optional(event.venue_detail)
-    if city:
-        venue = _remove_duplicate_city(venue, city)
+        venue = combo_label or _clean_text(event.venue_reddit_combo)
+    elif event.display_venue:
+        venue = _clean_text(event.display_venue)
+    else:
+        venue = _normalize_venue(event.venue)
+        parent = _normalize_venue(event.parent_venue) if event.parent_venue else None
+        detail = _clean_optional(event.venue_detail)
+        if city:
+            venue = _remove_duplicate_city(venue, city)
+            if parent:
+                parent = _remove_duplicate_city(parent, city)
         if parent:
-            parent = _remove_duplicate_city(parent, city)
-    if parent:
-        if detail and detail.casefold() not in {venue.casefold(), parent.casefold()}:
-            return f"{detail}, {parent}"
-        if venue.casefold() != parent.casefold():
-            return f"{venue}, {parent}"
-    return venue
+            if detail and detail.casefold() not in {venue.casefold(), parent.casefold()}:
+                venue = f"{detail}, {parent}"
+            elif venue.casefold() != parent.casefold():
+                venue = f"{venue}, {parent}"
+    return _compact_publication_venue(venue, city)
 
 
 def _venue_combo_parts(value: str | None) -> tuple[str | None, str | None]:
@@ -271,6 +286,36 @@ def _venue_combo_parts(value: str | None) -> tuple[str | None, str | None]:
     if not match:
         return None, None
     return _clean_text(match.group(1)), match.group(2).strip()
+
+
+def _compact_publication_venue(value: str, city: str) -> str:
+    """Remove only a terminal city/geography suffix from a visible venue label."""
+    cleaned = _clean_text(value)
+    if not city:
+        return cleaned
+    parts = [part.strip() for part in cleaned.split(",")]
+    city_key = city.strip().casefold()
+    for index in range(len(parts) - 1, 0, -1):
+        if parts[index].casefold() != city_key:
+            continue
+        suffix = parts[index + 1 :]
+        if not suffix or all(_is_geographic_suffix(part) for part in suffix):
+            compact = ", ".join(parts[:index]).strip()
+            return compact or cleaned
+    return cleaned
+
+
+def _is_geographic_suffix(value: str) -> bool:
+    text = _SPACE_RE.sub(" ", value.strip())
+    without_postal = _POSTAL_CODE_RE.sub("", text).strip()
+    if not without_postal:
+        return True
+    key = without_postal.casefold().rstrip(".")
+    return (
+        key in _COUNTRY_NAMES
+        or key in _US_STATE_NAMES
+        or bool(re.fullmatch(r"[A-Za-z]{2}", without_postal))
+    )
 
 
 def _display_organization(event: PublisherEvent, display_venue: str) -> str | None:

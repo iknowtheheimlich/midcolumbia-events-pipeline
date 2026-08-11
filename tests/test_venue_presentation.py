@@ -1,5 +1,6 @@
 from src.publisher_editorial import apply_editorial_rules
 from src.publisher_projection import project_event
+from src.reddit_renderer import render_event_line
 from src.venue_presentation import present_event
 
 
@@ -70,3 +71,32 @@ def test_notion_combo_remains_authoritative_but_uses_publication_url_path() -> N
     assert editorial.display_venue == "Kennewick Mid-Columbia Library"
     assert editorial.publication_url == "https://midcolumbialibraries.org/branch/kennewick"
     assert editorial.publication_url_reason == "venue_reddit_combo"
+
+
+def test_allevents_lifted_lotus_fallback_renders_compact_venue_and_city() -> None:
+    projected = project_event(
+        event(
+            title="Recovery Dharma – Weekly Meditation & Discussion at Lifted Lotus",
+            venue=(
+                "Lifted Lotus Yoga Collective, Kennewick, WA, United States, "
+                "Washington 99336"
+            ),
+            city="Kennewick",
+            source="AllEvents",
+            source_event_id="200030515870653",
+            url="https://allevents.in/kennewick/event/200030515870653",
+            external_url=None,
+            category="Community Programs",
+        )
+    )
+    editorial = apply_editorial_rules(projected)
+
+    assert projected.display_venue == (
+        "Lifted Lotus Yoga Collective, Kennewick, WA, United States, Washington 99336"
+    )
+    assert editorial.display_venue == "Lifted Lotus Yoga Collective"
+    assert render_event_line(editorial) == (
+        "Recovery Dharma – Weekly Meditation & Discussion at Lifted Lotus | "
+        "[Lifted Lotus Yoga Collective]"
+        "(https://allevents.in/kennewick/event/200030515870653), Kennewick | 7p"
+    )
