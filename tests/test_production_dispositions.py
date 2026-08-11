@@ -1,3 +1,5 @@
+import pytest
+
 from src.occurrence_resolution import resolve_occurrences
 from src.production_dispositions import DEFAULT_PRODUCTION_DISPOSITIONS_PATH, ProductionDispositions
 from src.publisher_editorial import apply_editorial_rules, community_events, main_events
@@ -79,6 +81,100 @@ def test_sports_page_external_authority_resolves_to_one_supported_occurrence() -
     assert decision["reason"] == "captain_approved_external_authority"
     assert decision["value"]["evidence_authority"] == "first_party_organizer_schedule"
     assert decision["value"]["evidence_url"] == "https://gamenightlive.com/washington-tri-cities/"
+    selector_audit = event["intelligence"]["captain_disposition_selector_audit"]
+    assert selector_audit["reason"] == "captain_selector_status_recorded"
+    assert selector_audit["value"]["mission_id"] == "MC-2026-033"
+    assert [item["status"] for item in selector_audit["value"]["selectors"]] == [
+        "matched",
+        "matched_and_suppressed",
+    ]
+
+
+def test_sports_page_suppressed_selector_may_be_absent() -> None:
+    configured = ProductionDispositions.load("2026-08-10", DEFAULT_PRODUCTION_DISPOSITIONS_PATH)
+    assert configured is not None
+    dispositions = ProductionDispositions(
+        configured.mission_id,
+        configured.week_start,
+        (next(cohort for cohort in configured.resolutions if cohort["cohort"].startswith("Game Night Live R0CK'N Bingo")),),
+        (),
+    )
+
+    corrected = dispositions.apply([
+        {
+            **_event("AllEvents", "200030535883055", start_time="09:00", title="R0CK'N Bingo"),
+            "start_date": "2026-08-16",
+            "venue": "Sports Page Bar & Grill",
+        }
+    ])
+
+    assert len(corrected) == 1
+    assert corrected[0]["title"] == "Game Night Live R0CK'N Bingo"
+    assert corrected[0]["start_time"] == "16:00"
+    assert corrected[0]["end_time"] == "18:00"
+    audit = corrected[0]["intelligence"]["captain_disposition_selector_audit"]
+    assert [item["status"] for item in audit["value"]["selectors"]] == ["matched", "absent"]
+    assert audit["value"]["selectors"][1]["source_event_id"] == "200030535883258"
+    assert audit["value"]["selectors"][1]["role"] == "suppressed"
+
+
+def test_sports_page_required_surviving_selector_must_be_present() -> None:
+    configured = ProductionDispositions.load("2026-08-10", DEFAULT_PRODUCTION_DISPOSITIONS_PATH)
+    assert configured is not None
+    dispositions = ProductionDispositions(
+        configured.mission_id,
+        configured.week_start,
+        (next(cohort for cohort in configured.resolutions if cohort["cohort"].startswith("Game Night Live R0CK'N Bingo")),),
+        (),
+    )
+
+    with pytest.raises(ValueError, match=r"\('RESOLVE', 0, 0\)"):
+        dispositions.apply([
+            {
+                **_event("AllEvents", "200030535883258", start_time="08:00", title="R0CK'N Bingo + Rockstar Trivia"),
+                "start_date": "2026-08-16",
+                "venue": "Sports Page Bar & Grill",
+            }
+        ])
+
+
+def test_unmarked_missing_resolution_selector_remains_a_hard_failure() -> None:
+    dispositions = ProductionDispositions(
+        "MC-2026-033",
+        "2026-08-10",
+        ({
+            "cohort": "ordinary exact correction",
+            "start_time": "19:00",
+            "evidence": "both records are required",
+            "selectors": [
+                {"source": "A", "source_event_id": "one"},
+                {"source": "B", "source_event_id": "two"},
+            ],
+        },),
+        (),
+    )
+
+    with pytest.raises(ValueError, match=r"\('RESOLVE', 0, 1\)"):
+        dispositions.apply([_event("A", "one", start_time="12:00")])
+
+
+def test_exclusion_selector_cannot_be_marked_suppressed() -> None:
+    dispositions = ProductionDispositions(
+        "MC-2026-033",
+        "2026-08-10",
+        (),
+        ({
+            "cohort": "excluded cohort",
+            "reason": "captain_excluded_this_week",
+            "evidence": "must identify the excluded record",
+            "selectors": [
+                {"source": "A", "source_event_id": "one", "role": "suppressed"}
+            ],
+        },),
+    )
+
+    with pytest.raises(ValueError, match="EXCLUDE Captain disposition selectors must be required"):
+        dispositions.apply([])
 
 
 def test_evidence_resolution_corrects_exact_records_before_occurrence_resolution() -> None:

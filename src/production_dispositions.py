@@ -32,6 +32,7 @@ class ProductionDispositions:
         return cls(str(row["mission_id"]), week_start, tuple(row.get("resolutions", ())), tuple(row.get("exclusions", ())))
 
     def apply(self, events: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+        self._validate_selector_roles()
         output: list[dict[str, Any]] = []
         matched: set[tuple[str, int, int]] = set()
         for event in events:
@@ -60,7 +61,7 @@ class ProductionDispositions:
                 )["intelligence"]
             output.append(copied)
         self._require_all_selectors(matched)
-        return output
+        return self._attach_selector_audit(output, matched)
 
     def _matches(self, event: Mapping[str, Any]):
         for action, cohorts in (("RESOLVE", self.resolutions), ("EXCLUDE", self.exclusions)):
@@ -70,10 +71,83 @@ class ProductionDispositions:
                         yield action, cohort_index, selector_index, cohort
 
     def _require_all_selectors(self, matched: set[tuple[str, int, int]]) -> None:
-        expected = {(action, cohort_index, selector_index) for action, cohorts in (("RESOLVE", self.resolutions), ("EXCLUDE", self.exclusions)) for cohort_index, cohort in enumerate(cohorts) for selector_index, _ in enumerate(cohort.get("selectors", ()))}
+        expected = {
+            (action, cohort_index, selector_index)
+            for action, cohorts in (("RESOLVE", self.resolutions), ("EXCLUDE", self.exclusions))
+            for cohort_index, cohort in enumerate(cohorts)
+            for selector_index, selector in enumerate(cohort.get("selectors", ()))
+            if _selector_role(selector) == "required"
+        }
         missing = expected - matched
         if missing:
             raise ValueError(f"Captain disposition selectors did not match production input: {sorted(missing)}")
+
+    def _validate_selector_roles(self) -> None:
+        for action, cohorts in (("RESOLVE", self.resolutions), ("EXCLUDE", self.exclusions)):
+            for cohort_index, cohort in enumerate(cohorts):
+                roles = tuple(
+                    _selector_role(selector)
+                    for selector in cohort.get("selectors", ())
+                )
+                if action == "EXCLUDE" and any(role != "required" for role in roles):
+                    raise ValueError(
+                        f"EXCLUDE Captain disposition selectors must be required: {cohort_index}"
+                    )
+                if action == "RESOLVE" and "required" not in roles:
+                    raise ValueError(
+                        f"RESOLVE Captain disposition requires a surviving selector: {cohort_index}"
+                    )
+
+    def _attach_selector_audit(
+        self,
+        events: list[dict[str, Any]],
+        matched: set[tuple[str, int, int]],
+    ) -> list[dict[str, Any]]:
+        audits: dict[str, dict[str, Any]] = {}
+        for cohort_index, cohort in enumerate(self.resolutions):
+            selectors = tuple(cohort.get("selectors", ()))
+            if not any(_selector_role(selector) == "suppressed" for selector in selectors):
+                continue
+            selector_status = []
+            for selector_index, selector in enumerate(selectors):
+                role = _selector_role(selector)
+                was_matched = ("RESOLVE", cohort_index, selector_index) in matched
+                selector_status.append({
+                    "selector_index": selector_index,
+                    "role": role,
+                    "status": (
+                        "matched_and_suppressed"
+                        if role == "suppressed" and was_matched
+                        else "absent"
+                        if role == "suppressed"
+                        else "matched"
+                        if was_matched
+                        else "missing"
+                    ),
+                    "source": selector.get("source"),
+                    "source_event_id": selector.get("source_event_id"),
+                })
+            audits[str(cohort["cohort"])] = {
+                "mission_id": self.mission_id,
+                "cohort": cohort["cohort"],
+                "selectors": selector_status,
+            }
+
+        audited: list[dict[str, Any]] = []
+        for event in events:
+            cohort = str(event.get("production_disposition_cohort") or "")
+            audit = audits.get(cohort)
+            if audit is None:
+                audited.append(event)
+                continue
+            audited.append(attach_intelligence(
+                event,
+                "captain_disposition_selector_audit",
+                audit,
+                1.0,
+                "captain_selector_status_recorded",
+            ))
+        return audited
 
 
 def _matches_selector(event: Mapping[str, Any], selector: Mapping[str, Any]) -> bool:
@@ -82,6 +156,13 @@ def _matches_selector(event: Mapping[str, Any], selector: Mapping[str, Any]) -> 
             return False
     venue_contains = _clean(selector.get("venue_contains"))
     return not venue_contains or venue_contains in _clean(event.get("venue"))
+
+
+def _selector_role(selector: Mapping[str, Any]) -> str:
+    role = str(selector.get("role") or "required").strip().casefold()
+    if role not in {"required", "suppressed"}:
+        raise ValueError(f"unsupported Captain disposition selector role: {role!r}")
+    return role
 
 
 def _clean(value: Any) -> str:
