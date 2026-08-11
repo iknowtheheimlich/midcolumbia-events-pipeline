@@ -2,7 +2,12 @@ import pytest
 
 from src.occurrence_resolution import resolve_occurrences
 from src.production_dispositions import DEFAULT_PRODUCTION_DISPOSITIONS_PATH, ProductionDispositions
-from src.publisher_editorial import apply_editorial_rules, community_events, main_events
+from src.publisher_editorial import (
+    COMPLETED_REJECTION_REASONS,
+    apply_editorial_rules,
+    community_events,
+    main_events,
+)
 from src.publisher_projection import project_event
 
 
@@ -29,7 +34,7 @@ def test_mc_2026_033_disposition_manifest_covers_all_conflict_cohorts_and_exclus
     assert dispositions is not None
     assert dispositions.mission_id == "MC-2026-033"
     assert len(dispositions.resolutions) == 15
-    assert len(dispositions.exclusions) == 3
+    assert len(dispositions.exclusions) == 4
     selector_ids = {
         selector.get("source_event_id")
         for cohort in (*dispositions.resolutions, *dispositions.exclusions)
@@ -42,6 +47,7 @@ def test_mc_2026_033_disposition_manifest_covers_all_conflict_cohorts_and_exclus
     assert any(cohort.startswith("HAPO Center regional concert cohort") for cohort in excluded_cohorts)
     assert any(cohort.startswith("Richland Estate Sale") for cohort in excluded_cohorts)
     assert any(cohort.startswith("Team Policy Debate Camp") for cohort in excluded_cohorts)
+    assert any(cohort.startswith("Perseid Meteor Shower Watch Party") for cohort in excluded_cohorts)
     captain_conflicts = dispositions.resolutions[:10]
     # Ten corrected cohorts plus the deliberately excluded HAPO conflict account
     # for all eleven conflicting-occurrence cohorts from the Captain review.
@@ -329,3 +335,47 @@ def test_captain_exclusion_is_completed_rejection_and_never_renders() -> None:
     assert editorial.editorial_reason == "captain_excluded_this_week"
     assert main_events([editorial]) == []
     assert community_events([editorial]) == []
+
+
+def test_perseid_captain_exclusion_is_completed_and_preserves_audit_evidence() -> None:
+    configured = ProductionDispositions.load("2026-08-10", DEFAULT_PRODUCTION_DISPOSITIONS_PATH)
+    assert configured is not None
+    perseid = next(
+        cohort
+        for cohort in configured.exclusions
+        if cohort["cohort"].startswith("Perseid Meteor Shower Watch Party")
+    )
+    dispositions = ProductionDispositions(
+        configured.mission_id, configured.week_start, (), (perseid,)
+    )
+    source = {
+        **_event(
+            "AllEvents",
+            "200030305782421",
+            start_time="15:00",
+            title="Perseid Meteor Shower Watch Party ☄️",
+        ),
+        "venue": "Finley, Washington",
+        "city": "Burbank",
+        "state": "WA",
+        "address": "Finley,WA,United States",
+        "latitude": "46.1757",
+        "longitude": "-119.057",
+        "url": "https://allevents.in/burbank/event/200030305782421",
+    }
+
+    excluded = dispositions.apply([source])[0]
+    editorial = apply_editorial_rules(project_event(excluded))
+
+    assert excluded["venue"] == "Finley, Washington"
+    assert excluded["city"] == "Burbank"
+    assert excluded["captain_disposition"] == "EXCLUDE"
+    assert editorial.publication_disposition == "REJECT"
+    assert editorial.editorial_reason == "captain_excluded_this_week"
+    assert editorial.editorial_reason in COMPLETED_REJECTION_REASONS
+    assert main_events([editorial]) == []
+    assert community_events([editorial]) == []
+    audit = editorial.intelligence["captain_disposition"]
+    assert audit["reason"] == "conflicting_locality_authority_insufficient"
+    assert audit["value"]["action"] == "EXCLUDE"
+    assert "actual address will be supplied later" in audit["value"]["evidence"]

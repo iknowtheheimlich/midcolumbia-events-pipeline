@@ -24,7 +24,8 @@
       "exclusions": [
         {"cohort":"HAPO Center regional concert cohort — 2026-08-15","reason":"captain_excluded_this_week","evidence":"Preserved descriptions conflict between 3pm and 7pm and do not establish whether the listings are distinct.","selectors":[{"source":"AllEvents","source_event_id":"3300030346137209"},{"source":"AllEvents","source_event_id":"3300030436561402"},{"source":"AllEvents","source_event_id":"2300030372129110"}]},
         {"cohort":"Richland Estate Sale — 2026-08-13","reason":"captain_excluded_this_week","evidence":"The source explicitly says the address will be posted later; no venue is established.","selectors":[{"source":"AllEvents","source_event_id":"200030527358744"}]},
-        {"cohort":"Team Policy Debate Camp — 2026-08-13","reason":"captain_excluded_this_week","evidence":"The preserved source provides only Richland, Washington and no venue authority.","selectors":[{"source":"AllEvents","source_event_id":"200030489981013"}]}
+        {"cohort":"Team Policy Debate Camp — 2026-08-13","reason":"captain_excluded_this_week","evidence":"The preserved source provides only Richland, Washington and no venue authority.","selectors":[{"source":"AllEvents","source_event_id":"200030489981013"}]},
+        {"cohort":"Perseid Meteor Shower Watch Party — 2026-08-12","reason":"captain_excluded_this_week","evidence":"The preserved AllEvents record identifies the venue as Finley, Washington while its structured city, URL path, and share text identify Burbank; its full address combines both localities and its description says the actual address will be supplied later. Existing authority cannot establish one publication locality.","decision_reason":"conflicting_locality_authority_insufficient","selectors":[{"source":"AllEvents","source_event_id":"200030305782421"}]}
       ]
     }
   ]
