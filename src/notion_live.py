@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+import logging
 import re
+import socket
+import time
 from typing import Any
 
 import httpx
@@ -13,6 +17,9 @@ _STATE_POSTAL_RE = re.compile(
     r"^(?:[A-Z]{2}|Washington|Oregon|Idaho)(?:\s+\d{5}(?:-\d{4})?)?$",
     re.IGNORECASE,
 )
+_LOGGER = logging.getLogger(__name__)
+_INITIAL_QUERY_RETRY_DELAY_SECONDS = 1.0
+_WINDOWS_WSAHOST_NOT_FOUND = 11001
 
 
 def fetch_live_weekly_rows(
@@ -60,17 +67,95 @@ def _query_pages(client: httpx.Client, token: str, data_source_id: str) -> list[
         }
         if cursor:
             payload["start_cursor"] = cursor
-        response = client.post(
-            f"https://api.notion.com/v1/data_sources/{data_source_id}/query",
-            headers=_headers(token),
-            json=payload,
-        )
+        request = {
+            "url": f"https://api.notion.com/v1/data_sources/{data_source_id}/query",
+            "headers": _headers(token),
+            "json": payload,
+        }
+        if cursor is None:
+            response = _post_initial_query(client, **request)
+        else:
+            response = client.post(**request)
         response.raise_for_status()
         body = response.json()
         results.extend(item for item in body.get("results", []) if isinstance(item, dict))
         cursor = body.get("next_cursor")
         if not body.get("has_more") or not cursor:
             return results
+
+
+def _post_initial_query(
+    client: httpx.Client,
+    *,
+    url: str,
+    headers: dict[str, str],
+    json: dict[str, Any],
+) -> httpx.Response:
+    try:
+        return client.post(url, headers=headers, json=json)
+    except httpx.ConnectError as first_error:
+        if not _is_windows_getaddrinfo_failure(first_error):
+            raise
+
+        first_timestamp = _utc_timestamp()
+        _LOGGER.warning(
+            "initial_notion_query_resolver_failure timestamp=%s retry_in_seconds=%s error=%r",
+            first_timestamp,
+            _INITIAL_QUERY_RETRY_DELAY_SECONDS,
+            first_error,
+            exc_info=True,
+        )
+        time.sleep(_INITIAL_QUERY_RETRY_DELAY_SECONDS)
+        try:
+            response = client.post(url, headers=headers, json=json)
+        except httpx.ConnectError as second_error:
+            second_timestamp = _utc_timestamp()
+            second_error.add_note(
+                "Initial Notion query resolver retry failed; "
+                f"first_attempt_timestamp={first_timestamp}; first_error={first_error!r}; "
+                f"second_attempt_timestamp={second_timestamp}"
+            )
+            _LOGGER.error(
+                "initial_notion_query_resolver_retry_failed first_timestamp=%s "
+                "second_timestamp=%s first_error=%r second_error=%r",
+                first_timestamp,
+                second_timestamp,
+                first_error,
+                second_error,
+                exc_info=True,
+            )
+            raise
+
+        _LOGGER.warning(
+            "initial_notion_query_resolver_recovered first_failure_timestamp=%s",
+            first_timestamp,
+        )
+        return response
+
+
+def _is_windows_getaddrinfo_failure(error: BaseException) -> bool:
+    pending: list[BaseException] = [error]
+    seen: set[int] = set()
+    while pending:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        if (
+            isinstance(current, socket.gaierror)
+            and current.errno == _WINDOWS_WSAHOST_NOT_FOUND
+            and "getaddrinfo failed" in str(current).casefold()
+        ):
+            return True
+        if current.__cause__ is not None:
+            pending.append(current.__cause__)
+        if current.__context__ is not None:
+            pending.append(current.__context__)
+    return False
+
+
+def _utc_timestamp() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 def _fetch_venue(client: httpx.Client, token: str, page_id: str) -> dict[str, str]:

@@ -1,7 +1,11 @@
 import json
+import logging
+import socket
 
 import httpx
+import pytest
 
+import src.notion_live as notion_live
 from src.notion_live import _city_from_address, fetch_live_weekly_rows
 
 
@@ -11,6 +15,15 @@ def _rich_text(value: str) -> dict:
 
 def _title(value: str) -> dict:
     return {"type": "title", "title": [{"plain_text": value}]}
+
+
+def _resolver_connect_error() -> httpx.ConnectError:
+    try:
+        raise socket.gaierror(11001, "getaddrinfo failed")
+    except socket.gaierror as cause:
+        error = httpx.ConnectError("[Errno 11001] getaddrinfo failed")
+        error.__cause__ = cause
+        return error
 
 
 def test_city_from_address_supports_state_zip_without_country() -> None:
@@ -126,3 +139,114 @@ def test_sends_weekly_and_generate_filters() -> None:
             {"property": "Generate This Week", "checkbox": {"equals": True}},
         ]
     }
+
+
+def test_initial_resolver_failure_retries_once_and_recovers(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    requests = 0
+    sleeps: list[float] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal requests
+        requests += 1
+        if requests == 1:
+            raise _resolver_connect_error()
+        return httpx.Response(200, json={"results": [], "has_more": False})
+
+    monkeypatch.setattr(notion_live.time, "sleep", sleeps.append)
+    caplog.set_level(logging.WARNING, logger="src.notion_live")
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        assert fetch_live_weekly_rows("token", client=client) == []
+
+    assert requests == 2
+    assert sleeps == [1.0]
+    assert "initial_notion_query_resolver_failure" in caplog.text
+    assert "timestamp=" in caplog.text
+    assert "initial_notion_query_resolver_recovered" in caplog.text
+    first_record = next(
+        record for record in caplog.records
+        if record.message.startswith("initial_notion_query_resolver_failure")
+    )
+    assert isinstance(first_record.exc_info[1], httpx.ConnectError)
+
+
+def test_two_initial_resolver_failures_abort_with_both_errors_preserved(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    errors = [_resolver_connect_error(), _resolver_connect_error()]
+    requests = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal requests
+        error = errors[requests]
+        requests += 1
+        raise error
+
+    monkeypatch.setattr(notion_live.time, "sleep", lambda _: None)
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        with pytest.raises(httpx.ConnectError) as caught:
+            fetch_live_weekly_rows("token", client=client)
+
+    assert requests == 2
+    assert caught.value is errors[1]
+    assert any("first_error=ConnectError" in note for note in caught.value.__notes__)
+    assert any("first_attempt_timestamp=" in note for note in caught.value.__notes__)
+
+
+@pytest.mark.parametrize("status_code", [400, 401, 500])
+def test_http_errors_are_not_retried(status_code: int) -> None:
+    requests = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal requests
+        requests += 1
+        return httpx.Response(status_code, json={"message": "no"})
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        with pytest.raises(httpx.HTTPStatusError):
+            fetch_live_weekly_rows("token", client=client)
+
+    assert requests == 1
+
+
+def test_unrelated_connect_error_is_not_retried(monkeypatch: pytest.MonkeyPatch) -> None:
+    requests = 0
+    slept = False
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal requests
+        requests += 1
+        raise httpx.ConnectError("connection refused")
+
+    def unexpected_sleep(_: float) -> None:
+        nonlocal slept
+        slept = True
+
+    monkeypatch.setattr(notion_live.time, "sleep", unexpected_sleep)
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        with pytest.raises(httpx.ConnectError, match="connection refused"):
+            fetch_live_weekly_rows("token", client=client)
+
+    assert requests == 1
+    assert slept is False
+
+
+def test_resolver_failure_during_pagination_is_not_retried() -> None:
+    requests = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal requests
+        requests += 1
+        if requests == 1:
+            return httpx.Response(
+                200,
+                json={"results": [], "has_more": True, "next_cursor": "next"},
+            )
+        raise _resolver_connect_error()
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        with pytest.raises(httpx.ConnectError):
+            fetch_live_weekly_rows("token", client=client)
+
+    assert requests == 2
