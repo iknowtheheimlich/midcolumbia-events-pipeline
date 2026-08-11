@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
+import logging
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
@@ -12,6 +13,7 @@ from src.intelligence import attach_intelligence
 
 
 DEFAULT_PRODUCTION_DISPOSITIONS_PATH = Path("config/production_dispositions.json")
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -20,6 +22,9 @@ class ProductionDispositions:
     week_start: str
     resolutions: tuple[dict[str, Any], ...]
     exclusions: tuple[dict[str, Any], ...]
+    selector_audit: tuple[dict[str, Any], ...] = field(
+        default=(), init=False, repr=False, compare=False
+    )
 
     @classmethod
     def load(cls, week_start: str, path: Path = DEFAULT_PRODUCTION_DISPOSITIONS_PATH) -> "ProductionDispositions | None":
@@ -57,6 +62,7 @@ class ProductionDispositions:
                 else:
                     copied["captain_disposition"] = "EXCLUDE"
                     copied["captain_disposition_reason"] = disposition["reason"]
+                    copied["production_disposition_cohort"] = disposition["cohort"]
                 copied["intelligence"] = attach_intelligence(
                     {"intelligence": copied.get("intelligence") or {}},
                     "captain_disposition",
@@ -94,9 +100,19 @@ class ProductionDispositions:
                     _selector_role(selector)
                     for selector in cohort.get("selectors", ())
                 )
-                if action == "EXCLUDE" and any(role != "required" for role in roles):
+                if action == "EXCLUDE" and any(
+                    role not in {"required", "safe_absence"} for role in roles
+                ):
                     raise ValueError(
-                        f"EXCLUDE Captain disposition selectors must be required: {cohort_index}"
+                        "EXCLUDE Captain disposition selectors must be required or "
+                        f"safe_absence: {cohort_index}"
+                    )
+                if action == "RESOLVE" and any(
+                    role not in {"required", "suppressed"} for role in roles
+                ):
+                    raise ValueError(
+                        "RESOLVE Captain disposition selectors must be required or "
+                        f"suppressed: {cohort_index}"
                     )
                 if action == "RESOLVE" and "required" not in roles:
                     raise ValueError(
@@ -119,34 +135,52 @@ class ProductionDispositions:
         matched: set[tuple[str, int, int]],
     ) -> list[dict[str, Any]]:
         audits: dict[str, dict[str, Any]] = {}
-        for cohort_index, cohort in enumerate(self.resolutions):
-            selectors = tuple(cohort.get("selectors", ()))
-            if not any(_selector_role(selector) == "suppressed" for selector in selectors):
-                continue
-            selector_status = []
-            for selector_index, selector in enumerate(selectors):
-                role = _selector_role(selector)
-                was_matched = ("RESOLVE", cohort_index, selector_index) in matched
-                selector_status.append({
-                    "selector_index": selector_index,
-                    "role": role,
-                    "status": (
-                        "matched_and_suppressed"
-                        if role == "suppressed" and was_matched
-                        else "absent"
-                        if role == "suppressed"
-                        else "matched"
-                        if was_matched
-                        else "missing"
-                    ),
-                    "source": selector.get("source"),
-                    "source_event_id": selector.get("source_event_id"),
-                })
-            audits[str(cohort["cohort"])] = {
-                "mission_id": self.mission_id,
-                "cohort": cohort["cohort"],
-                "selectors": selector_status,
-            }
+        for action, cohorts in (("RESOLVE", self.resolutions), ("EXCLUDE", self.exclusions)):
+            for cohort_index, cohort in enumerate(cohorts):
+                selectors = tuple(cohort.get("selectors", ()))
+                audited_role = "suppressed" if action == "RESOLVE" else "safe_absence"
+                if not any(_selector_role(selector) == audited_role for selector in selectors):
+                    continue
+                selector_status = []
+                for selector_index, selector in enumerate(selectors):
+                    role = _selector_role(selector)
+                    was_matched = (action, cohort_index, selector_index) in matched
+                    if action == "EXCLUDE" and was_matched:
+                        status = "matched_and_excluded"
+                    elif role in {"suppressed", "safe_absence"} and not was_matched:
+                        status = "absent"
+                    elif role == "suppressed":
+                        status = "matched_and_suppressed"
+                    else:
+                        status = "matched" if was_matched else "missing"
+                    selector_status.append({
+                        "selector_index": selector_index,
+                        "role": role,
+                        "status": status,
+                        "source": selector.get("source"),
+                        "source_event_id": selector.get("source_event_id"),
+                    })
+                audit = {
+                    "mission_id": self.mission_id,
+                    "action": action,
+                    "cohort": cohort["cohort"],
+                    "selectors": selector_status,
+                }
+                audits[str(cohort["cohort"])] = audit
+                if action == "EXCLUDE":
+                    for item in selector_status:
+                        _LOGGER.warning(
+                            "captain_exclude_selector_audit mission_id=%s cohort=%s "
+                            "selector_index=%s source=%s source_event_id=%s status=%s",
+                            self.mission_id,
+                            cohort["cohort"],
+                            item["selector_index"],
+                            item["source"],
+                            item["source_event_id"],
+                            item["status"],
+                        )
+
+        object.__setattr__(self, "selector_audit", tuple(audits.values()))
 
         audited: list[dict[str, Any]] = []
         for event in events:
@@ -175,7 +209,7 @@ def _matches_selector(event: Mapping[str, Any], selector: Mapping[str, Any]) -> 
 
 def _selector_role(selector: Mapping[str, Any]) -> str:
     role = str(selector.get("role") or "required").strip().casefold()
-    if role not in {"required", "suppressed"}:
+    if role not in {"required", "suppressed", "safe_absence"}:
         raise ValueError(f"unsupported Captain disposition selector role: {role!r}")
     return role
 

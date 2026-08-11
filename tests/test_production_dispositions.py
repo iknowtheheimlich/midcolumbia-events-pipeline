@@ -379,8 +379,118 @@ def test_exclusion_selector_cannot_be_marked_suppressed() -> None:
         },),
     )
 
-    with pytest.raises(ValueError, match="EXCLUDE Captain disposition selectors must be required"):
+    with pytest.raises(
+        ValueError,
+        match="EXCLUDE Captain disposition selectors must be required or safe_absence",
+    ):
         dispositions.apply([])
+
+
+def test_required_exclusion_selector_missing_remains_a_hard_failure() -> None:
+    dispositions = ProductionDispositions(
+        "MC-2026-033",
+        "2026-08-10",
+        (),
+        ({
+            "cohort": "ordinary required exclusion",
+            "reason": "captain_excluded_this_week",
+            "evidence": "exact record must be identified",
+            "selectors": [{"source": "A", "source_event_id": "required"}],
+        },),
+    )
+
+    with pytest.raises(ValueError, match=r"\('EXCLUDE', 0, 0\)"):
+        dispositions.apply([_event("A", "other", start_time="12:00")])
+
+
+def test_richland_estate_sale_safe_absence_succeeds_with_deterministic_audit() -> None:
+    configured = ProductionDispositions.load("2026-08-10", DEFAULT_PRODUCTION_DISPOSITIONS_PATH)
+    assert configured is not None
+    estate_sale = next(
+        cohort for cohort in configured.exclusions
+        if cohort["cohort"].startswith("Richland Estate Sale")
+    )
+    dispositions = ProductionDispositions(
+        configured.mission_id, configured.week_start, (), (estate_sale,)
+    )
+    unrelated = _event("AllEvents", "unrelated", start_time="12:00")
+
+    assert dispositions.apply([unrelated]) == [unrelated]
+    assert dispositions.selector_audit == ({
+        "mission_id": "MC-2026-033",
+        "action": "EXCLUDE",
+        "cohort": estate_sale["cohort"],
+        "selectors": [{
+            "selector_index": 0,
+            "role": "safe_absence",
+            "status": "absent",
+            "source": "AllEvents",
+            "source_event_id": "200030527358744",
+        }],
+    },)
+
+    report = build_mission_control_report(
+        week_start="2026-08-10",
+        production_status="HEALTHY",
+        source_health=[SourceHealthSummary("AllEvents", "HEALTHY")],
+        counts={
+            "publication_blockers": 0,
+            "editorial_reviews": 0,
+            "rejected": 0,
+            "completed_rejections": 0,
+            "unresolved_rejections": 0,
+        },
+        regression={"passed": True},
+    )
+    assert report.ready_to_publish is True
+
+
+def test_richland_estate_sale_safe_absence_reappearance_is_excluded() -> None:
+    configured = ProductionDispositions.load("2026-08-10", DEFAULT_PRODUCTION_DISPOSITIONS_PATH)
+    assert configured is not None
+    estate_sale = next(
+        cohort for cohort in configured.exclusions
+        if cohort["cohort"].startswith("Richland Estate Sale")
+    )
+    dispositions = ProductionDispositions(
+        configured.mission_id, configured.week_start, (), (estate_sale,)
+    )
+    source = _event("AllEvents", "200030527358744", start_time="12:00")
+
+    excluded = dispositions.apply([source])[0]
+    editorial = apply_editorial_rules(project_event(excluded))
+
+    assert excluded["captain_disposition"] == "EXCLUDE"
+    assert editorial.publication_disposition == "REJECT"
+    assert editorial.editorial_reason == "captain_excluded_this_week"
+    assert main_events([editorial]) == []
+    assert community_events([editorial]) == []
+    audit = excluded["intelligence"]["captain_disposition_selector_audit"]
+    assert audit["value"]["selectors"][0]["status"] == "matched_and_excluded"
+    assert dispositions.selector_audit[0]["selectors"][0]["status"] == "matched_and_excluded"
+
+
+def test_safe_absence_exclusion_keeps_exact_selector_semantics() -> None:
+    dispositions = ProductionDispositions(
+        "MC-2026-033",
+        "2026-08-10",
+        (),
+        ({
+            "cohort": "exact optional exclusion",
+            "reason": "captain_excluded_this_week",
+            "evidence": "exact source record only",
+            "selectors": [{
+                "source": "AllEvents",
+                "source_event_id": "target",
+                "role": "safe_absence",
+            }],
+        },),
+    )
+    unrelated = _event("AllEvents", "target-near-match", start_time="12:00")
+
+    assert dispositions.apply([unrelated]) == [unrelated]
+    assert "captain_disposition" not in unrelated
+    assert dispositions.selector_audit[0]["selectors"][0]["status"] == "absent"
 
 
 def test_evidence_resolution_corrects_exact_records_before_occurrence_resolution() -> None:
