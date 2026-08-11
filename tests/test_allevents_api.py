@@ -2,7 +2,7 @@ from datetime import date
 from email.message import Message
 import json
 from pathlib import Path
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 
 import pytest
 
@@ -126,6 +126,137 @@ def test_dns_failure_remains_distinct_from_session_rejection(monkeypatch):
 
     assert "2026-07-19|Pasco: URLError: <urlopen error [Errno 11001] getaddrinfo failed>" in result.error
     assert "session/API rejection" not in result.error
+
+
+def _connection_reset() -> URLError:
+    return URLError(ConnectionResetError(10054, "An existing connection was forcibly closed by the remote host"))
+
+
+def test_city_connection_reset_recovers_after_exactly_one_retry(monkeypatch, caplog):
+    calls: dict[tuple[str, str], int] = {}
+
+    def fetch_json(_url, *, body, headers):
+        del headers
+        payload = json.loads(body)
+        key = (payload["start_date"].split()[0], payload["city"])
+        calls[key] = calls.get(key, 0) + 1
+        if key == ("2026-08-11", "Kennewick") and calls[key] == 1:
+            raise _connection_reset()
+        return {"error": 0, "search_result": [_row(event_id=payload["city"])]}
+
+    monkeypatch.setattr("adapters.allevents.api.time.sleep", lambda seconds: None)
+    monkeypatch.setattr("adapters.allevents.api.save_raw_fixture", lambda *_args: None)
+    monkeypatch.setattr("adapters.allevents.api.generated_raw_path", lambda _adapter: Path("raw.json"))
+    result = harvest_allevents_api(
+        get_adapter("AllEvents"),
+        week_start=date(2026, 8, 11),
+        days=1,
+        fetch_json=fetch_json,
+    )
+
+    assert result.error is None
+    assert calls[("2026-08-11", "Kennewick")] == 2
+    assert all(count == 1 for key, count in calls.items() if key != ("2026-08-11", "Kennewick"))
+    assert "allevents_city_request_connection_reset_recovered" in caplog.text
+    assert "context=2026-08-11|Kennewick" in caplog.text
+
+
+def test_two_city_connection_resets_retain_partial_results_and_diagnostics(monkeypatch, caplog):
+    calls: dict[str, int] = {}
+
+    def fetch_json(_url, *, body, headers):
+        del headers
+        payload = json.loads(body)
+        city = payload["city"]
+        calls[city] = calls.get(city, 0) + 1
+        if city == "Kennewick":
+            raise _connection_reset()
+        return {"error": 0, "search_result": [_row(event_id=city)]}
+
+    monkeypatch.setattr("adapters.allevents.api.time.sleep", lambda seconds: None)
+    monkeypatch.setattr("adapters.allevents.api.save_raw_fixture", lambda *_args: None)
+    monkeypatch.setattr("adapters.allevents.api.generated_raw_path", lambda _adapter: Path("raw.json"))
+    adapter = get_adapter("AllEvents")
+    result = harvest_allevents_api(
+        adapter,
+        week_start=date(2026, 8, 11),
+        days=1,
+        fetch_json=fetch_json,
+    )
+    health = assess_harvest_health([adapter], [result])
+
+    assert calls["Kennewick"] == 2
+    assert result.normalized_events
+    assert "2026-08-11|Kennewick: URLError" in result.error
+    assert health.sources[0].status == "PARTIAL"
+    assert "allevents_city_request_connection_reset_retry_failed" in caplog.text
+    assert "context=2026-08-11|Kennewick" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "failure",
+    (
+        URLError("[Errno 11001] getaddrinfo failed"),
+        URLError(ConnectionRefusedError(10061, "No connection could be made")),
+        HTTPError("https://allevents.in/api", 503, "Service Unavailable", {}, None),
+    ),
+)
+def test_unrelated_url_errors_are_not_retried(monkeypatch, failure):
+    calls = 0
+
+    def fetch_json(_url, *, body, headers):
+        nonlocal calls
+        del headers
+        payload = json.loads(body)
+        if payload["city"] == "Kennewick":
+            calls += 1
+            raise failure
+        return {"error": 0, "search_result": [_row(event_id=payload["city"])]}
+
+    def unexpected_sleep(_seconds):
+        raise AssertionError("unrelated URLError must not sleep or retry")
+
+    monkeypatch.setattr("adapters.allevents.api.time.sleep", unexpected_sleep)
+    monkeypatch.setattr("adapters.allevents.api.save_raw_fixture", lambda *_args: None)
+    monkeypatch.setattr("adapters.allevents.api.generated_raw_path", lambda _adapter: Path("raw.json"))
+    result = harvest_allevents_api(
+        get_adapter("AllEvents"),
+        week_start=date(2026, 8, 11),
+        days=1,
+        fetch_json=fetch_json,
+    )
+
+    assert calls == 1
+    assert result.error is not None
+
+
+def test_session_rejection_is_not_retried(monkeypatch):
+    calls = 0
+
+    def fetch_json(_url, *, body, headers):
+        nonlocal calls
+        del headers
+        payload = json.loads(body)
+        if payload["city"] == "Kennewick":
+            calls += 1
+            raise RuntimeError("AllEvents session/API rejection")
+        return {"error": 0, "search_result": [_row(event_id=payload["city"])]}
+
+    monkeypatch.setattr(
+        "adapters.allevents.api.time.sleep",
+        lambda _seconds: (_ for _ in ()).throw(AssertionError("session rejection retried")),
+    )
+    monkeypatch.setattr("adapters.allevents.api.save_raw_fixture", lambda *_args: None)
+    monkeypatch.setattr("adapters.allevents.api.generated_raw_path", lambda _adapter: Path("raw.json"))
+    result = harvest_allevents_api(
+        get_adapter("AllEvents"),
+        week_start=date(2026, 8, 11),
+        days=1,
+        fetch_json=fetch_json,
+    )
+
+    assert calls == 1
+    assert "AllEvents session/API rejection" in result.error
 
 
 def test_city_queries_do_not_seed_hermiston():

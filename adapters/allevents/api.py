@@ -17,8 +17,11 @@ from datetime import date, datetime, timedelta, timezone, tzinfo
 import html
 from http.cookiejar import CookieJar
 import json
+import logging
 import re
+import time
 from typing import Any, Callable
+from urllib.error import URLError
 import urllib.request
 from urllib.parse import urlsplit, urlunsplit
 
@@ -66,6 +69,9 @@ _EXPLICIT_OPEN_ENDED_START_RE = re.compile(
     r"(?P<meridiem>a\.?m\.?|p\.?m\.?)\s*(?:[-\u2013\u2014â€“â€”]|to)\s*(?:close|onward)\b",
     re.IGNORECASE,
 )
+_LOGGER = logging.getLogger(__name__)
+_CITY_REQUEST_RETRY_DELAY_SECONDS = 1.0
+_WINDOWS_WSAECONNRESET = 10054
 
 CITY_QUERIES: tuple[dict[str, str], ...] = (
     {"city": "Kennewick", "latitude": "46.2086683", "longitude": "-119.1199480"},
@@ -93,10 +99,12 @@ def harvest_allevents_api(
         for city in CITY_QUERIES:
             key = f"{target.isoformat()}|{city['city']}"
             try:
-                response = fetch_json(
+                response = _fetch_city_date_with_retry(
+                    fetch_json,
                     SEARCH_URL,
                     body=json.dumps(_request_payload(target, city)).encode("utf-8"),
                     headers=_api_headers(),
+                    context=key,
                 )
                 if not isinstance(response, dict) or int(response.get("error", 0)) != 0:
                     raise RuntimeError(f"unexpected API response: {response!r}")
@@ -119,6 +127,88 @@ def harvest_allevents_api(
         normalized_events=normalized,
         error=" | ".join(failures) if failures else None,
     )
+
+
+def _fetch_city_date_with_retry(
+    fetch_json: Callable[..., Any],
+    url: str,
+    *,
+    body: bytes,
+    headers: dict[str, str],
+    context: str,
+) -> Any:
+    try:
+        return fetch_json(url, body=body, headers=headers)
+    except URLError as first_error:
+        if not _is_windows_connection_reset(first_error):
+            raise
+
+        first_timestamp = _utc_timestamp()
+        _LOGGER.warning(
+            "allevents_city_request_connection_reset context=%s timestamp=%s "
+            "retry_in_seconds=%s error=%r",
+            context,
+            first_timestamp,
+            _CITY_REQUEST_RETRY_DELAY_SECONDS,
+            first_error,
+            exc_info=True,
+        )
+        time.sleep(_CITY_REQUEST_RETRY_DELAY_SECONDS)
+        try:
+            response = fetch_json(url, body=body, headers=headers)
+        except Exception as second_error:
+            second_timestamp = _utc_timestamp()
+            second_error.add_note(
+                "AllEvents city/date request retry failed; "
+                f"context={context}; first_attempt_timestamp={first_timestamp}; "
+                f"first_error={first_error!r}; second_attempt_timestamp={second_timestamp}"
+            )
+            _LOGGER.error(
+                "allevents_city_request_connection_reset_retry_failed context=%s "
+                "first_timestamp=%s second_timestamp=%s first_error=%r second_error=%r",
+                context,
+                first_timestamp,
+                second_timestamp,
+                first_error,
+                second_error,
+                exc_info=True,
+            )
+            raise
+
+        _LOGGER.warning(
+            "allevents_city_request_connection_reset_recovered context=%s "
+            "first_failure_timestamp=%s",
+            context,
+            first_timestamp,
+        )
+        return response
+
+
+def _is_windows_connection_reset(error: URLError) -> bool:
+    pending: list[BaseException] = [error]
+    seen: set[int] = set()
+    while pending:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        if (
+            getattr(current, "winerror", None) == _WINDOWS_WSAECONNRESET
+            or getattr(current, "errno", None) == _WINDOWS_WSAECONNRESET
+        ):
+            return True
+        reason = getattr(current, "reason", None)
+        if isinstance(reason, BaseException):
+            pending.append(reason)
+        if current.__cause__ is not None:
+            pending.append(current.__cause__)
+        if current.__context__ is not None:
+            pending.append(current.__context__)
+    return False
+
+
+def _utc_timestamp() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 def _build_session_fetcher() -> Callable[..., Any]:
