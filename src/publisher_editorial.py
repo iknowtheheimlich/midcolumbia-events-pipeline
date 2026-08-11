@@ -7,6 +7,7 @@ import re
 from typing import Any, Iterable
 
 from src.editorial_style import derive_display_fields
+from src.geography import classify_region, normalize_city
 from src.intelligence import attach_intelligence, normalize_intelligence
 from src.publisher_projection import PublisherEvent
 from src.publishing_contract import PublishingProfile, format_compact_range
@@ -92,7 +93,14 @@ def apply_editorial_rules(event: PublisherEvent, profile: PublishingProfile | No
     active_profile = profile or PublishingProfile.load()
     display_city = _clean_optional(event.display_city or event.city) or ""
     base_venue = _display_venue(event, display_city)
-    style_city = None if event.venue_reddit_combo else display_city
+    locality = _locality_only_venue(base_venue)
+    locality_conflict = bool(
+        locality
+        and display_city
+        and normalize_city(locality) != normalize_city(display_city)
+    )
+    presentation_city = "" if locality else display_city
+    style_city = None if event.venue_reddit_combo or locality else display_city
     display_title, display_venue, style_reason = derive_display_fields(
         event.title, base_venue, style_city, category=event.category
     )
@@ -111,6 +119,9 @@ def apply_editorial_rules(event: PublisherEvent, profile: PublishingProfile | No
         display_venue=display_venue,
         display_title=display_title,
         url_blocker=url_blocker,
+        presentation_review_reason=(
+            "conflicting_locality_presentation" if locality_conflict else None
+        ),
     )
     explanation = attach_intelligence(
         {"intelligence": normalize_intelligence(event.intelligence)},
@@ -122,7 +133,12 @@ def apply_editorial_rules(event: PublisherEvent, profile: PublishingProfile | No
     explanation = attach_intelligence(
         {"intelligence": explanation},
         "venue_presentation",
-        {"venue": display_venue, "city": display_city, "url": event.display_url},
+        {
+            "venue": display_venue,
+            "city": presentation_city,
+            "source_city": display_city,
+            "url": event.display_url,
+        },
         1.0,
         event.venue_presentation_reason or "legacy_fallback",
     )["intelligence"]
@@ -134,7 +150,7 @@ def apply_editorial_rules(event: PublisherEvent, profile: PublishingProfile | No
         display_end_time=event.end_time,
         display_time=format_compact_range(event.start_time, event.end_time),
         display_venue=display_venue,
-        display_city=display_city,
+        display_city=presentation_city,
         display_organization=display_organization,
         publication_url=publication_url,
         publication_disposition=disposition,
@@ -198,6 +214,7 @@ def _publication_disposition(
     display_venue: str,
     display_title: str,
     url_blocker: str | None,
+    presentation_review_reason: str | None,
 ) -> tuple[str, str | None]:
     classification = (event.content_classification or "EVENT").upper()
     if event.content_rejection_reason or classification != "EVENT":
@@ -206,6 +223,8 @@ def _publication_disposition(
         return "REJECT", event.captain_disposition_reason or "captain_excluded_this_week"
     if event.publication_blocker_reason:
         return "REVIEW", event.publication_blocker_reason
+    if presentation_review_reason:
+        return "REVIEW", presentation_review_reason
     if _has_unbalanced_quotes(display_title):
         return "REVIEW", "malformed_title_punctuation"
     if not display_venue.strip():
@@ -316,6 +335,17 @@ def _is_geographic_suffix(value: str) -> bool:
         or key in _US_STATE_NAMES
         or bool(re.fullmatch(r"[A-Za-z]{2}", without_postal))
     )
+
+
+def _locality_only_venue(value: str) -> str | None:
+    """Return a known locality when the entire label is locality plus geography."""
+    parts = [part.strip() for part in _clean_text(value).split(",")]
+    if len(parts) < 2 or not all(_is_geographic_suffix(part) for part in parts[1:]):
+        return None
+    locality = normalize_city(parts[0])
+    if not locality or classify_region(locality) == "UNKNOWN":
+        return None
+    return locality
 
 
 def _display_organization(event: PublisherEvent, display_venue: str) -> str | None:

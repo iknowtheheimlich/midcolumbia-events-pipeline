@@ -106,6 +106,64 @@ def test_unrecognized_comma_suffix_is_not_treated_as_geography():
     assert result.display_venue == "Gallery, Kennewick, River Annex"
 
 
+def test_locality_only_venue_matching_city_does_not_append_city_twice():
+    result = apply_editorial_rules(
+        make_event(
+            venue="Burbank, Washington",
+            display_venue="Burbank, Washington",
+            display_city="Burbank",
+            city="Burbank",
+        )
+    )
+
+    assert result.publication_disposition == "AUTO_PUBLISH"
+    assert result.display_venue == "Burbank, Washington"
+    assert result.display_city == ""
+    assert render_event_line(result) == (
+        "Community Event | [Burbank, Washington](https://library.example/event) | 9:30-11a"
+    )
+
+
+@pytest.mark.parametrize(
+    "venue",
+    [
+        "Finley, Washington",
+        "Finley, WA, United States",
+        "Finley, Washington 99337, United States",
+    ],
+)
+def test_locality_only_venue_conflicting_with_city_routes_to_review(venue):
+    result = apply_editorial_rules(
+        make_event(
+            venue=venue,
+            display_venue=venue,
+            display_city="Burbank",
+            city="Burbank",
+        )
+    )
+
+    assert result.publication_disposition == "REVIEW"
+    assert result.editorial_reason == "conflicting_locality_presentation"
+    assert result.display_city == ""
+    assert main_events([result]) == []
+    assert community_events([result]) == []
+
+
+def test_real_venue_name_and_city_remain_publishable():
+    result = apply_editorial_rules(
+        make_event(
+            venue="Finley Community Center",
+            display_venue="Finley Community Center",
+            display_city="Burbank",
+            city="Burbank",
+        )
+    )
+
+    assert result.publication_disposition == "AUTO_PUBLISH"
+    assert result.display_venue == "Finley Community Center"
+    assert result.display_city == "Burbank"
+
+
 def test_parent_room_is_rendered_with_parent_venue():
     result = apply_editorial_rules(
         make_event(
@@ -219,14 +277,14 @@ def test_missing_category_routes_to_review():
     assert result.editorial_reason == "missing_or_unknown_category"
 
 
-def test_empty_post_presentation_venue_routes_to_explicit_review():
+def test_locality_only_post_presentation_venue_remains_coherent():
     result = apply_editorial_rules(
         make_event(venue="Richland, Washington", city="Richland", category="Music/Comedy")
     )
 
-    assert result.display_venue == ""
-    assert result.publication_disposition == "REVIEW"
-    assert result.editorial_reason == "missing_venue"
+    assert result.display_venue == "Richland, Washington"
+    assert result.display_city == ""
+    assert result.publication_disposition == "AUTO_PUBLISH"
 
 
 def test_facebook_share_external_url_falls_back_to_stable_source_with_audit_reason():

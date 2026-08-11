@@ -100,3 +100,26 @@ def test_allevents_lifted_lotus_fallback_renders_compact_venue_and_city() -> Non
         "[Lifted Lotus Yoga Collective]"
         "(https://allevents.in/kennewick/event/200030515870653), Kennewick | 7p"
     )
+
+
+def test_allevents_perseid_conflicting_localities_route_to_review() -> None:
+    projected = project_event(
+        event(
+            title="Perseid Meteor Shower Watch Party ☄️",
+            venue="Finley, Washington",
+            city="Burbank",
+            state="WA",
+            source="AllEvents",
+            source_event_id="200030305782421",
+            url="https://allevents.in/burbank/event/200030305782421",
+            external_url=None,
+            category="Events/Hangouts",
+        )
+    )
+    editorial = apply_editorial_rules(projected)
+
+    assert projected.display_venue == "Finley, Washington"
+    assert projected.display_city == "Burbank"
+    assert editorial.publication_disposition == "REVIEW"
+    assert editorial.editorial_reason == "conflicting_locality_presentation"
+    assert editorial.display_city == ""
