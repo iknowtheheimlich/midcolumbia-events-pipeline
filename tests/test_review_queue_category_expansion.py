@@ -23,7 +23,7 @@ def test_recurring_library_program_titles_classify_as_community_programs() -> No
         "Primordial Goo",
         "Magna-Saurus",
     ):
-        decision = classify_event(event(title))
+        decision = classify_event(event(title, organizer="Mid-Columbia Libraries"))
         assert decision.category == "Community Programs"
         assert decision.reason == "title_rule=library_or_community_program"
 
@@ -35,8 +35,8 @@ def test_book_talk_uses_existing_lecture_category() -> None:
 
 
 def test_library_source_audience_categories_map_into_existing_taxonomy() -> None:
-    kids = classify_event(event("Music Together", source_category="Kids and Families"))
-    adult = classify_event(event("B Reactor Museum Association Presents: Ice Age Floods", source_category="Adult"))
+    kids = classify_event(event("Music Together", source_category="Kids and Families", organizer="Mid-Columbia Libraries"))
+    adult = classify_event(event("B Reactor Museum Association Presents: Ice Age Floods", source_category="Adult", organizer="B Reactor Museum Association"))
     assert kids.category == "Community Programs"
     assert adult.category == "Community Programs"
 
@@ -87,16 +87,15 @@ def test_educational_review_titles_use_lectures_talks() -> None:
         assert decision.reason == "title_rule=lecture_or_history_talk"
 
 
-def test_wellness_programs_reuse_community_programs() -> None:
+def test_wellness_programs_require_qualifying_community_authority() -> None:
     for title in (
         "Sound Bath + Cacao",
         "Recovery Dharma – Weekly Meditation & Discussion",
         "Cancer New Moon Gathering",
         "Community Breathwork",
     ):
-        decision = classify_event(event(title))
-        assert decision.category == "Community Programs"
-        assert decision.reason == "title_rule=library_or_community_program"
+        decision = classify_event(event(title, organizer="Private Wellness LLC"))
+        assert decision.category != "Community Programs"
 
 
 def test_community_promotions_reuse_events_hangouts() -> None:

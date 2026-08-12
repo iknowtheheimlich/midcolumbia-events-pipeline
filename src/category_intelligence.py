@@ -17,6 +17,19 @@ from src.publishing_contract import PublishingProfile
 from src.venue_category_intelligence import venue_category_hint
 
 _SPACE_RE = re.compile(r"\s+")
+_COMMUNITY_AUTHORITY_RE = re.compile(
+    r"\b(?:public library|library system|libraries|library|historical society|history museum|"
+    r"museum|heritage (?:center|institution|museum|society)|city of [^|,]+|county of [^|,]+|"
+    r"[^|,]+ county|parks? (?:and|&) recreation|parks? department|municipal|community center|"
+    r"public center)\b",
+    re.IGNORECASE,
+)
+_PRIVATE_OR_COMMERCIAL_AUTHORITY_RE = re.compile(
+    r"\b(?:llc|inc\.?|corp(?:oration)?|company|co\.?|winery|brew(?:ery|ing)|distillery|"
+    r"restaurant|bar|saloon|casino|church|ministry|studio|collective|wellness|yoga|fitness|"
+    r"academy|school|university|college)\b",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -146,45 +159,63 @@ def classify_event(event: dict[str, Any], profile: PublishingProfile | None = No
 
     for rule in _EXPLICIT_TITLE_RULES:
         if rule.pattern.search(title):
-            return CategoryDecision(rule.category, rule.confidence, f"title_rule={rule.label}")
+            decision = CategoryDecision(rule.category, rule.confidence, f"title_rule={rule.label}")
+            if _eligible_decision(event, decision):
+                return decision
 
     raw_category = _text(event.get("category"))
     existing = active_profile.normalize_category(raw_category)
     if existing:
-        return CategoryDecision(existing, 1.0, "existing_semantic_category")
+        decision = CategoryDecision(existing, 1.0, "existing_semantic_category")
+        if _eligible_decision(event, decision):
+            return decision
     if raw_category:
         mapped = _SOURCE_CATEGORY_MAP.get(raw_category.casefold())
         if mapped:
-            return CategoryDecision(mapped, 0.88, f"source_category={raw_category}")
+            decision = CategoryDecision(mapped, 0.88, f"source_category={raw_category}")
+            if _eligible_decision(event, decision):
+                return decision
 
     source_category = _text(event.get("source_category"))
     if source_category:
         mapped = _SOURCE_CATEGORY_MAP.get(source_category.casefold())
         if mapped:
-            return CategoryDecision(mapped, 0.88, f"source_category={source_category}")
+            decision = CategoryDecision(mapped, 0.88, f"source_category={source_category}")
+            if _eligible_decision(event, decision):
+                return decision
 
     for rule in _TITLE_RULES:
         if rule.pattern.search(title):
-            return CategoryDecision(rule.category, rule.confidence, f"title_rule={rule.label}")
+            decision = CategoryDecision(rule.category, rule.confidence, f"title_rule={rule.label}")
+            if _eligible_decision(event, decision):
+                return decision
 
     organizer_hint = organizer_category_hint(event)
     if organizer_hint is not None:
-        return CategoryDecision(organizer_hint.category, organizer_hint.confidence, f"organizer_hint={organizer_hint.organizer_name};strength={organizer_hint.strength}")
+        decision = CategoryDecision(organizer_hint.category, organizer_hint.confidence, f"organizer_hint={organizer_hint.organizer_name};strength={organizer_hint.strength}")
+        if _eligible_decision(event, decision):
+            return decision
 
     venue_hint = venue_category_hint(event)
     if venue_hint is not None:
-        return CategoryDecision(venue_hint.category, venue_hint.confidence, f"venue_hint={venue_hint.venue_name};strength={venue_hint.strength}")
+        decision = CategoryDecision(venue_hint.category, venue_hint.confidence, f"venue_hint={venue_hint.venue_name};strength={venue_hint.strength}")
+        if _eligible_decision(event, decision):
+            return decision
 
     venue = _text(event.get("venue")) or ""
     organization = _text(event.get("organization") or event.get("organizer") or event.get("host")) or ""
     title_venue = f"{title} | {venue} | {organization}"
     for rule in _CONTEXT_RULES:
         if rule.pattern.search(title_venue):
-            return CategoryDecision(rule.category, rule.confidence, f"context_rule={rule.label}")
+            decision = CategoryDecision(rule.category, rule.confidence, f"context_rule={rule.label}")
+            if _eligible_decision(event, decision):
+                return decision
 
     venue_type = _text(event.get("venue_type") or event.get("registry_venue_type"))
-    if venue_type and venue_type.casefold() in {"library", "school"}:
-        return CategoryDecision("Community Programs", 0.76, f"venue_type={venue_type}")
+    if venue_type and venue_type.casefold() in {"library", "community_center", "public_center", "museum", "heritage", "historical"}:
+        decision = CategoryDecision("Community Programs", 0.76, f"venue_type={venue_type}")
+        if _eligible_decision(event, decision):
+            return decision
 
     description = _text(event.get("description")) or ""
     description_rules = (
@@ -195,7 +226,9 @@ def classify_event(event: dict[str, Any], profile: PublishingProfile | None = No
     )
     for rule in description_rules:
         if rule.pattern.search(description):
-            return CategoryDecision(rule.category, rule.confidence, f"description_rule={rule.label}")
+            decision = CategoryDecision(rule.category, rule.confidence, f"description_rule={rule.label}")
+            if _eligible_decision(event, decision):
+                return decision
 
     return CategoryDecision(None, 0.0, "no_category_rule_matched")
 
@@ -220,3 +253,25 @@ def _text(value: Any) -> str | None:
         return None
     text = _SPACE_RE.sub(" ", str(value).strip())
     return text or None
+
+
+def community_programs_authority_eligible(event: dict[str, Any]) -> bool:
+    """Require a qualifying sponsoring/hosting authority for Community Programs.
+
+    Explicit organizer/host evidence controls when present. Venue evidence is a
+    fallback only when no separate organizer authority is supplied.
+    """
+    organizer = _text(event.get("organization") or event.get("organizer") or event.get("host"))
+    if organizer:
+        return bool(_COMMUNITY_AUTHORITY_RE.search(organizer)) and not bool(
+            _PRIVATE_OR_COMMERCIAL_AUTHORITY_RE.search(organizer)
+        )
+    venue = _text(event.get("venue") or event.get("venue_registry_name")) or ""
+    venue_type = (_text(event.get("venue_type") or event.get("registry_venue_type")) or "").casefold()
+    return venue_type in {"library", "community_center", "public_center", "museum", "heritage", "historical"} or bool(
+        _COMMUNITY_AUTHORITY_RE.search(venue)
+    )
+
+
+def _eligible_decision(event: dict[str, Any], decision: CategoryDecision) -> bool:
+    return decision.category != "Community Programs" or community_programs_authority_eligible(event)

@@ -30,7 +30,7 @@ def test_repeated_library_activity_titles_are_classified() -> None:
 
 
 def test_library_gaming_guild_uses_library_context() -> None:
-    decision = classify_event(event("Library Gaming Guild"))
+    decision = classify_event({**event("Library Gaming Guild"), "organizer": "Mid-Columbia Libraries"})
     assert decision.category == "Community Programs"
     assert decision.reason == "title_rule=library_or_community_program"
 
@@ -52,8 +52,8 @@ def test_obvious_sports_theater_faith_and_community_titles_are_classified() -> N
         "Alumni Game": "Sports",
         "Disney's Newsies": "Art/Theater",
         "FHE/ Noche de Hogar Barrio": "Faith Based",
-        "Second Harvest Fil-Am Group Volunteer Event for 12+ years old": "Community Programs",
-        "Quake - Tuesday, July 21 - $7 Sensory Friendly Night": "Community Programs",
+        "Second Harvest Fil-Am Group Volunteer Event for 12+ years old": None,
+        "Quake - Tuesday, July 21 - $7 Sensory Friendly Night": None,
     }
 
     for title, category in expected.items():

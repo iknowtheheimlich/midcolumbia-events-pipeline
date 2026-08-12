@@ -25,7 +25,7 @@ def test_preserves_existing_semantic_category() -> None:
 
 
 def test_classifies_storytime_as_community_program() -> None:
-    decision = classify_event(event(title="Baby Storytime With Ms. Amy"))
+    decision = classify_event(event(title="Baby Storytime With Ms. Amy", organizer="Mid-Columbia Libraries"))
     assert decision.category == "Community Programs"
     assert decision.confidence >= 0.9
     assert decision.reason == "title_rule=library_or_community_program"
