@@ -30,6 +30,38 @@ _PRIVATE_OR_COMMERCIAL_AUTHORITY_RE = re.compile(
     r"academy|school|university|college)\b",
     re.IGNORECASE,
 )
+_TRUSTED_COMMUNITY_AUTHORITY_SOURCES = {
+    "richlandlibrary",
+    "midcolumbialibraries",
+}
+_COMMUNITY_DESCRIPTION_AUTHORITY_RE = re.compile(
+    r"\b(?:the\s+(?:public\s+)?library['’]s|presented\s+by\s+(?:the\s+)?[^.]{0,80}\blibrar(?:y|ies)|"
+    r"hosted\s+by\s+(?:the\s+)?(?:city|county|[^.]{0,60}\bparks?\s+(?:and|&)\s+recreation|"
+    r"[^.]{0,60}\bpublic\s+library|[^.]{0,60}\bhistorical\s+society|[^.]{0,60}\bmuseum))\b",
+    re.IGNORECASE,
+)
+_INSTRUCTION_EVIDENCE_RE = re.compile(
+    r"\b(?:class(?:es)?|workshop|101|clinic|lesson|guided instruction|hands-on instruction|"
+    r"instruction(?:al)?|instructor|learn to|pilates|self-defense|self defense|line danc(?:e|ing)|"
+    r"dance instruction|yoga instruction|yoga day camp|yoga trapeze|ceramics?|blending lab|"
+    r"cooking instruction|pasta making|make (?:a|an|your)|create (?:a|an|your))\b",
+    re.IGNORECASE,
+)
+_CAMP_RE = re.compile(r"\bcamp\b", re.IGNORECASE)
+_FUNDRAISING_EVIDENCE_RE = re.compile(
+    r"\b(?:benefit(?:ing|ting)|proceeds\s+(?:support|benefit(?:ing|ting))|for a cause|"
+    r"fundrais(?:er|ing)\s+for)\b",
+    re.IGNORECASE,
+)
+_SOCIAL_EVENT_RE = re.compile(
+    r"\b(?:family night|grand opening|back to school bash|summer bash|party|shop crawl|plant swap)\b",
+    re.IGNORECASE,
+)
+_PERFORMANCE_EVIDENCE_RE = re.compile(
+    r"\b(?:concert|live music|live musical performance|performing live|live band|musical performance|"
+    r"music series|concert series|performer series|band)\b",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -52,12 +84,12 @@ def _rule(category: str, confidence: float, label: str, pattern: str) -> Categor
 
 
 _EXPLICIT_TITLE_RULES: tuple[CategoryRule, ...] = (
-    _rule("Karaoke/Open Mic", 0.99, "karaoke_or_open_mic", r"\b(?:karaoke|open[ -]?mic)\b"),
+    _rule("Karaoke/Open Mic", 0.99, "karaoke_or_open_mic", r"\b(?:karaoke|kareoke|open[ -]?mic)\b"),
     _rule(
         "Classes/Workshops",
         0.99,
         "explicit_class_or_workshop",
-        r"\b(?:class(?:es)?|workshop|lesson|training|build-it|build it|diy)\b|\b(?:intro|intermediate) to\b",
+        r"\b(?:class(?:es)?|workshop|101|lesson|training|guided instruction|hands-on instruction|instruction(?:al)?|instructor|learn to|build-it|build it|diy|pilates|self-defense|self defense)\b|\b(?:intro|intermediate) to\b",
     ),
     _rule(
         "Classes/Workshops",
@@ -82,10 +114,10 @@ _EXPLICIT_TITLE_RULES: tuple[CategoryRule, ...] = (
 
 _TITLE_RULES: tuple[CategoryRule, ...] = (
     _rule("Estate/Yard/Garage Sales", 0.99, "estate_or_yard_sale", r"\b(?:estate|yard|garage|rummage) sale\b"),
-    _rule("Karaoke/Open Mic", 0.99, "karaoke_or_open_mic", r"\b(?:karaoke|open[ -]?mic)\b"),
-    _rule("Trivia/Game Night", 0.98, "trivia_or_game_night", r"\b(?:trivia|music bingo|bingo night|game night|speed puzzling)\b"),
+    _rule("Karaoke/Open Mic", 0.99, "karaoke_or_open_mic", r"\b(?:karaoke|kareoke|open[ -]?mic)\b"),
+    _rule("Trivia/Game Night", 0.98, "trivia_or_game_night", r"\b(?:trivia|bingo|game night|speed puzzling)\b"),
     _rule("Markets", 0.98, "market", r"\b(?:farmers'? market|night market|community market|vendor market|market)\b"),
-    _rule("Fundraisers", 0.97, "fundraiser", r"\b(?:fundrais(?:er|ing)|benefit concert|donor party|charity)\b"),
+    _rule("Fundraisers", 0.97, "fundraiser", r"\b(?:fundrais(?:er|ing)|benefit concert|benefit(?:ing|ting)|proceeds support|proceeds benefit(?:ing|ting)|for a cause|donor party|charity)\b"),
     _rule("Tours", 0.97, "tour", r"\b(?:guided|walking|museum|b reactor) tour\b|\batomic explorations\b"),
     _rule(
         "Sports",
@@ -120,6 +152,7 @@ _TITLE_RULES: tuple[CategoryRule, ...] = (
     _rule("Classes/Workshops", 0.94, "class_or_workshop", r"\b(?:class(?:es)?|workshop|lesson|training|build-it|build it|diy)\b|\b(?:intro|intermediate) to\b"),
     _rule("Events/Hangouts", 0.90, "community_promotion_day", r"\b(?:cow appreciation day|national hot dog day|customer appreciation|anniversary celebration)\b"),
     _rule("Events/Hangouts", 0.82, "social_event", r"\b(?:social|meet[ -]?up|hang ?out|watch party|community night|gathering|speed friending)\b"),
+    _rule("Events/Hangouts", 0.91, "explicit_social_event", r"\b(?:family night|grand opening|back to school bash|summer bash|party|shop crawl|plant swap)\b"),
 )
 
 
@@ -156,12 +189,22 @@ _SOURCE_CATEGORY_MAP = {
 def classify_event(event: dict[str, Any], profile: PublishingProfile | None = None) -> CategoryDecision:
     active_profile = profile or PublishingProfile.load()
     title = _text(event.get("title")) or ""
+    description = _text(event.get("description")) or ""
+    title_description = f"{title} | {description}"
+
+    if _FUNDRAISING_EVIDENCE_RE.search(title_description):
+        return CategoryDecision("Fundraisers", 0.97, "semantic_rule=explicit_beneficiary_or_cause")
+    if _SOCIAL_EVENT_RE.search(title_description):
+        return CategoryDecision("Events/Hangouts", 0.91, "semantic_rule=explicit_social_event")
 
     for rule in _EXPLICIT_TITLE_RULES:
         if rule.pattern.search(title):
             decision = CategoryDecision(rule.category, rule.confidence, f"title_rule={rule.label}")
             if _eligible_decision(event, decision):
                 return decision
+
+    if _PERFORMANCE_EVIDENCE_RE.search(title_description):
+        return CategoryDecision("Music/Comedy", 0.96, "semantic_rule=explicit_musical_performance")
 
     raw_category = _text(event.get("category"))
     existing = active_profile.normalize_category(raw_category)
@@ -202,11 +245,16 @@ def classify_event(event: dict[str, Any], profile: PublishingProfile | None = No
         if _eligible_decision(event, decision):
             return decision
 
+    if _INSTRUCTION_EVIDENCE_RE.search(title_description):
+        return CategoryDecision("Classes/Workshops", 0.97, "semantic_rule=explicit_instruction")
+
     venue = _text(event.get("venue")) or ""
     organization = _text(event.get("organization") or event.get("organizer") or event.get("host")) or ""
     title_venue = f"{title} | {venue} | {organization}"
     for rule in _CONTEXT_RULES:
         if rule.pattern.search(title_venue):
+            if rule.label == "performer_at_hospitality_venue" and not _PERFORMANCE_EVIDENCE_RE.search(title_description):
+                continue
             decision = CategoryDecision(rule.category, rule.confidence, f"context_rule={rule.label}")
             if _eligible_decision(event, decision):
                 return decision
@@ -217,7 +265,6 @@ def classify_event(event: dict[str, Any], profile: PublishingProfile | None = No
         if _eligible_decision(event, decision):
             return decision
 
-    description = _text(event.get("description")) or ""
     description_rules = (
         _rule("Lectures/Talks", 0.86, "description_lecture", r"\b(?:lecture|presentation about|historian|history of|science presentation|educational presentation)\b"),
         _rule("Food & Drink", 0.85, "description_food_drink", r"\b(?:guided tasting|pairing flight|multi-course dinner)\b"),
@@ -266,6 +313,12 @@ def community_programs_authority_eligible(event: dict[str, Any]) -> bool:
         return bool(_COMMUNITY_AUTHORITY_RE.search(organizer)) and not bool(
             _PRIVATE_OR_COMMERCIAL_AUTHORITY_RE.search(organizer)
         )
+    source = (_text(event.get("source")) or "").casefold()
+    if source in _TRUSTED_COMMUNITY_AUTHORITY_SOURCES:
+        return True
+    description = _text(event.get("description")) or ""
+    if _COMMUNITY_DESCRIPTION_AUTHORITY_RE.search(description):
+        return True
     venue = _text(event.get("venue") or event.get("venue_registry_name")) or ""
     venue_type = (_text(event.get("venue_type") or event.get("registry_venue_type")) or "").casefold()
     return venue_type in {"library", "community_center", "public_center", "museum", "heritage", "historical"} or bool(

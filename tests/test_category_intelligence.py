@@ -125,10 +125,10 @@ def test_live_performer_title_beats_class_language_in_description() -> None:
 
 def test_performer_named_faith_is_not_religious() -> None:
     decision = classify_event(
-        event(title="Faith Martin @ At Michele's", venue="At Michele's")
+        event(title="Faith Martin @ At Michele's", venue="At Michele's", description="Faith Martin performing live")
     )
     assert decision.category == "Music/Comedy"
-    assert decision.reason == "context_rule=performer_at_hospitality_venue"
+    assert decision.reason == "semantic_rule=explicit_musical_performance"
 
 
 def test_participatory_visual_art_is_a_class_even_at_a_winery() -> None:

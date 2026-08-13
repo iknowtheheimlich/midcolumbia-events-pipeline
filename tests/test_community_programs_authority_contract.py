@@ -48,3 +48,24 @@ def test_existing_community_category_is_gated_but_not_rejected() -> None:
     decision = classify_event({"title": "Neighborhood Gathering", "category": "Community Programs", "organizer": "Commercial Events LLC", "venue": "Downtown Hall"})
     assert decision.category == "Events/Hangouts"
     assert decision.reason == "title_rule=social_event"
+
+
+def test_first_party_library_source_qualifies_at_offsite_venue() -> None:
+    decision = classify_event({"title": "Rock Decorating with Sharpies", "source": "RichlandLibrary", "venue": "Columbia Point Marina Park", "category": "Community Programs"})
+    assert decision.category == "Community Programs"
+
+
+def test_explicit_library_sponsorship_in_description_qualifies() -> None:
+    decision = classify_event({"title": "Adult Book Club", "description": "Join the library's monthly book club for discussion.", "venue": "235 E Gladys Ave", "category": "Community Programs"})
+    assert decision.category == "Community Programs"
+
+
+def test_superseded_private_examples_do_not_qualify() -> None:
+    cases = (
+        {"title": "Barnes & Noble Presents Children's Story-time!", "organizer": "Barnes & Noble", "venue": "Columbia Center Mall"},
+        {"title": "Recovery Dharma", "organizer": "Lifted Lotus Yoga Collective", "venue": "Richland Public Library"},
+        {"title": "Women's Retreat", "organizer": "Private Wellness LLC", "venue": "Hansen Park"},
+        {"title": "Children's Storytime", "venue": "Commercial Plaza"},
+    )
+    for event in cases:
+        assert classify_event(event).category != "Community Programs"
