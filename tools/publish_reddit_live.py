@@ -149,7 +149,8 @@ def main() -> int:
         sync_audit=args.curation_sync_audit or Path("artifacts/review/notion_curation")/f"Weekly_Curation_Sync_Audit_{args.week_start.isoformat()}.json"
         client=NotionCurationClient(token,args.curation_data_source_id)
         try:
-            audit=prepare_curation(client,editorial,week=args.week_start.isoformat(),run_id=f"prepare-{datetime.now().strftime('%Y%m%dT%H%M%S')}",inventory_path=inventory,audit_path=sync_audit)
+            evidence={"production_status":health.status,"sources":[{"source_name":item.source_name,"status":item.status,"event_count":item.event_count,"reason":item.reason} for item in health.sources],"source_durations_ms":harvest_durations_ms,"warnings":[f"{result.source_name}: {result.error}" for result in harvest_results if result.error]}
+            audit=prepare_curation(client,editorial,week=args.week_start.isoformat(),run_id=f"prepare-{datetime.now().strftime('%Y%m%dT%H%M%S')}",inventory_path=inventory,audit_path=sync_audit,production_evidence=evidence)
         finally: client.close()
         print(f"Weekly Curation: {audit['database_url']}")
         print(f"Data source: {audit['data_source_id']}")

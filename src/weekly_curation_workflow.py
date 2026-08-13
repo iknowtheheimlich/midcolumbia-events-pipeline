@@ -38,7 +38,7 @@ def inventory_rows(events: Iterable[EditorialEvent]) -> list[dict[str, Any]]:
     return rows
 
 
-def prepare_curation(client: NotionCurationClient, events: Iterable[EditorialEvent], *, week: str, run_id: str, inventory_path: Path, audit_path: Path) -> dict[str, Any]:
+def prepare_curation(client: NotionCurationClient, events: Iterable[EditorialEvent], *, week: str, run_id: str, inventory_path: Path, audit_path: Path, production_evidence: dict[str, Any] | None = None) -> dict[str, Any]:
     rows=inventory_rows(events)
     keys=[curation_key(row,week) for row in rows]
     if len(keys)!=len(set(keys)): raise CurationIntegrityError("duplicate incoming Curation Keys")
@@ -47,7 +47,7 @@ def prepare_curation(client: NotionCurationClient, events: Iterable[EditorialEve
     inventory_path.write_text(json.dumps(payload,indent=2,sort_keys=True),encoding="utf-8")
     digest=_digest(payload)
     result=sync_week(client,rows,week=week,run_id=run_id)
-    audit={"week":week,"run_id":run_id,"inventory_path":str(inventory_path),"inventory_sha256":digest,"inventory_count":len(rows),"database_url":WEEKLY_CURATION_DATABASE_URL,"data_source_id":client.data_source_id,"sync":result}
+    audit={"week":week,"run_id":run_id,"inventory_path":str(inventory_path),"inventory_sha256":digest,"inventory_count":len(rows),"database_url":WEEKLY_CURATION_DATABASE_URL,"data_source_id":client.data_source_id,"sync":result,"production_evidence":production_evidence or {}}
     audit_path.parent.mkdir(parents=True,exist_ok=True)
     audit_path.write_text(json.dumps(audit,indent=2,sort_keys=True),encoding="utf-8")
     return audit

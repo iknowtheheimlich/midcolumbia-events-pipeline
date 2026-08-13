@@ -9,7 +9,7 @@ $env:NOTION_TOKEN='<integration token>'
 python -m tools.publish_reddit_live --week-start 2026-08-10 --prepare-curation
 ```
 
-After Captain review, render that exact inventory without harvesting (renders and runs the existing publisher audit, then stops):
+After Captain review, render that exact inventory without harvesting. The command runs the existing publisher audit and the same Mission Control gate/archive sequence as live production, then stops before publication:
 
 ```powershell
 $env:NOTION_TOKEN='<integration token>'
@@ -27,3 +27,5 @@ Pipeline-owned, Captain-owned, and derived properties are declared separately in
 The database currently has an All Events/default table. `Needs Review`, `Included`, and `Excluded` are operator views; creating them is optional and never changes row data.
 
 Curated render fails closed when Notion is unavailable, the inventory/audit boundary is absent or changed, keys are duplicated, Captain selects are malformed, or Notion rows do not exactly reconcile with the frozen pipeline inventory. There is no autonomous fallback. `--excel-fallback` is deliberately rejected until a separately reviewed explicit fallback workflow exists.
+
+Prepare mode freezes source-health evidence in the sync audit. Curated render cannot report readiness without that evidence or unless Mission Control returns `READY TO PUBLISH`.
