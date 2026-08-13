@@ -57,7 +57,7 @@ class NotionCurationClient:
         r=self._client.patch(f"https://api.notion.com/v1/pages/{page_id}",headers=_headers(self.token),json={"properties":properties}); r.raise_for_status(); return r.json()
 
 def sync_week(client: NotionCurationClient, rows: Iterable[dict[str, Any]], *, week: str, run_id: str, migrate_captain: bool=False) -> dict[str, Any]:
-    incoming=list(rows); existing=client.query_week(week); by_key={}
+    incoming=list(rows); existing=client.query_week(week); by_key={}; incoming_keys=set()
     for page in existing:
         key=_prop(page,"Curation Key")
         if key in by_key: raise CurationIntegrityError(f"duplicate Curation Key: {key}")
@@ -65,12 +65,21 @@ def sync_week(client: NotionCurationClient, rows: Iterable[dict[str, Any]], *, w
     created=updated=unchanged=preserved=0
     for row in incoming:
         key=curation_key(row,week); props=_serialize(row,week,key,run_id,include_captain=migrate_captain)
+        if key in incoming_keys: raise CurationIntegrityError(f"duplicate incoming Curation Key: {key}")
+        incoming_keys.add(key)
         page=by_key.get(key)
         if page is None: client.create(props); created+=1
         else:
             captain_before={name:_prop(page,name) for name in CAPTAIN_FIELDS}
-            client.update(page["id"],props); updated+=1; preserved+=sum(v not in (None,"") for v in captain_before.values())
-    return {"source_inventory_count":len(incoming),"created_rows":created,"updated_rows":updated,"unchanged_rows":unchanged,"captain_fields_preserved":preserved,"rows_before":len(existing)}
+            if _pipeline_matches(page, props): unchanged+=1
+            else: client.update(page["id"],props); updated+=1
+            preserved+=sum(v not in (None,"") for v in captain_before.values())
+    read_back=read_week(client,week)
+    read_keys={row["Curation Key"] for row in read_back}
+    if read_keys != incoming_keys:
+        missing=sorted(incoming_keys-read_keys); unexpected=sorted(read_keys-incoming_keys)
+        raise CurationIntegrityError(f"incomplete sync: missing={missing} unexpected={unexpected}")
+    return {"source_inventory_count":len(incoming),"created_rows":created,"updated_rows":updated,"unchanged_rows":unchanged,"captain_fields_preserved":preserved,"rows_before":len(existing),"rows_after":len(read_back)}
 
 def read_week(client: NotionCurationClient, week: str) -> list[dict[str, Any]]:
     pages=client.query_week(week); rows=[]; seen=set()
@@ -119,6 +128,19 @@ def _prop(page,name):
     if typ=="url": return prop.get("url") or ""
     if typ=="number": return prop.get("number")
     if typ=="date": return (prop.get("date") or {}).get("start","")
+    return ""
+def _pipeline_matches(page, properties):
+    for name, value in properties.items():
+        if name in {"Last Pipeline Sync", "Pipeline Run ID", *DERIVED_FIELDS}: continue
+        if _norm(_prop(page,name)) != _norm(_serialized_value(value)): return False
+    return True
+def _serialized_value(prop):
+    if "title" in prop: return "".join(x.get("text",{}).get("content","") for x in prop["title"])
+    if "rich_text" in prop: return "".join(x.get("text",{}).get("content","") for x in prop["rich_text"])
+    if "select" in prop: return (prop.get("select") or {}).get("name","")
+    if "date" in prop: return (prop.get("date") or {}).get("start","")
+    if "url" in prop: return prop.get("url") or ""
+    if "number" in prop: return prop.get("number")
     return ""
 def _norm(v): return re.sub(r"\s+"," ",str(v or "").strip())
 def _date(v):

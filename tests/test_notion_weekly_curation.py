@@ -1,7 +1,7 @@
 import copy
 import pytest
 
-from src.notion_weekly_curation import CurationIntegrityError, apply_captain_authority, curation_key, read_week, sync_week
+from src.notion_weekly_curation import CAPTAIN_FIELDS, CurationIntegrityError, apply_captain_authority, curation_key, read_week, sync_week
 
 def row(**changes):
     base={"Date":"2026-08-11","Source":"AllEvents","Source Event ID":"123","Title":"Class","Start Time":"10a","End Time":"11a","Venue":"Studio","City":"Richland","Current Category":"Classes/Workshops","Current Target":"MAIN","Current Disposition":"AUTO_PUBLISH"}
@@ -16,8 +16,22 @@ def page(key, **values):
 class FakeClient:
     def __init__(self,pages=()): self.pages=list(pages); self.created=[]; self.updated=[]
     def query_week(self,week): return copy.deepcopy(self.pages)
-    def create(self,properties): self.created.append(properties)
-    def update(self,page_id,properties): self.updated.append((page_id,properties))
+    def create(self,properties): self.created.append(properties); self.pages.append({"id":f"created-{len(self.created)}","properties":_as_page_properties(properties)})
+    def update(self,page_id,properties):
+        self.updated.append((page_id,properties))
+        target=next(item for item in self.pages if item["id"]==page_id)
+        target["properties"].update(_as_page_properties(properties))
+
+def _as_page_properties(properties):
+    result={}
+    for name,value in properties.items():
+        if "title" in value: result[name]={"type":"title","title":[{"plain_text":x["text"]["content"]} for x in value["title"]]}
+        elif "rich_text" in value: result[name]={"type":"rich_text","rich_text":[{"plain_text":x["text"]["content"]} for x in value["rich_text"]]}
+        elif "select" in value: result[name]={"type":"select","select":value["select"]}
+        elif "date" in value: result[name]={"type":"date","date":value["date"]}
+        elif "url" in value: result[name]={"type":"url","url":value["url"]}
+        elif "number" in value: result[name]={"type":"number","number":value["number"]}
+    return result
 
 def test_deterministic_key_and_distinct_occurrences():
     assert curation_key(row(),"2026-08-10")==curation_key(row(),"2026-08-10")
@@ -36,7 +50,7 @@ def test_initial_creation_and_idempotent_update_preserve_captain_fields():
     result=sync_week(second,[row(Title="Updated")],week="2026-08-10",run_id="run2")
     assert result["updated_rows"]==1
     properties=second.updated[0][1]
-    assert "Captain Include" not in properties and "Captain Target" not in properties
+    assert CAPTAIN_FIELDS.isdisjoint(properties)
     assert properties["Original Title"]["rich_text"][0]["text"]["content"]=="Updated"
 
 def test_blank_captain_fields_migrate_as_blank():

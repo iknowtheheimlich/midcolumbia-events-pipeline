@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import date, datetime, timedelta
+import os
 from pathlib import Path
 from time import perf_counter
 
@@ -24,6 +25,7 @@ from src.harvest_telemetry import (
 )
 from src.mission_run_summary import write_production_mission_control
 from src.notion_weekly import load_notion_weekly_rows, materialize_weekly_events
+from src.notion_weekly_curation import NotionCurationClient
 from src.pipeline import PipelineResult, SourceBatch, run_pipeline
 from src.pipeline_inspector import DEFAULT_INSPECTOR_PATH, write_pipeline_inspector
 from src.production_dispositions import DEFAULT_PRODUCTION_DISPOSITIONS_PATH, ProductionDispositions
@@ -37,6 +39,7 @@ from src.source_attribution import build_source_attribution
 from src.source_metrics import DEFAULT_SOURCE_METRICS_PATH, build_source_metrics, write_source_metrics
 from src.supplemental_detail_audit import DEFAULT_SUPPLEMENTAL_DETAIL_PATH, write_supplemental_detail_audit
 from src.venue_registry import VenueRegistry
+from src.weekly_curation_workflow import WEEKLY_CURATION_DATA_SOURCE_ID, prepare_curation
 from tools.build_review_triage import build_review_triage_from_file
 
 DEFAULT_REGISTRY = Path("generated/venue_registry/registry.json")
@@ -66,6 +69,10 @@ def main() -> int:
     parser.add_argument("--inspect-title", help="Write an HTML trace for records containing this title or text")
     parser.add_argument("--output-inspector", type=Path)
     parser.add_argument("--source", action="append", choices=SOURCE_REGISTRY.names(), help="Limit harvesting to configured source names")
+    parser.add_argument("--prepare-curation", action="store_true", help="Harvest, classify, sync Weekly Curation, and stop before rendering")
+    parser.add_argument("--curation-data-source-id", default=WEEKLY_CURATION_DATA_SOURCE_ID)
+    parser.add_argument("--curation-inventory", type=Path)
+    parser.add_argument("--curation-sync-audit", type=Path)
     args = parser.parse_args()
 
     if args.days < 1:
@@ -135,6 +142,19 @@ def main() -> int:
 
     weekly_projection = [event for event in pipeline.publisher_projection if _in_week(event.start_date, args.week_start, args.days)]
     editorial = _weekly_editorial_events(pipeline, args.week_start, args.days)
+    if args.prepare_curation:
+        token=os.environ.get("NOTION_TOKEN","").strip()
+        if not token: parser.error("--prepare-curation requires NOTION_TOKEN")
+        inventory=args.curation_inventory or Path("artifacts/review/notion_curation")/f"Weekly_Curation_Inventory_{args.week_start.isoformat()}.json"
+        sync_audit=args.curation_sync_audit or Path("artifacts/review/notion_curation")/f"Weekly_Curation_Sync_Audit_{args.week_start.isoformat()}.json"
+        client=NotionCurationClient(token,args.curation_data_source_id)
+        try:
+            audit=prepare_curation(client,editorial,week=args.week_start.isoformat(),run_id=f"prepare-{datetime.now().strftime('%Y%m%dT%H%M%S')}",inventory_path=inventory,audit_path=sync_audit)
+        finally: client.close()
+        print(f"Weekly Curation: {audit['database_url']}")
+        print(f"Data source: {audit['data_source_id']}")
+        print(f"Synced inventory: {audit['inventory_count']}; stopped before render")
+        return 0
     main_publishable = main_events(editorial)
     community_publishable = community_events(editorial)
     main_programs = group_editorial_programs(main_publishable)
