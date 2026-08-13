@@ -25,6 +25,7 @@
   "publication_targets": {
     "MAIN": [
       "Events/Hangouts",
+      "Classes/Workshops",
       "Lectures/Talks",
       "Music/Comedy",
       "Sports",
@@ -41,7 +42,6 @@
       "Weekly Events"
     ],
     "COMMUNITY": [
-      "Classes/Workshops",
       "Community Programs",
       "School District Event",
       "Faith Based"

@@ -31,6 +31,28 @@ EXPECTED_CATEGORY_ORDER = (
     "Weekly Events",
 )
 
+EXPECTED_PUBLICATION_TARGETS = {
+    "Events/Hangouts": "MAIN",
+    "Classes/Workshops": "MAIN",
+    "Lectures/Talks": "MAIN",
+    "Music/Comedy": "MAIN",
+    "Sports": "MAIN",
+    "Food & Drink": "MAIN",
+    "Restaurants/Bars/Wineries": "MAIN",
+    "Art/Theater": "MAIN",
+    "Trivia/Game Night": "MAIN",
+    "Karaoke/Open Mic": "MAIN",
+    "Fundraisers": "MAIN",
+    "Markets": "MAIN",
+    "Community Programs": "COMMUNITY",
+    "School District Event": "COMMUNITY",
+    "Tours": "MAIN",
+    "Festivals/Fair": "MAIN",
+    "Estate/Yard/Garage Sales": "MAIN",
+    "Faith Based": "COMMUNITY",
+    "Weekly Events": "MAIN",
+}
+
 
 def test_default_profile_loads_exact_category_vocabulary():
     profile = PublishingProfile.load(Path("config/reddit_publishing_profile.json"))
@@ -50,6 +72,15 @@ def test_profile_routes_categories_to_separate_posts():
     assert profile.publication_target(None) == "REVIEW"
 
 
+def test_profile_preserves_exact_category_target_contract():
+    profile = PublishingProfile.load()
+
+    assert {
+        category: profile.publication_target(category)
+        for category in profile.category_order
+    } == EXPECTED_PUBLICATION_TARGETS
+
+
 def test_profile_normalizes_live_source_category_aliases():
     profile = PublishingProfile.load()
 
@@ -66,6 +97,7 @@ def test_explicit_publication_target_overrides_category_default():
     assert profile.publication_target("Community Programs", "MAIN") == "MAIN"
     assert profile.publication_target("Music/Comedy", "BOTH") == "BOTH"
     assert profile.publication_target("Music/Comedy", "nonsense") == "REVIEW"
+    assert profile.publication_target("Classes/Workshops", "COMMUNITY") == "COMMUNITY"
 
 
 @pytest.mark.parametrize(
