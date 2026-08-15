@@ -53,6 +53,29 @@ def test_initial_creation_and_idempotent_update_preserve_captain_fields():
     assert CAPTAIN_FIELDS.isdisjoint(properties)
     assert properties["Original Title"]["rich_text"][0]["text"]["content"]=="Updated"
 
+def test_occurrence_evidence_uses_exact_notion_schema_types():
+    item=row(**{
+        "Source Start Date":"2026-08-10",
+        "Source End Date":"2026-08-13",
+        "Occurrence Identity":"allevents|123|2026-08-11",
+        "Source Time Evidence":'{"start_time":"10:00","end_time":"11:00"}',
+    })
+    fake=FakeClient()
+
+    sync_week(fake,[item],week="2026-08-10",run_id="run")
+
+    properties=fake.created[0]
+    assert properties["Source Start Date"]=={"date":{"start":"2026-08-10"}}
+    assert properties["Source End Date"]=={"date":{"start":"2026-08-13"}}
+    assert properties["Occurrence Identity"]=={"rich_text":[{"text":{"content":"allevents|123|2026-08-11"}}]}
+    assert properties["Source Time Evidence"]=={"rich_text":[{"text":{"content":'{"start_time":"10:00","end_time":"11:00"}'}}]}
+    assert CAPTAIN_FIELDS.isdisjoint(properties)
+
+    single=FakeClient()
+    sync_week(single,[row()],week="2026-08-10",run_id="single")
+    assert single.created[0]["Source Start Date"]=={"date":{"start":"2026-08-11"}}
+    assert single.created[0]["Source End Date"]=={"date":{"start":"2026-08-11"}}
+
 def test_blank_captain_fields_migrate_as_blank():
     fake=FakeClient(); sync_week(fake,[row()],week="2026-08-10",run_id="run",migrate_captain=True)
     assert fake.created[0]["Captain Include"]=={"select":None}
