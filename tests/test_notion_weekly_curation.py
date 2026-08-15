@@ -156,8 +156,8 @@ def test_clean_source_absent_retained_row_is_audited_without_retry(monkeypatch):
     assert not hasattr(fake,"deleted")
 
 def test_superseded_source_identity_is_retained_without_migration():
-    current=row(Date="2026-08-23",Title="Everett AquaSox at Tri-City Dust Devils",Venue="Gesa Stadium",**{"Source Event ID":"200030558055913"})
-    stale=page("stale",**{"Pipeline Run ID":"old","Original Title":current["Title"],"Event Date":current["Date"],"Source":"AllEvents","Source Event ID":"200030558054705","Venue":current["Venue"]})
+    current=row(Date="2026-08-23",Title="Everett AquaSox at Tri-City Dust Devils",Venue="Gesa Stadium",City="Pasco",**{"Source Event ID":"200030558055913"})
+    stale=page("stale",**{"Pipeline Run ID":"old","Original Title":current["Title"],"Event Date":current["Date"],"Source":"AllEvents","Source Event ID":"200030558054705","Venue":current["Venue"],"City":current["City"]})
     fake=FakeClient([stale])
 
     result=sync_week(fake,[current],week="2026-08-17",run_id="current")
@@ -179,7 +179,35 @@ def test_captain_bearing_retained_row_fails_for_review(field,value):
         sync_week(FakeClient([stale]),[row()],week="2026-08-10",run_id="current")
 
 def test_ambiguous_retained_identity_fails_for_review():
-    stale=page("stale",**{"Pipeline Run ID":"old","Original Title":"Class","Event Date":"2026-08-11","Source":"AllEvents","Source Event ID":"old","Venue":"Different Venue"})
+    stale=page("stale",**{"Pipeline Run ID":"old","Original Title":"Class","Event Date":"2026-08-11","Source":"AllEvents","Source Event ID":"","Venue":"Studio","City":""})
+    with pytest.raises(CurationIntegrityError,match="retained same-week rows require review"):
+        sync_week(FakeClient([stale]),[row()],week="2026-08-10",run_id="current")
+
+def test_shared_venue_does_not_make_unrelated_retained_row_ambiguous():
+    current=row(Date="2026-08-20",Title="Kennewick Hub Night Market",Venue="Summers Hub of",City="Kennewick",**{"Source Event ID":"100001990665853154"})
+    stale=page("wc_9d30017290d8a403190164f24122696a",**{
+        "Pipeline Run ID":"prepare-20260815T113404","Original Title":"Trivia Thursdays",
+        "Event Date":"2026-08-20","Source":"AllEvents","Source Event ID":"200030558054402",
+        "Venue":"Summers Hub of","City":"Pasco",
+    })
+
+    result=sync_week(FakeClient([stale]),[current],week="2026-08-17",run_id="current")
+
+    assert result["retained_source_absent_count"]==1
+    assert result["retained_ambiguous_count"]==0
+    assert result["retained_rows"][0]["classification"]=="RETAINED / SOURCE ABSENT"
+
+def test_same_source_date_venue_with_different_ids_and_titles_is_not_ambiguous():
+    current=row(Date="2026-08-20",Title="Second Event",Venue="Shared Venue",City="Kennewick",**{"Source Event ID":"new-id"})
+    stale=page("stale",**{"Pipeline Run ID":"old","Original Title":"First Event","Event Date":"2026-08-20","Source":"AllEvents","Source Event ID":"old-id","Venue":"Shared Venue","City":"Kennewick"})
+
+    result=sync_week(FakeClient([stale]),[current],week="2026-08-17",run_id="current")
+
+    assert result["retained_rows"][0]["classification"]=="RETAINED / SOURCE ABSENT"
+
+def test_relation_backed_captain_venue_retained_row_still_fails_closed():
+    stale=page("stale",**{"Pipeline Run ID":"old","Original Title":"Gone","Event Date":"2026-08-12","Source":"AllEvents","Captains Venue Override":"venue-page"})
+
     with pytest.raises(CurationIntegrityError,match="retained same-week rows require review"):
         sync_week(FakeClient([stale]),[row()],week="2026-08-10",run_id="current")
 

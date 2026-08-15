@@ -254,7 +254,8 @@ def _classify_retained_rows(rows, incoming):
 def _retained_identity_class(row,incoming):
     source=_norm(row.get("Source")).casefold(); event_date=_norm(row.get("Event Date"))
     title=_norm(row.get("Original Title") or row.get("Event")).casefold(); venue=_norm(row.get("Venue")).casefold()
-    event_id=_norm(row.get("Source Event ID"))
+    city=_norm(row.get("City")).casefold(); event_id=_norm(row.get("Source Event ID"))
+    occurrence_identity=_norm(row.get("Occurrence Identity"))
     candidates=[]
     for item in incoming:
         item_source=_norm(item.get("Source") or item.get("source")).casefold()
@@ -263,11 +264,20 @@ def _retained_identity_class(row,incoming):
     for item in candidates:
         item_title=_norm(item.get("Original Title") or item.get("Title") or item.get("title")).casefold()
         item_venue=_norm(item.get("Venue") or item.get("venue")).casefold()
+        item_city=_norm(item.get("City") or item.get("city")).casefold()
         item_id=_norm(item.get("Source Event ID") or item.get("source_event_id"))
-        if title==item_title and venue==item_venue and event_id and item_id and event_id!=item_id:
+        item_occurrence_identity=_norm(item.get("Occurrence Identity") or item.get("occurrence_identity"))
+        title_match=bool(title and item_title and title==item_title)
+        venue_match=bool(venue and item_venue and venue==item_venue)
+        city_match=bool(city and item_city and city==item_city)
+        ids_match=bool(event_id and item_id and event_id==item_id)
+        ids_conflict=bool(event_id and item_id and event_id!=item_id)
+        occurrence_match=bool(occurrence_identity and item_occurrence_identity and occurrence_identity==item_occurrence_identity)
+        geography_compatible=not (city and item_city) or city_match
+        if ids_conflict and title_match and venue_match and geography_compatible:
             return "RETAINED / SUPERSEDED IDENTITY"
-    if any(title==_norm(item.get("Original Title") or item.get("Title") or item.get("title")).casefold() or venue==_norm(item.get("Venue") or item.get("venue")).casefold() for item in candidates):
-        return "AMBIGUOUS IDENTITY"
+        if occurrence_match or ids_match or (title_match and (venue_match or city_match)):
+            return "AMBIGUOUS IDENTITY"
     return "RETAINED / SOURCE ABSENT"
 def _serialized_value(prop):
     if "title" in prop: return "".join(x.get("text",{}).get("content","") for x in prop["title"])
