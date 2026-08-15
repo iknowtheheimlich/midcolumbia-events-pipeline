@@ -37,29 +37,69 @@ _TRUSTED_COMMUNITY_AUTHORITY_SOURCES = {
 _COMMUNITY_DESCRIPTION_AUTHORITY_RE = re.compile(
     r"\b(?:the\s+(?:public\s+)?library['’]s|presented\s+by\s+(?:the\s+)?[^.]{0,80}\blibrar(?:y|ies)|"
     r"hosted\s+by\s+(?:the\s+)?(?:city|county|[^.]{0,60}\bparks?\s+(?:and|&)\s+recreation|"
-    r"[^.]{0,60}\bpublic\s+library|[^.]{0,60}\bhistorical\s+society|[^.]{0,60}\bmuseum))\b",
+    r"[^.]{0,60}\bpublic\s+library|[^.]{0,60}\bhistorical\s+society|[^.]{0,60}\bmuseum)|"
+    r"\bat\s+(?:the\s+)?[^.]{0,50}\blibrary\b)",
     re.IGNORECASE,
 )
 _INSTRUCTION_EVIDENCE_RE = re.compile(
     r"\b(?:class(?:es)?|workshop|101|clinic|lesson|guided instruction|hands-on instruction|"
     r"instruction(?:al)?|instructor|learn to|pilates|self-defense|self defense|line danc(?:e|ing)|"
     r"dance instruction|yoga instruction|yoga day camp|yoga trapeze|ceramics?|blending lab|"
-    r"cooking instruction|pasta making|make (?:a|an|your)|create (?:a|an|your))\b",
+    r"cooking instruction|pasta making|make (?:a|an|your)|create (?:a|an|your)|"
+    r"(?:will\s+)?guide you through (?:creating|making))\b",
     re.IGNORECASE,
 )
 _CAMP_RE = re.compile(r"\bcamp\b", re.IGNORECASE)
 _FUNDRAISING_EVIDENCE_RE = re.compile(
-    r"\b(?:benefit(?:ing|ting)|proceeds\s+(?:support|benefit(?:ing|ting))|for a cause|"
-    r"fundrais(?:er|ing)\s+for)\b",
+    r"\b(?:benefit(?:ing|ting)|(?:all\s+)?proceeds\s+(?:go to|support|benefit(?:ing|ting))|for a cause|"
+    r"fundrais(?:er|ing)\s+for|(?:silent\s+auction|raffle)[^.]{0,120}\b(?:support|help)\b)\b",
     re.IGNORECASE,
 )
 _SOCIAL_EVENT_RE = re.compile(
-    r"\b(?:family night|grand opening|back to school bash|summer bash|party|shop crawl|plant swap)\b",
+    r"\b(?:family night|grand opening|back to school bash|summer bash|party|shop crawl|plant swap|"
+    r"networking luncheon|get together|team bonding|join the gang|supportive (?:space|gathering))\b",
     re.IGNORECASE,
 )
 _PERFORMANCE_EVIDENCE_RE = re.compile(
     r"\b(?:concert|live music|live musical performance|performing live|live band|musical performance|"
-    r"music series|concert series|performer series|band)\b",
+    r"music series|concert series|performer series|bands?)\b",
+    re.IGNORECASE,
+)
+
+_CORROBORATED_LIVE_PERFORMER_RE = re.compile(
+    r"(?:\b(?:live|performing)\s+(?:in|at)\s+[^|]{2,80}\b.*\b(?:artist|singer|songwriter|hits?|show)\b|"
+    r"\b(?:artist|singer|songwriter|hits?|show)\b.*\b(?:live|performing)\s+(?:in|at)\b|"
+    r"\bbiggest hits?\b.*\bbrought to life\b)",
+    re.IGNORECASE,
+)
+_STAGED_PERFORMANCE_RE = re.compile(
+    r"\b(?:drag (?:pageant|show)|cabaret|burlesque show|theatrical (?:production|experience)|folk opera)\b",
+    re.IGNORECASE,
+)
+_FAITH_PROGRAM_RE = re.compile(
+    r"\b(?:worship|preaching|bible (?:trivia|knowledge(?: during)? trivia)|evangelistic|prophetic (?:ministry|intensive|prayer)|"
+    r"relief society|elders quorum|ward (?:activity|program)|church community|denominational|"
+    r"holy spirit conference|constituency session|yw/ym activity|faith[- ]filled|"
+    r"church community|congregation (?:luau|program)|devotional)\b",
+    re.IGNORECASE,
+)
+_FAITH_AUTHORITY_RE = re.compile(
+    r"\b(?:church|ward|congregation|ministry|pastor|denomination|latter[- ]day saints?|lds|"
+    r"adventist|catholic|christian|gospel|faith|temple|christ|god.s|gracepoint|npuc)\b",
+    re.IGNORECASE,
+)
+_PUBLIC_TALK_EVIDENCE_RE = re.compile(
+    r"\b(?:in this talk|explor(?:e|ing) (?:the )?(?:basic )?(?:principles|history|stories)|"
+    r"learn (?:about )?(?:their|the) (?:history|stories))\b",
+    re.IGNORECASE,
+)
+_LIBRARY_PROGRAM_EVIDENCE_RE = re.compile(
+    r"\b(?:library|libraries)\b[\s\S]{0,180}\b(?:learn|learning|craft|stencil|stem|science|history|games?|gaming|stories|educational|program)\b|"
+    r"\b(?:learn|learning|craft|stencil|stem|science|history|games?|gaming|stories|educational|program)\b[\s\S]{0,180}\b(?:library|libraries)\b",
+    re.IGNORECASE,
+)
+_SURPLUS_SALE_RE = re.compile(
+    r"\bsurplus sale\b(?=[\s\S]{0,220}\b(?:as[- ]is|items?|goods?|purchase|buyer|remove|removal)\b)",
     re.IGNORECASE,
 )
 
@@ -196,6 +236,14 @@ def classify_event(event: dict[str, Any], profile: PublishingProfile | None = No
         return CategoryDecision("Fundraisers", 0.97, "semantic_rule=explicit_beneficiary_or_cause")
     if _SOCIAL_EVENT_RE.search(title_description):
         return CategoryDecision("Events/Hangouts", 0.91, "semantic_rule=explicit_social_event")
+    if _STAGED_PERFORMANCE_RE.search(title_description):
+        return CategoryDecision("Art/Theater", 0.97, "semantic_rule=explicit_staged_performance")
+    if _FAITH_PROGRAM_RE.search(title_description) and _FAITH_AUTHORITY_RE.search(
+        " | ".join(str(event.get(key) or "") for key in ("title", "description", "venue", "organizer", "organization", "host", "url"))
+    ):
+        return CategoryDecision("Faith Based", 0.96, "semantic_rule=explicit_faith_program")
+    if _SURPLUS_SALE_RE.search(title_description):
+        return CategoryDecision("Estate/Yard/Garage Sales", 0.97, "semantic_rule=explicit_surplus_goods_sale")
 
     for rule in _EXPLICIT_TITLE_RULES:
         if rule.pattern.search(title):
@@ -203,7 +251,7 @@ def classify_event(event: dict[str, Any], profile: PublishingProfile | None = No
             if _eligible_decision(event, decision):
                 return decision
 
-    if _PERFORMANCE_EVIDENCE_RE.search(title_description):
+    if _PERFORMANCE_EVIDENCE_RE.search(title_description) or _CORROBORATED_LIVE_PERFORMER_RE.search(title_description):
         return CategoryDecision("Music/Comedy", 0.96, "semantic_rule=explicit_musical_performance")
 
     raw_category = _text(event.get("category"))
@@ -247,6 +295,16 @@ def classify_event(event: dict[str, Any], profile: PublishingProfile | None = No
 
     if _INSTRUCTION_EVIDENCE_RE.search(title_description):
         return CategoryDecision("Classes/Workshops", 0.97, "semantic_rule=explicit_instruction")
+
+    if _PUBLIC_TALK_EVIDENCE_RE.search(description) and community_programs_authority_eligible(event):
+        return CategoryDecision("Lectures/Talks", 0.92, "semantic_rule=public_institution_talk")
+
+    if _LIBRARY_PROGRAM_EVIDENCE_RE.search(title_description) and community_programs_authority_eligible(event):
+        return CategoryDecision("Community Programs", 0.90, "semantic_rule=qualified_library_program")
+
+    source = (_text(event.get("source")) or "").casefold()
+    if source in _TRUSTED_COMMUNITY_AUTHORITY_SOURCES and description:
+        return CategoryDecision("Community Programs", 0.88, "semantic_rule=trusted_library_program")
 
     venue = _text(event.get("venue")) or ""
     organization = _text(event.get("organization") or event.get("organizer") or event.get("host")) or ""

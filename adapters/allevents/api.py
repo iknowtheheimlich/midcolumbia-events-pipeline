@@ -349,6 +349,9 @@ def normalize_api_event(row: dict[str, Any]) -> CanonicalEvent | None:
         "source_event_id": source_id,
         "image_url": _clean(row.get("banner_url") or row.get("thumb_url_large") or row.get("thumb_url")),
         "source_category": _clean(row.get("label")),
+        "source_start_timestamp": int_or_none(row.get("start_time")),
+        "source_end_timestamp": int_or_none(row.get("end_time")),
+        "source_display_time": _clean(row.get("app_display_time") or row.get("start_time_display")),
         "recurring_event_details": row.get("recurring_event_details"),
         "source_time_reason": time_reason if time_reason == end_reason else f"start={time_reason};end={end_reason}",
     }
@@ -361,6 +364,8 @@ def _explicit_description_times(row: dict[str, Any]) -> tuple[datetime, datetime
         return None
 
     range_match = _EXPLICIT_RANGE_RE.search(description)
+    if range_match and re.search(r"\bpre[ -]?show\b", description[max(0, range_match.start() - 100):range_match.end() + 100], re.IGNORECASE):
+        return None
     start_parts: tuple[int, int, str] | None = None
     end_parts: tuple[int, int, str] | None = None
     if range_match:
@@ -437,6 +442,13 @@ def _hour24(hour: int, meridiem: str) -> int:
     return 12 if hour == 12 else hour + 12
 
 
+def int_or_none(value: Any) -> int | None:
+    try:
+        return int(str(value))
+    except (TypeError, ValueError):
+        return None
+
+
 def _api_datetime(
     row: dict[str, Any],
     field: str,
@@ -458,15 +470,29 @@ def _api_datetime(
         for value in (title, row.get("description"), row.get("location"))
     )
 
-    if force_wall_clock or _is_wall_clock_epoch(
+    if force_wall_clock or _date_only_display_with_offset(row) or _is_wall_clock_epoch(
         utc_instant,
         local_instant,
         offset,
         evidence,
     ):
         wall_clock = utc_instant.replace(tzinfo=offset)
-        return wall_clock, "wall_clock_epoch_repaired"
+        reason = "date_only_display_wall_clock_repaired" if _date_only_display_with_offset(row) else "wall_clock_epoch_repaired"
+        return wall_clock, reason
     return local_instant, "utc_epoch_converted"
+
+
+def _date_only_display_with_offset(row: dict[str, Any]) -> bool:
+    """Detect API rows whose epoch stores local wall time rather than a UTC instant.
+
+    AllEvents' date-only cards omit an authored display time while retaining an
+    explicit numeric timezone. In that payload form the epoch is the local wall
+    clock encoded as UTC. Rows with an AM/PM display remain ordinary UTC epochs.
+    """
+    display = _clean(row.get("app_display_time") or row.get("start_time_display"))
+    if not display or re.search(r"\b\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)\b", display, re.IGNORECASE):
+        return False
+    return bool(_OFFSET_RE.match(_clean(row.get("timezone"))))
 
 
 def _is_wall_clock_epoch(

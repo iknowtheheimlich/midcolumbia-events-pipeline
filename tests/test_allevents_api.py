@@ -441,3 +441,24 @@ def test_preserves_structured_ticket_details():
     assert event is not None
     assert event["ticket_url"] == "https://tickets.example.org/buy"
     assert event["cost"] == "$15"
+
+
+def test_date_only_display_marks_wall_clock_epoch_and_preserves_raw_evidence():
+    event = normalize_api_event(_row(start_time="1787337000", end_time="1787344200", app_display_time="Fri, 21 Aug, 2026", start_time_display="Aug 21"))
+    assert event["start_time"] == "18:30"
+    assert event["end_time"] == "20:30"
+    assert event["source_time_reason"] == "date_only_display_wall_clock_repaired"
+    assert event["source_start_timestamp"] == 1787337000
+    assert event["source_display_time"] == "Fri, 21 Aug, 2026"
+
+
+def test_authored_time_display_does_not_shift_unrelated_epoch():
+    event = normalize_api_event(_row(app_display_time="Mon, 13 Jul, 2026 at 11:00 am"))
+    assert event["start_time"] == "11:00"
+    assert event["source_time_reason"] == "utc_epoch_converted"
+
+
+def test_preshow_subwindow_does_not_replace_overall_event_epoch():
+    event = normalize_api_event(_row(start_time="1787428800", end_time="1787439600", app_display_time="Sat, 22 Aug, 2026", description="A full 3-hour show. Agenda: 07:30 PM - 08:00 PM Pre Show comedy."))
+    assert event["start_time"] == "20:00"
+    assert event["end_time"] == "23:00"

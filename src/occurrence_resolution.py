@@ -178,6 +178,8 @@ def _is_conflicting_pair(left: dict[str, Any], right: dict[str, Any]) -> bool:
     delta = _time_delta_minutes(left.get("start_time"), right.get("start_time"))
     if delta is None or delta <= 10:
         return False
+    if _explicit_distinct_session_formats(left, right):
+        return False
     if _explicit_non_overlapping_age_cohorts(left, right):
         return False
     title_score, _ = _title_similarity(left, right)
@@ -216,6 +218,25 @@ def _strong_title_containment(left: dict[str, Any], right: dict[str, Any]) -> bo
         return False
     overlap = len(a & b)
     return overlap >= 3 and overlap / min(len(a), len(b)) >= 0.75
+
+
+def _explicit_distinct_session_formats(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    descriptions = [normalize_text(event.get("description")) for event in (left, right)]
+    breakfast_evening = (
+        bool(re.search(r"\b(?:breakfast|morning)\b", descriptions[0]))
+        and bool(re.search(r"\bevening\b", descriptions[1]))
+    ) or (
+        bool(re.search(r"\b(?:breakfast|morning)\b", descriptions[1]))
+        and bool(re.search(r"\bevening\b", descriptions[0]))
+    )
+    music_drag = (
+        bool(re.search(r"\b(?:mini )?music festival\b|\bthree bands?\b", descriptions[0]))
+        and bool(re.search(r"\bdrag show\b|\blip[ -]?sync", descriptions[1]))
+    ) or (
+        bool(re.search(r"\b(?:mini )?music festival\b|\bthree bands?\b", descriptions[1]))
+        and bool(re.search(r"\bdrag show\b|\blip[ -]?sync", descriptions[0]))
+    )
+    return breakfast_evening or music_drag
 
 
 def _conflict_details(event: dict[str, Any]) -> list[dict[str, Any]]:
@@ -281,6 +302,7 @@ def compare_occurrences(left: dict[str, Any], right: dict[str, Any]) -> Occurren
         return OccurrenceEvidence(confidence, tuple(reasons + ["different_venue"]))
 
     time_delta = _time_delta_minutes(left.get("start_time"), right.get("start_time"))
+    nested_time_match = _nested_performance_window_matches(left, right) or _contained_celebration_window(left, right)
     if time_delta is not None and time_delta <= 10:
         confidence += 0.25
         reasons.append("start_time_within_10m")
@@ -288,6 +310,9 @@ def compare_occurrences(left: dict[str, Any], right: dict[str, Any]) -> Occurren
         # Missing time is not positive evidence. A merge can still succeed only with
         # exceptionally strong title and venue evidence.
         reasons.append("missing_start_time")
+    elif nested_time_match:
+        confidence += 0.25
+        reasons.append("nested_performance_start_matches")
     else:
         return OccurrenceEvidence(confidence, tuple(reasons + ["different_start_time"]))
 
@@ -298,7 +323,7 @@ def compare_occurrences(left: dict[str, Any], right: dict[str, Any]) -> Occurren
     elif title_score >= 0.80:
         confidence += 0.22
         reasons.append(f"{title_reason}={title_score:.2f}")
-    elif title_score >= 0.70 and time_delta is not None and time_delta <= 10:
+    elif title_score >= 0.70 and (nested_time_match or (time_delta is not None and time_delta <= 10)):
         confidence += 0.18
         reasons.append(f"{title_reason}={title_score:.2f}")
     else:
@@ -308,6 +333,48 @@ def compare_occurrences(left: dict[str, Any], right: dict[str, Any]) -> Occurren
         )
 
     return OccurrenceEvidence(min(confidence, 1.0), tuple(reasons))
+
+
+_NESTED_PERFORMANCE_TIME_RE = re.compile(
+    r"\b(?:band|performance|music|takes? the [^.]{0,40})[^.]{0,100}?"
+    r"(?P<hour>\d{1,2})(?::(?P<minute>\d{2}))?\s*(?P<meridiem>a\.?m\.?|p\.?m\.?)?\s*"
+    r"(?:[-\N{EN DASH}\N{EM DASH}]|to)",
+    re.IGNORECASE,
+)
+
+
+def _nested_performance_window_matches(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    for evidence_event, timed_event in ((left, right), (right, left)):
+        match = _NESTED_PERFORMANCE_TIME_RE.search(str(evidence_event.get("description") or ""))
+        if not match:
+            continue
+        hour = int(match.group("hour"))
+        minute = int(match.group("minute") or 0)
+        meridiem = (match.group("meridiem") or "").casefold().replace(".", "")
+        if meridiem == "pm" and hour < 12:
+            hour += 12
+        elif meridiem == "am" and hour == 12:
+            hour = 0
+        candidate_hours = {hour}
+        if not meridiem and hour < 12:
+            candidate_hours.add(hour + 12)
+        if str(timed_event.get("start_time") or "") in {f"{candidate:02d}:{minute:02d}" for candidate in candidate_hours}:
+            return True
+    return False
+
+
+def _contained_celebration_window(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    titles = " | ".join(normalize_text(event.get("title")) for event in (left, right))
+    if not re.search(r"\b(?:anniversary|celebrat(?:ion|ing))\b", titles):
+        return False
+    title_score, _ = _title_similarity(left, right)
+    if title_score < 0.75:
+        return False
+    left_end, right_end = str(left.get("end_time") or ""), str(right.get("end_time") or "")
+    if not left_end or left_end != right_end:
+        return False
+    delta = _time_delta_minutes(left.get("start_time"), right.get("start_time"))
+    return delta is not None and delta <= 120
 
 
 def _merge_cluster(group: list[dict[str, Any]], evidence: OccurrenceEvidence | None) -> dict[str, Any]:

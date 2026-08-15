@@ -337,3 +337,40 @@ def test_missing_times_require_exceptionally_strong_title_evidence() -> None:
     )
 
     assert len(different.events) == 2
+
+
+def test_preserves_breakfast_workshop_and_evening_class_as_distinct():
+    result = resolve_occurrences([
+        event(title="Young Bakers Focaccia", start_time="11:00", description="Breakfast hands-on workshop."),
+        event(title="Young Bakers Focaccia Class", start_time="18:00", description="Evening class.", source="AllEvents", url="https://example.test/evening"),
+    ])
+    assert len(result.events) == 2
+    assert all(not item.get("publication_blocker_reason") for item in result.events)
+
+
+def test_preserves_music_festival_and_drag_show_as_distinct():
+    result = resolve_occurrences([
+        event(title="Les-Be-Emo", start_time="10:00", description="A mini music festival with three bands."),
+        event(title="Les-Be-Emo Drag Show", start_time="13:00", description="A hosted drag show with lip-sync performances.", source="AllEvents", url="https://example.test/drag"),
+    ])
+    assert len(result.events) == 2
+    assert all(not item.get("publication_blocker_reason") for item in result.events)
+
+
+def test_merges_overall_event_with_explicit_nested_band_window():
+    result = resolve_occurrences([
+        event(title="FORTY Celebrating 40 Years Austin Miller Full Band", start_time="17:00", description="Celebration starts at 5 PM; Austin Miller band takes the Main Lawn 6 PM - 9 PM."),
+        event(title="FORTY Austin Miller Full Band", start_time="18:00", description="", source="TriCityVibe", url="https://example.test/band"),
+    ])
+    assert len(result.events) == 1
+    assert result.events[0]["start_time"] == "17:00"
+    assert "nested_performance_start_matches" in result.events[0]["intelligence"]["occurrence_resolution"]["reason"]
+
+
+def test_merges_contained_anniversary_performance_window():
+    result = resolve_occurrences([
+        event(title="Iconic Brewing Anniversary Celebration with Stoney Lonesome", start_time="17:00", end_time="22:00"),
+        event(title="Anniversary Celebration with Stoney Lonesome at Iconic Brewing", start_time="18:00", end_time="22:00", source="TriCityVibe", url="https://example.test/stoney"),
+    ])
+    assert len(result.events) == 1
+    assert result.events[0]["start_time"] == "17:00"

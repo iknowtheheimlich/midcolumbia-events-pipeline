@@ -9,7 +9,9 @@ appears as Algolia-style hit objects, not ordinary static HTML.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import re
 from typing import Any
+from urllib.parse import urlsplit
 
 from adapters.algolia.payload import extract_hits
 from adapters.visit_tricities.config import BASE_URL, SOURCE_NAME
@@ -47,6 +49,9 @@ def normalize_hit(hit: dict[str, Any]) -> dict:
 
     url = normalize_url(hit.get("uri"))
     venue = first_non_empty(hit.get("eventLocation"), first_address_line(hit.get("address")))
+    named_venue = corroborated_named_venue(hit)
+    if named_venue and venue.casefold() == (city_from_address(hit.get("address")) or city_from_regions(hit.get("partnerRegions"))).casefold():
+        venue = named_venue
     city = city_from_address(hit.get("address")) or city_from_regions(hit.get("partnerRegions"))
 
     event = {
@@ -190,3 +195,23 @@ def int_or_none(value: Any) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+_TITLE_VENUE_RE = re.compile(r"\s+at\s+(?P<venue>[^|]+?)\s*$", re.IGNORECASE)
+
+
+def corroborated_named_venue(hit: dict[str, Any]) -> str:
+    """Recover a title venue only when description and destination corroborate it."""
+    title = clean_text(hit.get("title"))
+    match = _TITLE_VENUE_RE.search(title)
+    if not match:
+        return ""
+    venue = clean_text(match.group("venue"))
+    description = clean_text(hit.get("content"))
+    if not venue or not re.search(rf"\bat\s+{re.escape(venue)}\b", description, re.IGNORECASE):
+        return ""
+    hostname = urlsplit(clean_text(hit.get("website"))).hostname or ""
+    venue_token = re.sub(r"\b(?:the|winery|cellars?|brewing|company|co)\b", "", venue, flags=re.IGNORECASE)
+    venue_token = re.sub(r"[^a-z0-9]", "", venue_token.casefold())
+    host_token = re.sub(r"[^a-z0-9]", "", hostname.casefold())
+    return venue if len(venue_token) >= 4 and venue_token in host_token else ""
