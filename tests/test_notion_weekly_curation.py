@@ -10,7 +10,10 @@ def row(**changes):
 def page(key, **values):
     props={"Curation Key":{"type":"rich_text","rich_text":[{"plain_text":key}]}}
     for name,value in values.items():
-        props[name]={"type":"select","select":{"name":value} if value else None}
+        if name=="Captains Venue Override":
+            props[name]={"type":"relation","relation":[{"id":value}] if value else []}
+        else:
+            props[name]={"type":"select","select":{"name":value} if value else None}
     return {"id":"page-1","properties":props}
 
 class FakeClient:
@@ -131,3 +134,86 @@ def test_sync_retries_incomplete_eventually_consistent_read_back(monkeypatch):
     assert result["rows_after"]==1
     assert fake.queries==3
     assert len(fake.created)==1
+
+def test_clean_source_absent_retained_row_is_audited_without_retry(monkeypatch):
+    import src.notion_weekly_curation as curation
+    sleeps=[]; monkeypatch.setattr(curation.time,"sleep",lambda value:sleeps.append(value))
+    stale=page("stale",**{"Pipeline Run ID":"old","Original Title":"Trivia Thursdays","Event Date":"2026-08-20","Source":"AllEvents","Source Event ID":"old-trivia","Venue":"Summers Hub"})
+    fake=FakeClient([stale])
+
+    result=sync_week(fake,[row()],week="2026-08-10",run_id="current")
+
+    assert result["live_current_run_row_count"]==1
+    assert result["retained_source_absent_count"]==1
+    assert result["retained_rows"][0]["classification"]=="RETAINED / SOURCE ABSENT"
+    assert result["retained_rows"][0]["page_id"]=="page-1"
+    assert result["retained_rows"][0]["prior_pipeline_run_id"]=="old"
+    assert result["read_back_attempts_used"]==1
+    assert sleeps==[]
+    assert len(fake.created)==1
+    assert not hasattr(fake,"deleted")
+
+def test_superseded_source_identity_is_retained_without_migration():
+    current=row(Date="2026-08-23",Title="Everett AquaSox at Tri-City Dust Devils",Venue="Gesa Stadium",**{"Source Event ID":"200030558055913"})
+    stale=page("stale",**{"Pipeline Run ID":"old","Original Title":current["Title"],"Event Date":current["Date"],"Source":"AllEvents","Source Event ID":"200030558054705","Venue":current["Venue"]})
+    fake=FakeClient([stale])
+
+    result=sync_week(fake,[current],week="2026-08-17",run_id="current")
+
+    assert result["retained_superseded_identity_count"]==1
+    assert result["retained_rows"][0]["source_event_id"]=="200030558054705"
+    assert fake.pages[0]["properties"]["Source Event ID"]["select"]["name"]=="200030558054705"
+    assert fake.created[0]["Source Event ID"]["rich_text"][0]["text"]["content"]=="200030558055913"
+
+@pytest.mark.parametrize(("field","value"),[
+    ("Captain Include","INCLUDE"),("Captain Category","Sports"),("Captain Target","MAIN"),
+    ("Captain Title Override","Title"),("Captain Time Override","7p"),
+    ("Captains Venue Override","venue-page"),("Captain Description Override","Description"),
+    ("Curation Status","REVIEWED"),
+])
+def test_captain_bearing_retained_row_fails_for_review(field,value):
+    stale=page("stale",**{"Pipeline Run ID":"old","Original Title":"Gone","Event Date":"2026-08-12","Source":"AllEvents",field:value})
+    with pytest.raises(CurationIntegrityError,match="retained same-week rows require review"):
+        sync_week(FakeClient([stale]),[row()],week="2026-08-10",run_id="current")
+
+def test_ambiguous_retained_identity_fails_for_review():
+    stale=page("stale",**{"Pipeline Run ID":"old","Original Title":"Class","Event Date":"2026-08-11","Source":"AllEvents","Source Event ID":"old","Venue":"Different Venue"})
+    with pytest.raises(CurationIntegrityError,match="retained same-week rows require review"):
+        sync_week(FakeClient([stale]),[row()],week="2026-08-10",run_id="current")
+
+class MissingCurrentClient(FakeClient):
+    def query_week(self,week):
+        return []
+
+def test_current_run_missing_key_still_fails(monkeypatch):
+    import src.notion_weekly_curation as curation
+    monkeypatch.setattr(curation.time,"sleep",lambda _:None)
+    with pytest.raises(CurationIntegrityError,match="incomplete current-run sync"):
+        sync_week(MissingCurrentClient(),[row()],week="2026-08-10",run_id="current")
+
+def test_unexpected_current_run_key_fails_immediately():
+    unexpected=page("unexpected",**{"Pipeline Run ID":"current","Original Title":"Other","Event Date":"2026-08-12","Source":"AllEvents"})
+    with pytest.raises(CurationIntegrityError,match="unexpected current-run"):
+        sync_week(FakeClient([unexpected]),[row()],week="2026-08-10",run_id="current")
+
+class MalformedCurrentClient(FakeClient):
+    def query_week(self,week):
+        pages=super().query_week(week)
+        if self.created:
+            pages[-1]["properties"]["Venue"]={"type":"rich_text","rich_text":[{"plain_text":"Wrong"}]}
+        return pages
+
+def test_malformed_current_pipeline_row_fails():
+    with pytest.raises(CurationIntegrityError,match="malformed current-run pipeline rows"):
+        sync_week(MalformedCurrentClient(),[row()],week="2026-08-10",run_id="current")
+
+def test_pipeline_unchanged_current_row_gets_marker_only_update():
+    item=row(); key=curation_key(item,"2026-08-10")
+    seed=FakeClient(); sync_week(seed,[item],week="2026-08-10",run_id="old")
+    fake=FakeClient(seed.pages)
+
+    result=sync_week(fake,[item],week="2026-08-10",run_id="current")
+
+    assert result["unchanged_rows"]==1
+    assert set(fake.updated[0][1])=={"Last Pipeline Sync","Pipeline Run ID"}
+    assert result["current_missing_keys"]==[]

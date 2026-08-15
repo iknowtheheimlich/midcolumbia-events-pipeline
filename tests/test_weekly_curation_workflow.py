@@ -72,3 +72,18 @@ def test_missing_row_aborts(monkeypatch,tmp_path):
 def test_missing_audit_aborts(tmp_path):
     with pytest.raises(CurationIntegrityError,match="boundary is missing"):
         workflow.load_curated_editorial(object(),week="2026-08-10",inventory_path=tmp_path/"missing-inventory",audit_path=tmp_path/"missing-audit")
+
+def test_prepare_audit_records_retained_same_week_evidence(monkeypatch,tmp_path):
+    retained=[
+        {"curation_key":"stale-1","page_id":"page-1","title":"Trivia Thursdays","event_date":"2026-08-20","source":"AllEvents","source_event_id":"old-1","prior_pipeline_run_id":"old","classification":"RETAINED / SOURCE ABSENT","captain_bearing":False,"captain_fields":[]},
+        {"curation_key":"stale-2","page_id":"page-2","title":"AquaSox","event_date":"2026-08-23","source":"AllEvents","source_event_id":"old-2","prior_pipeline_run_id":"old","classification":"RETAINED / SUPERSEDED IDENTITY","captain_bearing":False,"captain_fields":[]},
+    ]
+    sync={"source_inventory_count":1,"expected_current_inventory_count":1,"live_current_run_row_count":1,"current_missing_keys":[],"current_unexpected_keys":[],"current_duplicate_keys":[],"retained_same_week_row_count":2,"retained_source_absent_count":1,"retained_superseded_identity_count":1,"retained_captain_bearing_count":0,"retained_ambiguous_count":0,"retained_rows":retained}
+    monkeypatch.setattr(workflow,"sync_week",lambda *args,**kwargs:sync)
+    inventory=tmp_path/"inventory.json"; audit_path=tmp_path/"audit.json"
+
+    audit=workflow.prepare_curation(type("Client",(),{"data_source_id":"source"})(),[event()],week="2026-08-10",run_id="current",inventory_path=inventory,audit_path=audit_path)
+
+    assert audit["sync"]["retained_rows"]==retained
+    assert json.loads(audit_path.read_text(encoding="utf-8"))["sync"]["retained_superseded_identity_count"]==1
+    assert len(json.loads(inventory.read_text(encoding="utf-8"))["rows"])==1

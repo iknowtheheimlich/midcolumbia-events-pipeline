@@ -15,7 +15,7 @@ from src.occurrence_identity import canonical_occurrence_identity
 
 NOTION_API_VERSION = "2026-03-11"
 PIPELINE_FIELDS = frozenset({"Curation Key", "Week", "Event Date", "Source Start Date", "Source End Date", "Occurrence Identity", "Source Time Evidence", "Source", "Source Event ID", "Source URL", "Original Title", "Original Time", "Venue", "City", "Description", "Pipeline Category", "Pipeline Target", "Pipeline Disposition", "Pipeline Reason", "Category Confidence", "Category Reason", "Last Pipeline Sync", "Pipeline Run ID"})
-CAPTAIN_FIELDS = frozenset({"Captain Include", "Captain Category", "Captain Target", "Captain Title Override", "Captain Time Override", "Captain Notes", "Curation Status"})
+CAPTAIN_FIELDS = frozenset({"Captain Include", "Captain Category", "Captain Target", "Captain Title Override", "Captain Time Override", "Captains Venue Override", "Captain Description Override", "Captain Notes", "Curation Status"})
 DERIVED_FIELDS = frozenset({"Event", "Final Category", "Final Target", "Final Inclusion"})
 CATEGORIES = ("Music/Comedy", "Art/Theater", "Festivals/Fair", "Events/Hangouts", "Classes/Workshops", "Food & Drink", "Karaoke/Open Mic", "Sports", "Trivia/Game Night", "Fundraisers", "Lectures/Talks", "Markets", "Restaurants/Bars/Wineries", "Community Programs", "Weekly Events", "School District Event", "Tours", "Estate/Yard/Garage Sales", "Faith Based")
 CAPTAIN_ALLOWED = {"Captain Include": {"", "INCLUDE", "EXCLUDE"}, "Captain Category": {"", *CATEGORIES}, "Captain Target": {"", "MAIN", "COMMUNITY"}, "Curation Status": {"", "NEEDS REVIEW", "REVIEWED"}}
@@ -76,25 +76,59 @@ def sync_week(client: NotionCurationClient, rows: Iterable[dict[str, Any]], *, w
         if page is None: client.create(props); created+=1
         else:
             captain_before={name:_prop(page,name) for name in CAPTAIN_FIELDS}
-            if _pipeline_matches(page, props): unchanged+=1
+            if _pipeline_matches(page, props):
+                client.update(page["id"], {name:props[name] for name in ("Last Pipeline Sync","Pipeline Run ID")})
+                unchanged+=1
             else: client.update(page["id"],props); updated+=1
             preserved+=sum(v not in (None,"") for v in captain_before.values())
-    read_back=[]; read_keys=set()
+    read_back=[]; current_rows=[]; current_keys=set(); retained=[]
+    expected_props={curation_key(row,week):_serialize(row,week,curation_key(row,week),run_id,include_captain=migrate_captain) for row in incoming}
+    attempts_used=0
     for attempt in range(READ_BACK_ATTEMPTS):
+        attempts_used=attempt+1
         read_back=read_week(client,week)
-        read_keys={row["Curation Key"] for row in read_back}
-        if read_keys == incoming_keys: break
+        current_rows=[row for row in read_back if _norm(row.get("Pipeline Run ID"))==run_id]
+        current_keys={row["Curation Key"] for row in current_rows}
+        unexpected=sorted(current_keys-incoming_keys)
+        if unexpected:
+            raise CurationIntegrityError(f"unexpected current-run Curation Keys: {unexpected}")
+        retained=_classify_retained_rows(
+            [row for row in read_back if row["Curation Key"] not in incoming_keys], incoming
+        )
+        blockers=[item for item in retained if item["classification"] in {"CAPTAIN-BEARING RETAINED ROW","AMBIGUOUS IDENTITY"}]
+        if blockers:
+            raise CurationIntegrityError(f"retained same-week rows require review: {[item['curation_key'] for item in blockers]}")
+        missing=sorted(incoming_keys-current_keys)
+        if not missing: break
         if attempt + 1 < READ_BACK_ATTEMPTS:
             time.sleep(READ_BACK_RETRY_DELAY_SECONDS)
-    if read_keys != incoming_keys:
-        missing=sorted(incoming_keys-read_keys); unexpected=sorted(read_keys-incoming_keys)
-        raise CurationIntegrityError(f"incomplete sync after {READ_BACK_ATTEMPTS} read-back attempts: missing={missing} unexpected={unexpected}")
-    return {"source_inventory_count":len(incoming),"created_rows":created,"updated_rows":updated,"unchanged_rows":unchanged,"captain_fields_preserved":preserved,"rows_before":len(existing),"rows_after":len(read_back)}
+    missing=sorted(incoming_keys-current_keys)
+    if missing:
+        raise CurationIntegrityError(f"incomplete current-run sync after {READ_BACK_ATTEMPTS} read-back attempts: missing={missing} unexpected=[]")
+    current_by_key={row["Curation Key"]:row for row in current_rows}
+    malformed=[key for key,props in expected_props.items() if not _pipeline_values_match(current_by_key[key],props)]
+    if malformed:
+        raise CurationIntegrityError(f"malformed current-run pipeline rows: {malformed}")
+    retained_counts={name:sum(item["classification"]==name for item in retained) for name in ("RETAINED / SOURCE ABSENT","RETAINED / SUPERSEDED IDENTITY","CAPTAIN-BEARING RETAINED ROW","AMBIGUOUS IDENTITY")}
+    return {
+        "source_inventory_count":len(incoming),"expected_current_inventory_count":len(incoming),
+        "created_rows":created,"updated_rows":updated,"unchanged_rows":unchanged,
+        "captain_fields_preserved":preserved,"rows_before":len(existing),"rows_after":len(read_back),
+        "live_current_run_row_count":len(current_rows),"current_missing_keys":[],"current_unexpected_keys":[],
+        "current_duplicate_keys":[],"current_malformed_keys":[],"read_back_attempts_used":attempts_used,
+        "retained_same_week_row_count":len(retained),
+        "retained_source_absent_count":retained_counts["RETAINED / SOURCE ABSENT"],
+        "retained_superseded_identity_count":retained_counts["RETAINED / SUPERSEDED IDENTITY"],
+        "retained_captain_bearing_count":retained_counts["CAPTAIN-BEARING RETAINED ROW"],
+        "retained_ambiguous_count":retained_counts["AMBIGUOUS IDENTITY"],
+        "retained_rows":retained,
+    }
 
 def read_week(client: NotionCurationClient, week: str) -> list[dict[str, Any]]:
     pages=client.query_week(week); rows=[]; seen=set()
     for page in pages:
         row={name:_prop(page,name) for name in PIPELINE_FIELDS|CAPTAIN_FIELDS|DERIVED_FIELDS}
+        row["Page ID"]=page.get("id","")
         key=row["Curation Key"]
         if key in seen: raise CurationIntegrityError(f"duplicate Curation Key: {key}")
         seen.add(key)
@@ -138,12 +172,49 @@ def _prop(page,name):
     if typ=="url": return prop.get("url") or ""
     if typ=="number": return prop.get("number")
     if typ=="date": return (prop.get("date") or {}).get("start","")
+    if typ=="relation": return ",".join(item.get("id","") for item in prop.get("relation",[]) if item.get("id"))
     return ""
 def _pipeline_matches(page, properties):
     for name, value in properties.items():
         if name in {"Last Pipeline Sync", "Pipeline Run ID", *DERIVED_FIELDS}: continue
         if _norm(_prop(page,name)) != _norm(_serialized_value(value)): return False
     return True
+def _pipeline_values_match(row, properties):
+    for name,value in properties.items():
+        if name in {"Last Pipeline Sync", "Pipeline Run ID", *DERIVED_FIELDS}: continue
+        if _norm(row.get(name)) != _norm(_serialized_value(value)): return False
+    return True
+def _classify_retained_rows(rows, incoming):
+    output=[]
+    for row in rows:
+        captain_fields=[name for name in CAPTAIN_FIELDS if _norm(row.get(name))]
+        classification="CAPTAIN-BEARING RETAINED ROW" if captain_fields else _retained_identity_class(row,incoming)
+        output.append({
+            "curation_key":row.get("Curation Key") or "","page_id":row.get("Page ID") or "",
+            "title":row.get("Original Title") or row.get("Event") or "","event_date":row.get("Event Date") or "",
+            "source":row.get("Source") or "","source_event_id":row.get("Source Event ID") or "",
+            "prior_pipeline_run_id":row.get("Pipeline Run ID") or "","classification":classification,
+            "captain_bearing":bool(captain_fields),"captain_fields":sorted(captain_fields),
+        })
+    return output
+def _retained_identity_class(row,incoming):
+    source=_norm(row.get("Source")).casefold(); event_date=_norm(row.get("Event Date"))
+    title=_norm(row.get("Original Title") or row.get("Event")).casefold(); venue=_norm(row.get("Venue")).casefold()
+    event_id=_norm(row.get("Source Event ID"))
+    candidates=[]
+    for item in incoming:
+        item_source=_norm(item.get("Source") or item.get("source")).casefold()
+        item_date=_norm(item.get("Event Date") or item.get("Date") or item.get("start_date"))
+        if item_source==source and item_date==event_date: candidates.append(item)
+    for item in candidates:
+        item_title=_norm(item.get("Original Title") or item.get("Title") or item.get("title")).casefold()
+        item_venue=_norm(item.get("Venue") or item.get("venue")).casefold()
+        item_id=_norm(item.get("Source Event ID") or item.get("source_event_id"))
+        if title==item_title and venue==item_venue and event_id and item_id and event_id!=item_id:
+            return "RETAINED / SUPERSEDED IDENTITY"
+    if any(title==_norm(item.get("Original Title") or item.get("Title") or item.get("title")).casefold() or venue==_norm(item.get("Venue") or item.get("venue")).casefold() for item in candidates):
+        return "AMBIGUOUS IDENTITY"
+    return "RETAINED / SOURCE ABSENT"
 def _serialized_value(prop):
     if "title" in prop: return "".join(x.get("text",{}).get("content","") for x in prop["title"])
     if "rich_text" in prop: return "".join(x.get("text",{}).get("content","") for x in prop["rich_text"])
