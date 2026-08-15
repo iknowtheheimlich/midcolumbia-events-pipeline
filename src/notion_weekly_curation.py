@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import re
+import time
 from typing import Any, Iterable
 
 import httpx
@@ -18,6 +19,8 @@ CAPTAIN_FIELDS = frozenset({"Captain Include", "Captain Category", "Captain Targ
 DERIVED_FIELDS = frozenset({"Event", "Final Category", "Final Target", "Final Inclusion"})
 CATEGORIES = ("Music/Comedy", "Art/Theater", "Festivals/Fair", "Events/Hangouts", "Classes/Workshops", "Food & Drink", "Karaoke/Open Mic", "Sports", "Trivia/Game Night", "Fundraisers", "Lectures/Talks", "Markets", "Restaurants/Bars/Wineries", "Community Programs", "Weekly Events", "School District Event", "Tours", "Estate/Yard/Garage Sales", "Faith Based")
 CAPTAIN_ALLOWED = {"Captain Include": {"", "INCLUDE", "EXCLUDE"}, "Captain Category": {"", *CATEGORIES}, "Captain Target": {"", "MAIN", "COMMUNITY"}, "Curation Status": {"", "NEEDS REVIEW", "REVIEWED"}}
+READ_BACK_ATTEMPTS = 3
+READ_BACK_RETRY_DELAY_SECONDS = 1.0
 
 class CurationIntegrityError(RuntimeError): pass
 
@@ -76,11 +79,16 @@ def sync_week(client: NotionCurationClient, rows: Iterable[dict[str, Any]], *, w
             if _pipeline_matches(page, props): unchanged+=1
             else: client.update(page["id"],props); updated+=1
             preserved+=sum(v not in (None,"") for v in captain_before.values())
-    read_back=read_week(client,week)
-    read_keys={row["Curation Key"] for row in read_back}
+    read_back=[]; read_keys=set()
+    for attempt in range(READ_BACK_ATTEMPTS):
+        read_back=read_week(client,week)
+        read_keys={row["Curation Key"] for row in read_back}
+        if read_keys == incoming_keys: break
+        if attempt + 1 < READ_BACK_ATTEMPTS:
+            time.sleep(READ_BACK_RETRY_DELAY_SECONDS)
     if read_keys != incoming_keys:
         missing=sorted(incoming_keys-read_keys); unexpected=sorted(read_keys-incoming_keys)
-        raise CurationIntegrityError(f"incomplete sync: missing={missing} unexpected={unexpected}")
+        raise CurationIntegrityError(f"incomplete sync after {READ_BACK_ATTEMPTS} read-back attempts: missing={missing} unexpected={unexpected}")
     return {"source_inventory_count":len(incoming),"created_rows":created,"updated_rows":updated,"unchanged_rows":unchanged,"captain_fields_preserved":preserved,"rows_before":len(existing),"rows_after":len(read_back)}
 
 def read_week(client: NotionCurationClient, week: str) -> list[dict[str, Any]]:

@@ -22,6 +22,15 @@ class FakeClient:
         target=next(item for item in self.pages if item["id"]==page_id)
         target["properties"].update(_as_page_properties(properties))
 
+class EventuallyConsistentClient(FakeClient):
+    def __init__(self):
+        super().__init__(); self.queries=0
+    def query_week(self,week):
+        self.queries+=1
+        if self.queries==2:
+            return []
+        return super().query_week(week)
+
 def _as_page_properties(properties):
     result={}
     for name,value in properties.items():
@@ -110,3 +119,15 @@ def test_query_pagination():
         client=NotionCurationClient("token","source",raw)
         assert len(client.query_week("2026-08-10"))==2
     assert "start_cursor" in calls[1]
+
+def test_sync_retries_incomplete_eventually_consistent_read_back(monkeypatch):
+    import src.notion_weekly_curation as curation
+    monkeypatch.setattr(curation.time,"sleep",lambda _: None)
+    fake=EventuallyConsistentClient()
+
+    result=sync_week(fake,[row()],week="2026-08-10",run_id="run")
+
+    assert result["created_rows"]==1
+    assert result["rows_after"]==1
+    assert fake.queries==3
+    assert len(fake.created)==1
