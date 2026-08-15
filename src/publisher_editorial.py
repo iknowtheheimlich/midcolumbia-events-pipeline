@@ -80,6 +80,10 @@ class EditorialEvent:
     display_artist_url: str | None = None
     publication_url_reason: str | None = None
     publication_blocker_details: tuple[dict[str, Any], ...] = ()
+    source_start_date: str | None = None
+    source_end_date: str | None = None
+    occurrence_identity: str | None = None
+    source_time_evidence: dict[str, Any] = field(default_factory=dict)
     intelligence: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -178,6 +182,10 @@ def apply_editorial_rules(event: PublisherEvent, profile: PublishingProfile | No
         display_artist_url=event.artist_url,
         publication_url_reason=publication_url_reason,
         publication_blocker_details=event.publication_blocker_details,
+        source_start_date=event.source_start_date,
+        source_end_date=event.source_end_date,
+        occurrence_identity=event.occurrence_identity,
+        source_time_evidence=event.source_time_evidence,
         intelligence=explanation,
     )
 

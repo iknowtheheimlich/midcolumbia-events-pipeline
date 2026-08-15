@@ -68,6 +68,10 @@ class PublisherEvent:
     publication_blocker_details: tuple[dict[str, Any], ...] = ()
     captain_disposition: str | None = None
     captain_disposition_reason: str | None = None
+    source_start_date: str | None = None
+    source_end_date: str | None = None
+    occurrence_identity: str | None = None
+    source_time_evidence: dict[str, Any] = field(default_factory=dict)
     intelligence: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -141,6 +145,10 @@ def project_event(event: dict[str, Any]) -> PublisherEvent:
         publication_blocker_details=tuple(event.get("publication_blocker_details") or ()),
         captain_disposition=_optional_text(event.get("captain_disposition")),
         captain_disposition_reason=_optional_text(event.get("captain_disposition_reason")),
+        source_start_date=_optional_text(event.get("source_start_date")),
+        source_end_date=_optional_text(event.get("source_end_date")),
+        occurrence_identity=_optional_text(event.get("occurrence_identity")),
+        source_time_evidence=dict(event.get("source_time_evidence") or {}),
         intelligence=normalize_intelligence(event.get("intelligence")),
     )
 

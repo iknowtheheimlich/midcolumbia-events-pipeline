@@ -10,8 +10,10 @@ from typing import Any, Iterable
 
 import httpx
 
+from src.occurrence_identity import canonical_occurrence_identity
+
 NOTION_API_VERSION = "2026-03-11"
-PIPELINE_FIELDS = frozenset({"Curation Key", "Week", "Event Date", "Source", "Source Event ID", "Source URL", "Original Title", "Original Time", "Venue", "City", "Description", "Pipeline Category", "Pipeline Target", "Pipeline Disposition", "Pipeline Reason", "Category Confidence", "Category Reason", "Last Pipeline Sync", "Pipeline Run ID"})
+PIPELINE_FIELDS = frozenset({"Curation Key", "Week", "Event Date", "Source Start Date", "Source End Date", "Occurrence Identity", "Source Time Evidence", "Source", "Source Event ID", "Source URL", "Original Title", "Original Time", "Venue", "City", "Description", "Pipeline Category", "Pipeline Target", "Pipeline Disposition", "Pipeline Reason", "Category Confidence", "Category Reason", "Last Pipeline Sync", "Pipeline Run ID"})
 CAPTAIN_FIELDS = frozenset({"Captain Include", "Captain Category", "Captain Target", "Captain Title Override", "Captain Time Override", "Captain Notes", "Curation Status"})
 DERIVED_FIELDS = frozenset({"Event", "Final Category", "Final Target", "Final Inclusion"})
 CATEGORIES = ("Music/Comedy", "Art/Theater", "Festivals/Fair", "Events/Hangouts", "Classes/Workshops", "Food & Drink", "Karaoke/Open Mic", "Sports", "Trivia/Game Night", "Fundraisers", "Lectures/Talks", "Markets", "Restaurants/Bars/Wineries", "Community Programs", "Weekly Events", "School District Event", "Tours", "Estate/Yard/Garage Sales", "Faith Based")
@@ -20,20 +22,20 @@ CAPTAIN_ALLOWED = {"Captain Include": {"", "INCLUDE", "EXCLUDE"}, "Captain Categ
 class CurationIntegrityError(RuntimeError): pass
 
 def curation_key(row: dict[str, Any], week: str) -> str:
-    source = _norm(row.get("Source") or row.get("source"))
-    event_id = _norm(row.get("Source Event ID") or row.get("source_event_id"))
-    occurrence = _date(row.get("Event Date") or row.get("Date") or row.get("event_date"))
-    if event_id:
-        identity = f"v1|{week}|{source.casefold()}|id:{event_id}|{occurrence}"
-    else:
-        stable = "|".join((_norm(row.get("Original Title") or row.get("Title")).casefold(), _norm(row.get("Venue")).casefold(), _norm(row.get("Original Time") or _time(row))))
-        identity = f"v1|{week}|{source.casefold()}|fallback:{stable}|{occurrence}"
+    occurrence = _date(
+        row.get("Event Date")
+        or row.get("Date")
+        or row.get("event_date")
+        or row.get("occurrence_date")
+        or row.get("start_date")
+    )
+    identity = canonical_occurrence_identity(row, occurrence, week=week)
     return "wc_" + hashlib.sha256(identity.encode()).hexdigest()[:32]
 
 def schema() -> dict[str, Any]:
     select=lambda values: {"select":{"options":[{"name":v} for v in values]}}
     rich=lambda: {"rich_text":{}}
-    return {"Event":{"title":{}}, "Curation Key":rich(), "Week":{"date":{}}, "Event Date":{"date":{}}, "Source":select([]), "Source Event ID":rich(), "Source URL":{"url":{}}, "Original Title":rich(), "Original Time":rich(), "Venue":rich(), "City":rich(), "Description":rich(), "Pipeline Category":select(CATEGORIES), "Pipeline Target":select(("MAIN","COMMUNITY")), "Pipeline Disposition":select(("AUTO_PUBLISH","REVIEW","REJECT")), "Pipeline Reason":rich(), "Category Confidence":{"number":{"format":"number"}}, "Category Reason":rich(), "Captain Include":select(("INCLUDE","EXCLUDE")), "Captain Category":select(CATEGORIES), "Captain Target":select(("MAIN","COMMUNITY")), "Captain Title Override":rich(), "Captain Time Override":rich(), "Captain Notes":rich(), "Curation Status":select(("NEEDS REVIEW","REVIEWED")), "Final Category":rich(), "Final Target":select(("MAIN","COMMUNITY")), "Final Inclusion":rich(), "Last Pipeline Sync":{"date":{}}, "Pipeline Run ID":rich()}
+    return {"Event":{"title":{}}, "Curation Key":rich(), "Week":{"date":{}}, "Event Date":{"date":{}}, "Source Start Date":{"date":{}}, "Source End Date":{"date":{}}, "Occurrence Identity":rich(), "Source Time Evidence":rich(), "Source":select([]), "Source Event ID":rich(), "Source URL":{"url":{}}, "Original Title":rich(), "Original Time":rich(), "Venue":rich(), "City":rich(), "Description":rich(), "Pipeline Category":select(CATEGORIES), "Pipeline Target":select(("MAIN","COMMUNITY")), "Pipeline Disposition":select(("AUTO_PUBLISH","REVIEW","REJECT")), "Pipeline Reason":rich(), "Category Confidence":{"number":{"format":"number"}}, "Category Reason":rich(), "Captain Include":select(("INCLUDE","EXCLUDE")), "Captain Category":select(CATEGORIES), "Captain Target":select(("MAIN","COMMUNITY")), "Captain Title Override":rich(), "Captain Time Override":rich(), "Captain Notes":rich(), "Curation Status":select(("NEEDS REVIEW","REVIEWED")), "Final Category":rich(), "Final Target":select(("MAIN","COMMUNITY")), "Final Inclusion":rich(), "Last Pipeline Sync":{"date":{}}, "Pipeline Run ID":rich()}
 
 @dataclass
 class NotionCurationClient:
@@ -105,7 +107,7 @@ def apply_captain_authority(row: dict[str,Any]) -> dict[str,Any]:
 
 def _serialize(row,week,key,run_id,include_captain=False):
     now=datetime.now(timezone.utc).isoformat(); title=_norm(row.get("Original Title") or row.get("Title")); original_time=_norm(row.get("Original Time") or _time(row)); event_date=_date(row.get("Event Date") or row.get("Date"))
-    values={"Event":title,"Curation Key":key,"Week":week,"Event Date":event_date,"Source":_norm(row.get("Source")),"Source Event ID":_norm(row.get("Source Event ID")),"Source URL":_norm(row.get("Source URL") or row.get("URL")),"Original Title":title,"Original Time":original_time,"Venue":_norm(row.get("Venue")),"City":_norm(row.get("City")),"Description":_norm(row.get("Description")),"Pipeline Category":_norm(row.get("Pipeline Category") or row.get("Current Category")),"Pipeline Target":_norm(row.get("Pipeline Target") or row.get("Current Target")),"Pipeline Disposition":_norm(row.get("Pipeline Disposition") or row.get("Current Disposition")),"Pipeline Reason":_norm(row.get("Pipeline Reason") or row.get("Editorial Reason") or row.get("Rejection Reason")),"Category Confidence":row.get("Category Confidence") or None,"Category Reason":_norm(row.get("Category Reason")),"Last Pipeline Sync":now,"Pipeline Run ID":run_id}
+    values={"Event":title,"Curation Key":key,"Week":week,"Event Date":event_date,"Source Start Date":_norm(row.get("Source Start Date")) or event_date,"Source End Date":_norm(row.get("Source End Date")) or event_date,"Occurrence Identity":_norm(row.get("Occurrence Identity")),"Source Time Evidence":_norm(row.get("Source Time Evidence")),"Source":_norm(row.get("Source")),"Source Event ID":_norm(row.get("Source Event ID")),"Source URL":_norm(row.get("Source URL") or row.get("URL")),"Original Title":title,"Original Time":original_time,"Venue":_norm(row.get("Venue")),"City":_norm(row.get("City")),"Description":_norm(row.get("Description")),"Pipeline Category":_norm(row.get("Pipeline Category") or row.get("Current Category")),"Pipeline Target":_norm(row.get("Pipeline Target") or row.get("Current Target")),"Pipeline Disposition":_norm(row.get("Pipeline Disposition") or row.get("Current Disposition")),"Pipeline Reason":_norm(row.get("Pipeline Reason") or row.get("Editorial Reason") or row.get("Rejection Reason")),"Category Confidence":row.get("Category Confidence") or None,"Category Reason":_norm(row.get("Category Reason")),"Last Pipeline Sync":now,"Pipeline Run ID":run_id}
     if include_captain:
         for field in CAPTAIN_FIELDS: values[field]=_norm(row.get(field))
     final=apply_captain_authority({**values,**{f:_norm(row.get(f)) for f in CAPTAIN_FIELDS}})
@@ -114,7 +116,7 @@ def _serialize(row,week,key,run_id,include_captain=False):
 
 def _notion_value(name,value):
     if name in {"Event"}: return {"title":[{"text":{"content":str(value)[:2000]}}]}
-    if name in {"Week","Event Date","Last Pipeline Sync"}: return {"date":{"start":str(value)} if value else None}
+    if name in {"Week","Event Date","Source Start Date","Source End Date","Last Pipeline Sync"}: return {"date":{"start":str(value)} if value else None}
     if name in {"Source URL"}: return {"url":value or None}
     if name in {"Source","Pipeline Category","Pipeline Target","Pipeline Disposition","Captain Include","Captain Category","Captain Target","Curation Status","Final Target"}: return {"select":{"name":str(value)} if value else None}
     if name=="Category Confidence": return {"number":float(value) if value not in (None,"") else None}

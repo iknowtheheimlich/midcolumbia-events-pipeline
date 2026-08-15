@@ -138,6 +138,8 @@ def main() -> int:
         enrich_categories=True,
         enrich_time_semantics=True,
         production_dispositions=production_dispositions,
+        publication_week_start=args.week_start,
+        publication_days=args.days,
     )
 
     weekly_projection = [event for event in pipeline.publisher_projection if _in_week(event.start_date, args.week_start, args.days)]

@@ -28,8 +28,25 @@ def boundary(tmp_path):
 
 
 def notion_row(row, **captain):
-    result={"Curation Key":curation_key(row,"2026-08-10"),"Original Title":row["Title"],"Event Date":row["Date"],"Source":row["Source"],"Source Event ID":row["Source Event ID"],"Source URL":row["URL"],"Venue":row["Venue"],"City":row["City"],"Pipeline Category":row["Current Category"],"Pipeline Target":row["Current Target"],"Pipeline Disposition":row["Current Disposition"],"Original Time":"10:00-11:00"}
+    result={"Curation Key":curation_key(row,"2026-08-10"),"Original Title":row["Title"],"Event Date":row["Date"],"Source Start Date":row["Source Start Date"],"Source End Date":row["Source End Date"],"Occurrence Identity":row["Occurrence Identity"],"Source Time Evidence":row["Source Time Evidence"],"Source":row["Source"],"Source Event ID":row["Source Event ID"],"Source URL":row["URL"],"Venue":row["Venue"],"City":row["City"],"Pipeline Category":row["Current Category"],"Pipeline Target":row["Current Target"],"Pipeline Disposition":row["Current Disposition"],"Original Time":"10:00-11:00"}
     result.update(captain); return result
+
+
+def test_inventory_preserves_source_range_and_occurrence_identity():
+    ranged = event()
+    ranged = EditorialEvent(**{
+        **ranged.to_dict(),
+        "source_start_date": "2026-08-10",
+        "source_end_date": "2026-08-13",
+        "occurrence_identity": "v1|allevents|id:123|2026-08-11",
+        "source_time_evidence": {"start_time": "10:00", "end_time": "11:00"},
+    })
+    row = workflow.inventory_rows([ranged])[0]
+    assert row["Date"] == "2026-08-11"
+    assert row["Source Start Date"] == "2026-08-10"
+    assert row["Source End Date"] == "2026-08-13"
+    assert row["Occurrence Identity"].endswith("|2026-08-11")
+    assert json.loads(row["Source Time Evidence"])["start_time"] == "10:00"
 
 
 def test_blank_captain_values_preserve_pipeline_defaults(monkeypatch,tmp_path):

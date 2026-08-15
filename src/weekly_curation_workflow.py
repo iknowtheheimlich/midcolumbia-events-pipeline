@@ -34,6 +34,10 @@ def inventory_rows(events: Iterable[EditorialEvent]) -> list[dict[str, Any]]:
             "Category Confidence":event.category_confidence, "Category Reason":event.category_reason or "",
             "Current Target":event.publication_target, "Current Disposition":event.publication_disposition,
             "Editorial Reason":event.editorial_reason or "", "Editorial Event":item,
+            "Source Start Date":event.source_start_date or event.start_date,
+            "Source End Date":event.source_end_date or event.end_date or event.start_date,
+            "Occurrence Identity":event.occurrence_identity or "",
+            "Source Time Evidence":json.dumps(event.source_time_evidence,sort_keys=True,separators=(",",":")),
         })
     return rows
 
@@ -77,7 +81,7 @@ def load_curated_editorial(client: NotionCurationClient, *, week: str, inventory
 
 
 def _validate_pipeline_identity(source, notion):
-    pairs=(("Title","Original Title"),("Date","Event Date"),("Source","Source"),("Source Event ID","Source Event ID"),("URL","Source URL"),("Venue","Venue"),("City","City"),("Current Category","Pipeline Category"),("Current Target","Pipeline Target"),("Current Disposition","Pipeline Disposition"))
+    pairs=(("Title","Original Title"),("Date","Event Date"),("Source","Source"),("Source Event ID","Source Event ID"),("URL","Source URL"),("Venue","Venue"),("City","City"),("Source Start Date","Source Start Date"),("Source End Date","Source End Date"),("Occurrence Identity","Occurrence Identity"),("Source Time Evidence","Source Time Evidence"),("Current Category","Pipeline Category"),("Current Target","Pipeline Target"),("Current Disposition","Pipeline Disposition"))
     bad=[left for left,right in pairs if _norm(source.get(left))!=_norm(notion.get(right))]
     if bad: raise CurationIntegrityError(f"pipeline row identity differs for {source.get('Title')!r}: {bad}")
 
