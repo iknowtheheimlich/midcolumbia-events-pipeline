@@ -1,7 +1,9 @@
 import copy
+import json
+import httpx
 import pytest
 
-from src.notion_weekly_curation import CAPTAIN_FIELDS, CurationIntegrityError, apply_captain_authority, curation_key, read_week, sync_week
+from src.notion_weekly_curation import CAPTAIN_FIELDS, CurationIntegrityError, NotionCurationClient, _prop, _serialize, apply_captain_authority, curation_key, read_week, sync_week
 
 def row(**changes):
     base={"Date":"2026-08-11","Source":"AllEvents","Source Event ID":"123","Title":"Class","Start Time":"10a","End Time":"11a","Venue":"Studio","City":"Richland","Current Category":"Classes/Workshops","Current Target":"MAIN","Current Disposition":"AUTO_PUBLISH"}
@@ -20,7 +22,7 @@ class FakeClient:
     def __init__(self,pages=()): self.pages=list(pages); self.created=[]; self.updated=[]
     def query_week(self,week): return copy.deepcopy(self.pages)
     def create(self,properties): self.created.append(properties); self.pages.append({"id":f"created-{len(self.created)}","properties":_as_page_properties(properties)})
-    def update(self,page_id,properties):
+    def update(self,page_id,properties,*,expected_before=None):
         self.updated.append((page_id,properties))
         target=next(item for item in self.pages if item["id"]==page_id)
         target["properties"].update(_as_page_properties(properties))
@@ -217,3 +219,126 @@ def test_pipeline_unchanged_current_row_gets_marker_only_update():
     assert result["unchanged_rows"]==1
     assert set(fake.updated[0][1])=={"Last Pipeline Sync","Pipeline Run ID"}
     assert result["current_missing_keys"]==[]
+
+def _client(handler):
+    raw=httpx.Client(transport=httpx.MockTransport(handler))
+    return NotionCurationClient("token","source",raw),raw
+
+def _read_error(request):
+    return httpx.ReadError("[WinError 10054] connection reset",request=request)
+
+def test_marker_patch_unknown_outcome_retries_only_when_not_applied(monkeypatch):
+    import src.notion_weekly_curation as curation
+    monkeypatch.setattr(curation.time,"sleep",lambda _:None)
+    before=page("key",**{"Pipeline Run ID":"old","Last Pipeline Sync":"old-time"})
+    intended={"Pipeline Run ID":{"rich_text":[{"text":{"content":"new"}}]},"Last Pipeline Sync":{"date":{"start":"new-time"}}}
+    state=copy.deepcopy(before); calls={"patch":0,"get":0}
+    def handler(request):
+        if request.method=="PATCH":
+            calls["patch"]+=1
+            if calls["patch"]==1: raise _read_error(request)
+            state["properties"].update(_as_page_properties(intended)); return httpx.Response(200,json=state)
+        calls["get"]+=1; return httpx.Response(200,json=state)
+    client,raw=_client(handler)
+    try: client.update("page-1",intended,expected_before=before)
+    finally: raw.close()
+    assert calls=={"patch":2,"get":1}
+
+def test_marker_patch_lost_response_reconciles_without_duplicate_patch(monkeypatch):
+    import src.notion_weekly_curation as curation
+    monkeypatch.setattr(curation.time,"sleep",lambda _:None)
+    before=page("key",**{"Pipeline Run ID":"old","Last Pipeline Sync":"old-time"})
+    intended={"Pipeline Run ID":{"rich_text":[{"text":{"content":"new"}}]},"Last Pipeline Sync":{"date":{"start":"new-time"}}}
+    state=copy.deepcopy(before); patches=0
+    def handler(request):
+        nonlocal patches
+        if request.method=="PATCH":
+            patches+=1; state["properties"].update(_as_page_properties(intended)); raise _read_error(request)
+        return httpx.Response(200,json=state)
+    client,raw=_client(handler)
+    try: client.update("page-1",intended,expected_before=before)
+    finally: raw.close()
+    assert patches==1
+
+def test_ordinary_update_lost_response_reconciles_before_retry(monkeypatch):
+    import src.notion_weekly_curation as curation
+    monkeypatch.setattr(curation.time,"sleep",lambda _:None)
+    item=row(Title="Updated"); intended=_serialize(item,"2026-08-10",curation_key(item,"2026-08-10"),"new")
+    before=page(curation_key(item,"2026-08-10"),**{"Original Title":"Old","Source":"AllEvents","Event Date":"2026-08-11"})
+    state=copy.deepcopy(before); patches=[]
+    def handler(request):
+        if request.method=="PATCH":
+            patches.append(json.loads(request.content)["properties"]); state["properties"].update(_as_page_properties(intended)); raise _read_error(request)
+        return httpx.Response(200,json=state)
+    client,raw=_client(handler)
+    try: client.update("page-1",intended,expected_before=before)
+    finally: raw.close()
+    assert len(patches)==1
+    assert CAPTAIN_FIELDS.isdisjoint(patches[0])
+
+def test_create_lost_response_reconciles_by_key_without_duplicate_create(monkeypatch):
+    import src.notion_weekly_curation as curation
+    monkeypatch.setattr(curation.time,"sleep",lambda _:None)
+    item=row(); props=_serialize(item,"2026-08-10",curation_key(item,"2026-08-10"),"run")
+    created=[]
+    def handler(request):
+        if request.url.path=="/v1/pages":
+            created.append({"id":"created","properties":_as_page_properties(props)}); raise _read_error(request)
+        return httpx.Response(200,json={"results":copy.deepcopy(created),"has_more":False})
+    client,raw=_client(handler)
+    try: result=client.create(props)
+    finally: raw.close()
+    assert result["id"]=="created"
+    assert len(created)==1
+
+def test_create_unknown_outcome_with_duplicate_result_fails_closed(monkeypatch):
+    import src.notion_weekly_curation as curation
+    monkeypatch.setattr(curation.time,"sleep",lambda _:None)
+    item=row(); props=_serialize(item,"2026-08-10",curation_key(item,"2026-08-10"),"run")
+    pages=[{"id":"one","properties":_as_page_properties(props)},{"id":"two","properties":_as_page_properties(props)}]
+    def handler(request):
+        if request.url.path=="/v1/pages": raise _read_error(request)
+        return httpx.Response(200,json={"results":pages,"has_more":False})
+    client,raw=_client(handler)
+    try:
+        with pytest.raises(CurationIntegrityError,match="duplicate Curation Key"): client.create(props)
+    finally: raw.close()
+
+def test_repeated_transient_update_failure_exhausts_budget(monkeypatch):
+    import src.notion_weekly_curation as curation
+    monkeypatch.setattr(curation.time,"sleep",lambda _:None)
+    before=page("key",**{"Pipeline Run ID":"old"}); intended={"Pipeline Run ID":{"rich_text":[{"text":{"content":"new"}}]}}; patches=0
+    def handler(request):
+        nonlocal patches
+        if request.method=="PATCH": patches+=1; raise _read_error(request)
+        return httpx.Response(200,json=before)
+    client,raw=_client(handler)
+    try:
+        with pytest.raises(CurationIntegrityError,match="retry budget exhausted"): client.update("page-1",intended,expected_before=before)
+    finally: raw.close()
+    assert patches==3
+
+def test_non_transient_validation_failure_is_not_retried():
+    calls=[]
+    def handler(request): calls.append(request.method); return httpx.Response(400,request=request,json={"error":"bad property"})
+    client,raw=_client(handler)
+    try:
+        with pytest.raises(httpx.HTTPStatusError): client.update("page-1",{"Pipeline Run ID":{"rich_text":[]}},expected_before=page("key"))
+    finally: raw.close()
+    assert calls==["PATCH"]
+
+def test_subsequent_run_converges_partial_markers_and_leaves_retained_untouched():
+    items=[row(**{"Source Event ID":"1"}),row(Date="2026-08-12",**{"Source Event ID":"2"})]
+    seed=FakeClient(); sync_week(seed,items,week="2026-08-10",run_id="abandoned")
+    seed.pages[0]["properties"]["Pipeline Run ID"]={"type":"rich_text","rich_text":[{"plain_text":"partial"}]}
+    stale=page("stale",**{"Pipeline Run ID":"older","Original Title":"Gone","Event Date":"2026-08-13","Source":"AllEvents","Source Event ID":"gone"})
+    seed.pages.append(stale); fake=FakeClient(seed.pages)
+
+    result=sync_week(fake,items,week="2026-08-10",run_id="new")
+
+    current={curation_key(item,"2026-08-10") for item in items}
+    for live in fake.pages:
+        key=_prop(live,"Curation Key"); run=_prop(live,"Pipeline Run ID")
+        assert run==("new" if key in current else "older")
+    assert result["live_current_run_row_count"]==2
+    assert result["retained_source_absent_count"]==1

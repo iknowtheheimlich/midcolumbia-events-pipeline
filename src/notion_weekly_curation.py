@@ -21,6 +21,8 @@ CATEGORIES = ("Music/Comedy", "Art/Theater", "Festivals/Fair", "Events/Hangouts"
 CAPTAIN_ALLOWED = {"Captain Include": {"", "INCLUDE", "EXCLUDE"}, "Captain Category": {"", *CATEGORIES}, "Captain Target": {"", "MAIN", "COMMUNITY"}, "Curation Status": {"", "NEEDS REVIEW", "REVIEWED"}}
 READ_BACK_ATTEMPTS = 3
 READ_BACK_RETRY_DELAY_SECONDS = 1.0
+WRITE_ATTEMPTS = 3
+WRITE_RETRY_DELAY_SECONDS = 1.0
 
 class CurationIntegrityError(RuntimeError): pass
 
@@ -57,9 +59,49 @@ class NotionCurationClient:
             out.extend(payload.get("results", [])); cursor=payload.get("next_cursor")
             if not payload.get("has_more") or not cursor: return out
     def create(self, properties):
-        r=self._client.post("https://api.notion.com/v1/pages",headers=_headers(self.token),json={"parent":{"type":"data_source_id","data_source_id":self.data_source_id},"properties":properties}); r.raise_for_status(); return r.json()
-    def update(self,page_id,properties):
-        r=self._client.patch(f"https://api.notion.com/v1/pages/{page_id}",headers=_headers(self.token),json={"properties":properties}); r.raise_for_status(); return r.json()
+        try:
+            r=self._client.post("https://api.notion.com/v1/pages",headers=_headers(self.token),json={"parent":{"type":"data_source_id","data_source_id":self.data_source_id},"properties":properties}); r.raise_for_status(); return r.json()
+        except httpx.TransportError as error:
+            return self._reconcile_unknown_create(properties,error)
+    def update(self,page_id,properties,*,expected_before=None):
+        error=None
+        for attempt in range(WRITE_ATTEMPTS):
+            try:
+                r=self._client.patch(f"https://api.notion.com/v1/pages/{page_id}",headers=_headers(self.token),json={"properties":properties}); r.raise_for_status(); return r.json()
+            except httpx.TransportError as caught:
+                error=caught
+                current=self._read_page_for_reconciliation(page_id)
+                state=_update_reconciliation_state(current,properties,expected_before)
+                if state=="applied": return current
+                if state!="not_applied":
+                    raise CurationIntegrityError(f"ambiguous Notion update outcome for page {page_id}") from caught
+                if attempt+1<WRITE_ATTEMPTS: time.sleep(WRITE_RETRY_DELAY_SECONDS)
+        raise CurationIntegrityError(f"Notion update retry budget exhausted for page {page_id}") from error
+    def _read_page_for_reconciliation(self,page_id):
+        error=None
+        for attempt in range(WRITE_ATTEMPTS):
+            try:
+                r=self._client.get(f"https://api.notion.com/v1/pages/{page_id}",headers=_headers(self.token)); r.raise_for_status(); return r.json()
+            except httpx.TransportError as caught:
+                error=caught
+                if attempt+1<WRITE_ATTEMPTS: time.sleep(WRITE_RETRY_DELAY_SECONDS)
+        raise CurationIntegrityError(f"unable to reconcile unknown Notion write for page {page_id}") from error
+    def _query_key_for_reconciliation(self,key):
+        r=self._client.post(f"https://api.notion.com/v1/data_sources/{self.data_source_id}/query",headers=_headers(self.token),json={"page_size":100,"filter":{"property":"Curation Key","rich_text":{"equals":key}}}); r.raise_for_status(); return r.json().get("results",[])
+    def _reconcile_unknown_create(self,properties,error):
+        key=_serialized_value(properties.get("Curation Key",{}))
+        if not key: raise CurationIntegrityError("cannot reconcile unknown Notion create without Curation Key") from error
+        last_error=error
+        for attempt in range(WRITE_ATTEMPTS):
+            try: pages=self._query_key_for_reconciliation(key)
+            except httpx.TransportError as caught:
+                pages=[]; last_error=caught
+            if len(pages)>1: raise CurationIntegrityError(f"ambiguous Notion create outcome: duplicate Curation Key {key}") from error
+            if len(pages)==1:
+                if _payload_matches(pages[0],properties): return pages[0]
+                raise CurationIntegrityError(f"ambiguous Notion create outcome: identity or payload differs for {key}") from error
+            if attempt+1<WRITE_ATTEMPTS: time.sleep(WRITE_RETRY_DELAY_SECONDS)
+        raise CurationIntegrityError(f"unknown Notion create outcome for {key}; no safe create retry") from last_error
 
 def sync_week(client: NotionCurationClient, rows: Iterable[dict[str, Any]], *, week: str, run_id: str, migrate_captain: bool=False) -> dict[str, Any]:
     incoming=list(rows); existing=client.query_week(week); by_key={}; incoming_keys=set()
@@ -77,9 +119,9 @@ def sync_week(client: NotionCurationClient, rows: Iterable[dict[str, Any]], *, w
         else:
             captain_before={name:_prop(page,name) for name in CAPTAIN_FIELDS}
             if _pipeline_matches(page, props):
-                client.update(page["id"], {name:props[name] for name in ("Last Pipeline Sync","Pipeline Run ID")})
+                client.update(page["id"], {name:props[name] for name in ("Last Pipeline Sync","Pipeline Run ID")},expected_before=page)
                 unchanged+=1
-            else: client.update(page["id"],props); updated+=1
+            else: client.update(page["id"],props,expected_before=page); updated+=1
             preserved+=sum(v not in (None,"") for v in captain_before.values())
     read_back=[]; current_rows=[]; current_keys=set(); retained=[]
     expected_props={curation_key(row,week):_serialize(row,week,curation_key(row,week),run_id,include_captain=migrate_captain) for row in incoming}
@@ -148,7 +190,7 @@ def apply_captain_authority(row: dict[str,Any]) -> dict[str,Any]:
     return result
 
 def _serialize(row,week,key,run_id,include_captain=False):
-    now=datetime.now(timezone.utc).isoformat(); title=_norm(row.get("Original Title") or row.get("Title")); original_time=_norm(row.get("Original Time") or _time(row)); event_date=_date(row.get("Event Date") or row.get("Date"))
+    now=datetime.now(timezone.utc).isoformat(timespec="seconds"); title=_norm(row.get("Original Title") or row.get("Title")); original_time=_norm(row.get("Original Time") or _time(row)); event_date=_date(row.get("Event Date") or row.get("Date"))
     values={"Event":title,"Curation Key":key,"Week":week,"Event Date":event_date,"Source Start Date":_norm(row.get("Source Start Date")) or event_date,"Source End Date":_norm(row.get("Source End Date")) or event_date,"Occurrence Identity":_norm(row.get("Occurrence Identity")),"Source Time Evidence":_norm(row.get("Source Time Evidence")),"Source":_norm(row.get("Source")),"Source Event ID":_norm(row.get("Source Event ID")),"Source URL":_norm(row.get("Source URL") or row.get("URL")),"Original Title":title,"Original Time":original_time,"Venue":_norm(row.get("Venue")),"City":_norm(row.get("City")),"Description":_norm(row.get("Description")),"Pipeline Category":_norm(row.get("Pipeline Category") or row.get("Current Category")),"Pipeline Target":_norm(row.get("Pipeline Target") or row.get("Current Target")),"Pipeline Disposition":_norm(row.get("Pipeline Disposition") or row.get("Current Disposition")),"Pipeline Reason":_norm(row.get("Pipeline Reason") or row.get("Editorial Reason") or row.get("Rejection Reason")),"Category Confidence":row.get("Category Confidence") or None,"Category Reason":_norm(row.get("Category Reason")),"Last Pipeline Sync":now,"Pipeline Run ID":run_id}
     if include_captain:
         for field in CAPTAIN_FIELDS: values[field]=_norm(row.get(field))
@@ -184,6 +226,18 @@ def _pipeline_values_match(row, properties):
         if name in {"Last Pipeline Sync", "Pipeline Run ID", *DERIVED_FIELDS}: continue
         if _norm(row.get(name)) != _norm(_serialized_value(value)): return False
     return True
+def _payload_matches(page,properties):
+    return all(_norm(_prop(page,name))==_norm(_serialized_value(value)) for name,value in properties.items())
+def _update_reconciliation_state(page,properties,before):
+    if before is not None and _norm(_prop(page,"Curation Key"))!=_norm(_prop(before,"Curation Key")):
+        return "ambiguous"
+    intended={name:_norm(_serialized_value(value)) for name,value in properties.items()}
+    current={name:_norm(_prop(page,name)) for name in properties}
+    if current==intended: return "applied"
+    if before is not None:
+        previous={name:_norm(_prop(before,name)) for name in properties}
+        if current==previous: return "not_applied"
+    return "ambiguous"
 def _classify_retained_rows(rows, incoming):
     output=[]
     for row in rows:
