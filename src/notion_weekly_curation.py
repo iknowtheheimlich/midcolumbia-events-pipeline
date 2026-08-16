@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 import hashlib
 import json
 import re
@@ -219,25 +220,51 @@ def _prop(page,name):
 def _pipeline_matches(page, properties):
     for name, value in properties.items():
         if name in {"Last Pipeline Sync", "Pipeline Run ID", *DERIVED_FIELDS}: continue
-        if _norm(_prop(page,name)) != _norm(_serialized_value(value)): return False
+        if not _property_values_equal(name,_prop(page,name),_serialized_value(value)): return False
     return True
 def _pipeline_values_match(row, properties):
     for name,value in properties.items():
         if name in {"Last Pipeline Sync", "Pipeline Run ID", *DERIVED_FIELDS}: continue
-        if _norm(row.get(name)) != _norm(_serialized_value(value)): return False
+        if not _property_values_equal(name,row.get(name),_serialized_value(value)): return False
     return True
 def _payload_matches(page,properties):
-    return all(_norm(_prop(page,name))==_norm(_serialized_value(value)) for name,value in properties.items())
+    return all(_property_values_equal(name,_prop(page,name),_serialized_value(value)) for name,value in properties.items())
 def _update_reconciliation_state(page,properties,before):
     if before is not None and _norm(_prop(page,"Curation Key"))!=_norm(_prop(before,"Curation Key")):
         return "ambiguous"
-    intended={name:_norm(_serialized_value(value)) for name,value in properties.items()}
-    current={name:_norm(_prop(page,name)) for name in properties}
-    if current==intended: return "applied"
+    intended={name:_serialized_value(value) for name,value in properties.items()}
+    if all(_property_values_equal(name,_prop(page,name),value) for name,value in intended.items()): return "applied"
     if before is not None:
-        previous={name:_norm(_prop(before,name)) for name in properties}
-        if current==previous: return "not_applied"
+        if all(_property_values_equal(name,_prop(page,name),_prop(before,name)) for name in properties): return "not_applied"
     return "ambiguous"
+
+def _property_values_equal(name,value,expected):
+    if name=="Pipeline Run ID":
+        return str(value or "")==str(expected or "")
+    if name in {"Week","Event Date","Source Start Date","Source End Date"}:
+        return _canonical_date_value(value)==_canonical_date_value(expected)
+    if name=="Category Confidence":
+        try:
+            return Decimal(str(value))==Decimal(str(expected))
+        except InvalidOperation:
+            return value in (None,"") and expected in (None,"")
+    if name=="Source Time Evidence":
+        try:
+            return json.loads(str(value))==json.loads(str(expected))
+        except (TypeError,ValueError,json.JSONDecodeError):
+            return _canonical_notion_text(value)==_canonical_notion_text(expected)
+    return _canonical_notion_text(value)==_canonical_notion_text(expected)
+
+def _canonical_date_value(value):
+    text=_norm(value)
+    if not text: return ""
+    try: return datetime.fromisoformat(text.replace("Z","+00:00")).date().isoformat()
+    except ValueError: return text
+
+def _canonical_notion_text(value):
+    text="" if value is None else str(value)
+    text=text.replace("\u200b","")
+    return _norm(text)
 def _classify_retained_rows(rows, incoming):
     output=[]
     for row in rows:

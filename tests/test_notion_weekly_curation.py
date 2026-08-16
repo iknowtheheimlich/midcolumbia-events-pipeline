@@ -3,7 +3,7 @@ import json
 import httpx
 import pytest
 
-from src.notion_weekly_curation import CAPTAIN_FIELDS, CurationIntegrityError, NotionCurationClient, _prop, _serialize, apply_captain_authority, curation_key, read_week, sync_week
+from src.notion_weekly_curation import CAPTAIN_FIELDS, CurationIntegrityError, NotionCurationClient, _pipeline_values_match, _prop, _property_values_equal, _serialize, _serialized_value, apply_captain_authority, curation_key, read_week, sync_week
 
 def row(**changes):
     base={"Date":"2026-08-11","Source":"AllEvents","Source Event ID":"123","Title":"Class","Start Time":"10a","End Time":"11a","Venue":"Studio","City":"Richland","Current Category":"Classes/Workshops","Current Target":"MAIN","Current Disposition":"AUTO_PUBLISH"}
@@ -89,6 +89,34 @@ def test_occurrence_evidence_uses_exact_notion_schema_types():
     sync_week(single,[row()],week="2026-08-10",run_id="single")
     assert single.created[0]["Source Start Date"]=={"date":{"start":"2026-08-11"}}
     assert single.created[0]["Source End Date"]=={"date":{"start":"2026-08-11"}}
+
+def test_pipeline_parity_uses_semantic_notion_round_trip_values():
+    properties=_serialize(row(**{
+        "Source Start Date":"2026-08-10","Source End Date":"2026-08-13",
+        "Source Time Evidence":'{"end":"11:00","start":"10:00"}',
+        "Description":"Before\u200b after","Category Confidence":1.0,
+    }),"2026-08-10","key","run")
+    live={name:_serialized_value(value) for name,value in properties.items()}
+    live.update({
+        "Source Start Date":"2026-08-10T00:00:00.000Z",
+        "Source End Date":"2026-08-13T07:00:00+00:00",
+        "Source Time Evidence":'{ "start": "10:00", "end": "11:00" }',
+        "Description":"Before after","Category Confidence":1,
+    })
+
+    assert _pipeline_values_match(live,properties)
+
+def test_material_pipeline_property_differences_still_fail():
+    assert not _property_values_equal("Event Date","2026-08-12","2026-08-11")
+    assert not _property_values_equal("Source Time Evidence",'{"start":"11:00"}','{"start":"10:00"}')
+    assert not _property_values_equal("Category Confidence",0.9,1.0)
+    assert not _property_values_equal("Venue","Different Venue","Studio")
+    assert not _property_values_equal("Pipeline Run ID","run-2","run-1")
+
+def test_blank_and_null_pipeline_values_are_equivalent_but_captain_fields_are_excluded():
+    assert _property_values_equal("Description",None,"")
+    properties=_serialize(row(),"2026-08-10","key","run")
+    assert CAPTAIN_FIELDS.isdisjoint(properties)
 
 def test_blank_captain_fields_migrate_as_blank():
     fake=FakeClient(); sync_week(fake,[row()],week="2026-08-10",run_id="run",migrate_captain=True)
