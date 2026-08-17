@@ -111,3 +111,13 @@ def test_single_occurrence_preserves_existing_line_shape() -> None:
         "Magna-Saurus | [Pasco Mid-Columbia Library](https://example.com/pasco), Pasco | "
         "10:30-11:30a"
     )
+
+
+def test_repeated_unknown_time_program_omits_placeholder_and_delimiter() -> None:
+    program = group_editorial_programs([
+        editorial_event(source_event_id="one", display_start_time=None, display_end_time=None, display_time=None),
+        editorial_event(source_event_id="two", display_start_time=None, display_end_time=None, display_time=None),
+    ])[0]
+    line = render_program_line(program)
+    assert "time TBD" not in line
+    assert not line.endswith("|")

@@ -70,8 +70,10 @@ def render_program_line(program: EditorialProgram) -> str:
     }
     if len(venue_keys) == 1:
         occurrence = program.occurrences[0]
-        time_chain = " • ".join(item.display_time or "time TBD" for item in program.occurrences)
-        parts = [_render_title(program.title), _render_occurrence_location(occurrence), time_chain]
+        time_chain = " • ".join(item.display_time for item in program.occurrences if item.display_time)
+        parts = [_render_title(program.title), _render_occurrence_location(occurrence)]
+        if time_chain:
+            parts.append(time_chain)
         parts.extend(_shared_credit_parts(program.occurrences))
         return " | ".join(parts)
 

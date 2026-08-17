@@ -55,6 +55,12 @@ def test_library_name_is_standardized():
     assert result.display_venue == "Richland Library"
 
 
+def test_known_date_unknown_time_remains_publishable() -> None:
+    result = apply_editorial_rules(make_event(start_time=None, end_time=None))
+    assert result.publication_disposition == "AUTO_PUBLISH"
+    assert result.display_time is None
+
+
 def test_duplicate_city_suffix_is_removed():
     result = apply_editorial_rules(make_event(venue="The REACH - Richland"))
     assert result.display_venue == "The REACH"
