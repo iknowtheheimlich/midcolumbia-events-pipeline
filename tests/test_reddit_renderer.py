@@ -57,10 +57,89 @@ def test_render_event_line_preserves_reddit_contract() -> None:
     )
 
 
+def test_renderer_cannot_bypass_clean_publication_url_with_prelinked_venue() -> None:
+    line = render_event_line(
+        editorial_event(
+            display_venue=(
+                "[Round Table Kennewick]"
+                "(https://www.roundtablepizza.com/?olonwp=JjBtp_vMLk25gkYh_bnoiQ), Kennewick"
+            ),
+            publication_url="https://www.roundtablepizza.com/",
+        )
+    )
+
+    assert line == (
+        "Science Night | [Round Table Kennewick](https://www.roundtablepizza.com/), "
+        "Richland | 6p"
+    )
+    assert "olonwp" not in line
+
+
+@pytest.mark.parametrize(
+    "destination",
+    [
+        "https://Facebook",
+        "https://www.academyofchildrenstheatre.org/https://app.arts-people.com/index.php",
+    ],
+)
+def test_final_artifact_rejects_malformed_markdown_destinations(destination: str) -> None:
+    with pytest.raises(ValueError, match="Markdown destination"):
+        render_event_line(editorial_event(publication_url=destination))
+
+
+def test_final_artifact_rejects_empty_markdown_label() -> None:
+    with pytest.raises(ValueError, match="Markdown link label is empty"):
+        render_event_line(editorial_event(display_venue=""))
+
+
 def test_render_event_line_supports_compact_time_range() -> None:
     line = render_event_line(editorial_event(display_end_time="20:00", display_time="6-8p"))
 
     assert line.endswith("6-8p")
+
+
+@pytest.mark.parametrize(
+    ("start", "end", "expected"),
+    [
+        ("06:30", None, "6:30a"),
+        ("09:00", None, "9a"),
+        ("12:00", None, "12p"),
+        ("13:00", None, "1p"),
+        ("18:00", None, "6p"),
+        ("21:00", None, "9p"),
+        ("09:00", "12:30", "9a-12:30p"),
+        ("18:30", "21:00", "6:30-9p"),
+        ("20:00", "00:00", "8p-12a"),
+    ],
+)
+def test_renderer_formats_canonical_times_at_reddit_presentation_boundary(
+    start: str, end: str | None, expected: str,
+) -> None:
+    line = render_event_line(
+        editorial_event(
+            display_start_time=start,
+            display_end_time=end,
+            display_time=f"{start}-{end}" if end else start,
+        )
+    )
+
+    assert line.endswith(f" | {expected}")
+
+
+def test_date_known_time_unknown_omits_time_segment_cleanly() -> None:
+    line = render_event_line(editorial_event(
+        display_start_time=None, display_end_time=None, display_time=None,
+    ))
+    assert line == "Science Night | [Richland Library](https://example.com/science-night), Richland"
+    assert not line.endswith("|")
+    assert "TBD" not in line and "unknown" not in line and "N/A" not in line
+
+
+def test_render_event_line_escapes_embedded_title_field_separator() -> None:
+    line = render_event_line(editorial_event(title="Killian vs. Southridge | FOOTBALL"))
+
+    assert line.startswith("Killian vs. Southridge \\| FOOTBALL | ")
+    assert line.count(" | ") == 2
 
 
 def test_render_post_groups_by_date_and_sorts_time() -> None:
@@ -94,6 +173,28 @@ def test_render_post_uses_profile_category_order_within_date() -> None:
 
     assert post.index("## Markets") < post.index("Market") < post.index("## Music/Comedy")
     assert post.index("## Music/Comedy") < post.index("Concert")
+
+
+def test_render_post_preserves_categories_missing_from_profile() -> None:
+    post = render_reddit_post(
+        [
+            editorial_event(
+                title="Known Event",
+                semantic_category="Events/Hangouts",
+            ),
+            editorial_event(
+                title="Unexpected Event",
+                semantic_category="Community Event",
+                category="Community Event",
+            ),
+        ],
+        category_order=("Events/Hangouts",),
+        footnote="",
+    )
+
+    assert "Known Event" in post
+    assert "## Community Event" in post
+    assert "Unexpected Event" in post
 
 
 def test_render_post_excludes_review_and_rejected_events() -> None:

@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 
 from src.classification_review_batch import export_review_batch
+from tests.history_helpers import finalizer_paths
 from tools.finalize_weekly_run import finalize_weekly_run
 
 
@@ -45,11 +46,7 @@ def test_finalizer_writes_backlog_state_and_report(tmp_path: Path) -> None:
     input_path.write_text(json.dumps([event("1", "One")]), encoding="utf-8")
     result = finalize_weekly_run(
         input_path,
-        history_path=tmp_path / "history.jsonl",
-        review_ledger_path=tmp_path / "reviews.jsonl",
-        review_backlog_path=tmp_path / "review_backlog.json",
-        snapshots_dir=tmp_path / "snapshots",
-        artifacts_dir=tmp_path / "artifacts",
+        **finalizer_paths(tmp_path),
         run_reports=False,
     )
     assert result["review_backlog_active"] == 1

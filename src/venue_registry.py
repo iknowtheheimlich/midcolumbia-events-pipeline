@@ -8,6 +8,8 @@ from pathlib import Path
 import re
 from typing import Any, Iterable
 
+from src.url_canonicalizer import validate_public_http_url
+
 
 _SPACE_RE = re.compile(r"\s+")
 _NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
@@ -45,13 +47,19 @@ class VenueRecord:
     short_name: str | None = None
     parent_display_name: str | None = None
 
+    def __post_init__(self) -> None:
+        for field_name, value in (("website", self.website), ("display_url", self.display_url)):
+            if value:
+                validate_public_http_url(value, field=f"venue {self.venue_name!r} {field_name}")
+
     @property
     def canonical_name(self) -> str:
         return self.official_name or self.venue_name
 
     @property
     def presentation_name(self) -> str:
-        return self.display_name or self.venue_name or self.canonical_name
+        candidate = self.display_name or self.venue_name or self.canonical_name
+        return self.canonical_name if _malformed_presentation_label(candidate) else candidate
 
     @property
     def presentation_url(self) -> str | None:
@@ -75,7 +83,7 @@ class VenueRecord:
         copied["venue_registry_name"] = self.venue_name
         copied["display_venue"] = self.presentation_name
         copied["display_url"] = self.presentation_url
-        copied["display_city"] = self.display_city or _event_city(copied)
+        copied["display_city"] = _canonical_display_city(self.display_city or _event_city(copied))
         copied["suppress_display_city"] = self.suppress_display_city
         copied["venue_presentation_reason"] = (
             "registry_presentation" if self.display_name or self.display_url or self.display_city else "registry_fallback"
@@ -98,6 +106,16 @@ class VenueMatch:
     candidates: tuple[VenueRecord, ...] = ()
     method: str | None = None
     detail: str | None = None
+
+
+def _malformed_presentation_label(value: str) -> bool:
+    return bool(re.search(r"(?:\s-|\b(?:of|at|in|the))\s*$", value.strip(), re.IGNORECASE))
+
+
+def _canonical_display_city(value: str | None) -> str | None:
+    if not value:
+        return value
+    return re.sub(r",?\s+WA\s*$", "", value.strip(), flags=re.IGNORECASE).strip()
 
 
 class VenueRegistry:

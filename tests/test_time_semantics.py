@@ -76,3 +76,25 @@ def test_pipeline_time_semantics_remains_opt_in() -> None:
     assert legacy.all_events[0]["end_time"] == "23:59"
     assert enriched.all_events[0]["end_time"] is None
     assert "time_semantics" in enriched.all_events[0]["intelligence"]
+
+
+def test_allevents_multiday_local_midnight_range_has_unknown_occurrence_time() -> None:
+    event = _event(
+        source="AllEvents", start_date="2026-08-20", end_date="2026-08-23",
+        start_time="07:00", end_time="07:59", source_start_timestamp=1787209200,
+        source_end_timestamp=1787471940, source_timezone="-07:00",
+    )
+    result = run_pipeline(
+        [SourceBatch("AllEvents", [event])], publication_week_start=__import__("datetime").date(2026, 8, 17),
+        enrich_time_semantics=True,
+    )
+    assert len(result.all_events) == 4
+    assert {(row["start_time"], row["end_time"]) for row in result.all_events} == {(None, None)}
+    assert all(row["time_unknown"] for row in result.all_events)
+
+
+def test_date_boundary_sentinels_are_not_rendered_as_midnight() -> None:
+    enriched = enrich_event_time_semantics(_event(start_time="00:00", end_time="23:59"))
+    assert enriched["start_time"] is None
+    assert enriched["end_time"] is None
+    assert enriched["time_unknown"] is True

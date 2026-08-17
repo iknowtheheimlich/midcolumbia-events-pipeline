@@ -1,0 +1,373 @@
+"""Read curated weekly-event rows from the Notion public API."""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+import logging
+import re
+import socket
+import time
+from typing import Any
+
+import httpx
+
+NOTION_API_VERSION = "2026-03-11"
+DEFAULT_WEEKLY_DATA_SOURCE_ID = "22138f31-1eb0-8026-a8c7-000bbecdf680"
+_STATE_POSTAL_RE = re.compile(
+    r"^(?:[A-Z]{2}|Washington|Oregon|Idaho)(?:\s+\d{5}(?:-\d{4})?)?$",
+    re.IGNORECASE,
+)
+_LOGGER = logging.getLogger(__name__)
+_INITIAL_QUERY_RETRY_DELAY_SECONDS = 1.0
+_VENUE_FETCH_RETRY_DELAY_SECONDS = 1.0
+_WINDOWS_WSAHOST_NOT_FOUND = 11001
+_WINDOWS_WSAECONNRESET = 10054
+_WINDOWS_WSAECONNREFUSED = 10061
+
+
+def fetch_live_weekly_rows(
+    token: str,
+    *,
+    data_source_id: str = DEFAULT_WEEKLY_DATA_SOURCE_ID,
+    client: httpx.Client | None = None,
+) -> list[dict[str, Any]]:
+    """Query enabled weekly rows and enrich their related Ultimate Venue page."""
+    owned_client = client is None
+    active = client or httpx.Client(timeout=30.0)
+    try:
+        pages = _query_pages(active, token, data_source_id)
+        venue_cache: dict[str, dict[str, str]] = {}
+        rows: list[dict[str, Any]] = []
+        for page in pages:
+            row = _page_to_row(page)
+            relation_ids = _relation_ids(page, "🌆 Ultimate Venues")
+            if relation_ids:
+                venue_id = relation_ids[0]
+                venue = venue_cache.get(venue_id)
+                if venue is None:
+                    venue = _fetch_venue(active, token, venue_id)
+                    venue_cache[venue_id] = venue
+                row.update(venue)
+            rows.append(row)
+        return rows
+    finally:
+        if owned_client:
+            active.close()
+
+
+def _query_pages(client: httpx.Client, token: str, data_source_id: str) -> list[dict[str, Any]]:
+    results: list[dict[str, Any]] = []
+    cursor: str | None = None
+    while True:
+        payload: dict[str, Any] = {
+            "page_size": 100,
+            "filter": {
+                "and": [
+                    {"property": "Weekly", "checkbox": {"equals": True}},
+                    {"property": "Generate This Week", "checkbox": {"equals": True}},
+                ]
+            },
+        }
+        if cursor:
+            payload["start_cursor"] = cursor
+        request = {
+            "url": f"https://api.notion.com/v1/data_sources/{data_source_id}/query",
+            "headers": _headers(token),
+            "json": payload,
+        }
+        if cursor is None:
+            response = _post_initial_query(client, **request)
+        else:
+            response = client.post(**request)
+        response.raise_for_status()
+        body = response.json()
+        results.extend(item for item in body.get("results", []) if isinstance(item, dict))
+        cursor = body.get("next_cursor")
+        if not body.get("has_more") or not cursor:
+            return results
+
+
+def _post_initial_query(
+    client: httpx.Client,
+    *,
+    url: str,
+    headers: dict[str, str],
+    json: dict[str, Any],
+) -> httpx.Response:
+    try:
+        return client.post(url, headers=headers, json=json)
+    except httpx.ConnectError as first_error:
+        is_resolver_failure = _is_windows_getaddrinfo_failure(first_error)
+        is_connection_refusal = _is_windows_connection_refused(first_error)
+        if not is_resolver_failure and not is_connection_refusal:
+            raise
+
+        first_timestamp = _utc_timestamp()
+        failure_kind = "resolver" if is_resolver_failure else "connection_refusal"
+        _LOGGER.warning(
+            "initial_notion_query_%s_failure timestamp=%s retry_in_seconds=%s error=%r",
+            failure_kind,
+            first_timestamp,
+            _INITIAL_QUERY_RETRY_DELAY_SECONDS,
+            first_error,
+            exc_info=True,
+        )
+        time.sleep(_INITIAL_QUERY_RETRY_DELAY_SECONDS)
+        try:
+            response = client.post(url, headers=headers, json=json)
+        except httpx.ConnectError as second_error:
+            second_timestamp = _utc_timestamp()
+            second_error.add_note(
+                f"Initial Notion query {failure_kind} retry failed; "
+                f"first_attempt_timestamp={first_timestamp}; first_error={first_error!r}; "
+                f"second_attempt_timestamp={second_timestamp}"
+            )
+            _LOGGER.error(
+                "initial_notion_query_%s_retry_failed first_timestamp=%s "
+                "second_timestamp=%s first_error=%r second_error=%r",
+                failure_kind,
+                first_timestamp,
+                second_timestamp,
+                first_error,
+                second_error,
+                exc_info=True,
+            )
+            raise
+
+        _LOGGER.warning(
+            "initial_notion_query_%s_recovered first_failure_timestamp=%s",
+            failure_kind,
+            first_timestamp,
+        )
+        return response
+
+
+def _is_windows_getaddrinfo_failure(error: BaseException) -> bool:
+    pending: list[BaseException] = [error]
+    seen: set[int] = set()
+    while pending:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        if (
+            isinstance(current, socket.gaierror)
+            and current.errno == _WINDOWS_WSAHOST_NOT_FOUND
+            and "getaddrinfo failed" in str(current).casefold()
+        ):
+            return True
+        if current.__cause__ is not None:
+            pending.append(current.__cause__)
+        if current.__context__ is not None:
+            pending.append(current.__context__)
+    return False
+
+
+def _is_windows_connection_refused(error: BaseException) -> bool:
+    pending: list[BaseException] = [error]
+    seen: set[int] = set()
+    while pending:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        if (
+            isinstance(current, OSError)
+            and (
+                getattr(current, "winerror", None) == _WINDOWS_WSAECONNREFUSED
+                or current.errno == _WINDOWS_WSAECONNREFUSED
+            )
+        ):
+            return True
+        if current.__cause__ is not None:
+            pending.append(current.__cause__)
+        if current.__context__ is not None:
+            pending.append(current.__context__)
+    return False
+
+
+def _utc_timestamp() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def _fetch_venue(client: httpx.Client, token: str, page_id: str) -> dict[str, str]:
+    response = _get_venue_page(
+        client,
+        url=f"https://api.notion.com/v1/pages/{page_id}",
+        headers=_headers(token),
+        page_id=page_id,
+    )
+    response.raise_for_status()
+    page = response.json()
+    props = page.get("properties", {})
+    combo = _property_text(props.get("Venue Reddit Combo"))
+    venue = _property_text(props.get("Venue Name")) or _property_text(props.get("Official Name"))
+    website = _property_text(props.get("Venue Website"))
+    address = _property_text(props.get("Address"))
+    city = _city_from_address(address)
+    return {
+        "Venue Reddit Combo": combo,
+        "Venue Name": venue,
+        "Venue URL": website,
+        "City": city,
+    }
+
+
+def _get_venue_page(
+    client: httpx.Client,
+    *,
+    url: str,
+    headers: dict[str, str],
+    page_id: str,
+) -> httpx.Response:
+    try:
+        return client.get(url, headers=headers)
+    except httpx.ReadError as first_error:
+        if not _is_windows_connection_reset(first_error):
+            raise
+
+        first_timestamp = _utc_timestamp()
+        _LOGGER.warning(
+            "notion_venue_fetch_connection_reset timestamp=%s page_id=%s "
+            "retry_in_seconds=%s error=%r",
+            first_timestamp,
+            page_id,
+            _VENUE_FETCH_RETRY_DELAY_SECONDS,
+            first_error,
+            exc_info=True,
+        )
+        time.sleep(_VENUE_FETCH_RETRY_DELAY_SECONDS)
+        try:
+            response = client.get(url, headers=headers)
+        except httpx.ReadError as second_error:
+            second_timestamp = _utc_timestamp()
+            second_error.add_note(
+                "Notion venue fetch connection-reset retry failed; "
+                f"page_id={page_id}; first_attempt_timestamp={first_timestamp}; "
+                f"first_error={first_error!r}; second_attempt_timestamp={second_timestamp}"
+            )
+            _LOGGER.error(
+                "notion_venue_fetch_connection_reset_retry_failed page_id=%s "
+                "first_timestamp=%s second_timestamp=%s first_error=%r second_error=%r",
+                page_id,
+                first_timestamp,
+                second_timestamp,
+                first_error,
+                second_error,
+                exc_info=True,
+            )
+            raise
+
+        _LOGGER.warning(
+            "notion_venue_fetch_connection_reset_recovered page_id=%s "
+            "first_failure_timestamp=%s",
+            page_id,
+            first_timestamp,
+        )
+        return response
+
+
+def _is_windows_connection_reset(error: BaseException) -> bool:
+    pending: list[BaseException] = [error]
+    seen: set[int] = set()
+    while pending:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        if (
+            isinstance(current, OSError)
+            and (
+                getattr(current, "winerror", None) == _WINDOWS_WSAECONNRESET
+                or current.errno == _WINDOWS_WSAECONNRESET
+            )
+        ):
+            return True
+        if current.__cause__ is not None:
+            pending.append(current.__cause__)
+        if current.__context__ is not None:
+            pending.append(current.__context__)
+    return False
+
+
+def _page_to_row(page: dict[str, Any]) -> dict[str, Any]:
+    props = page.get("properties", {})
+    return {
+        "Event Name": _property_text(props.get("Event Name")),
+        "Weekly": _property_value(props.get("Weekly")),
+        "Generate This Week": _property_value(props.get("Generate This Week")),
+        "Days of the Week": _property_text(props.get("Days of the Week")),
+        "Date": _property_value(props.get("Date")),
+        "Time, Price, Notes": _property_text(props.get("Time, Price, Notes")),
+        "Notes Recurring": _property_text(props.get("Notes Recurring")),
+    }
+
+
+def _relation_ids(page: dict[str, Any], name: str) -> list[str]:
+    prop = page.get("properties", {}).get(name, {})
+    return [item.get("id", "") for item in prop.get("relation", []) if item.get("id")]
+
+
+def _property_value(prop: Any) -> Any:
+    if not isinstance(prop, dict):
+        return None
+    kind = prop.get("type")
+    if kind == "checkbox":
+        return prop.get("checkbox")
+    if kind == "date":
+        value = prop.get("date") or {}
+        return value.get("start")
+    return _property_text(prop)
+
+
+def _property_text(prop: Any) -> str:
+    if not isinstance(prop, dict):
+        return ""
+    kind = prop.get("type")
+    value = prop.get(kind) if kind else None
+    if kind in {"title", "rich_text"}:
+        return "".join(item.get("plain_text", "") for item in value or [])
+    if kind == "url":
+        return value or ""
+    if kind == "formula":
+        return _formula_text(value)
+    if kind == "rollup":
+        return _rollup_text(value)
+    if kind == "select":
+        return (value or {}).get("name", "")
+    return "" if value is None else str(value)
+
+
+def _formula_text(value: Any) -> str:
+    if not isinstance(value, dict):
+        return ""
+    kind = value.get("type")
+    result = value.get(kind) if kind else None
+    return "" if result is None else str(result)
+
+
+def _rollup_text(value: Any) -> str:
+    if not isinstance(value, dict):
+        return ""
+    kind = value.get("type")
+    if kind == "array":
+        return "".join(_property_text(item) for item in value.get("array", []))
+    result = value.get(kind) if kind else None
+    return "" if result is None else str(result)
+
+
+def _city_from_address(address: str) -> str:
+    parts = [part.strip() for part in address.split(",") if part.strip()]
+    if parts and parts[-1].casefold() in {"usa", "united states"}:
+        parts.pop()
+    if len(parts) >= 2 and _STATE_POSTAL_RE.fullmatch(parts[-1]):
+        return parts[-2]
+    return parts[-3] if len(parts) >= 3 else ""
+
+
+def _headers(token: str) -> dict[str, str]:
+    return {
+        "Authorization": f"Bearer {token}",
+        "Notion-Version": NOTION_API_VERSION,
+        "Content-Type": "application/json",
+    }

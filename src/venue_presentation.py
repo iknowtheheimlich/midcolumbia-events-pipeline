@@ -62,6 +62,8 @@ class VenuePresentationProfile:
         canonical = _first_text(event, "venue_registry_name", "venue") or "Unknown Venue"
 
         explicit_name = _first_text(event, "display_venue")
+        if explicit_name and _malformed_label(explicit_name):
+            explicit_name = None
         if explicit_name:
             return VenuePresentation(
                 canonical_name=canonical,
@@ -145,3 +147,7 @@ def _first_text(event: dict[str, Any], *fields: str) -> str | None:
         if text:
             return text
     return None
+
+
+def _malformed_label(value: str) -> bool:
+    return bool(re.search(r"(?:\s-|\b(?:of|at|in|the))\s*$", value.strip(), re.IGNORECASE))

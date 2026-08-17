@@ -187,7 +187,10 @@ def _display_title(
         ).strip()
 
     if _key(category) == _MUSIC_CATEGORY and not protected_music_title:
-        cleaned = _canonicalize_music_title(cleaned)
+        music_title = _canonicalize_music_title(cleaned)
+        # Do not turn a complete source title into an orphaned venue fragment.
+        if not re.match(r"^(?:at\b|@)", music_title, re.IGNORECASE):
+            cleaned = music_title
 
     return _clean(cleaned).strip(" !,|:\"'–—") or title
 

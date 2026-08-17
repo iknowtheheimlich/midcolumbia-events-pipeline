@@ -1,0 +1,46 @@
+Attempt 98 Weekly Pipeline Health
+=================================
+
+Pipeline status: HEALTHY
+
+STATUS REASONS
+--------------
+no operational exceptions detected
+
+CORPUS
+------
+Events: 15
+Sources: 1
+Categories: 5
+Venues: 12
+Organizers: 0
+Missing venue/date/source: 0/0/0
+
+REVIEW QUEUE
+------------
+Active: 0
+New / recurring / stale: 0 / 0 / 0
+Due soon / overdue: 0 / 0
+Oldest unresolved: 0 days
+Trend: flat (+0)
+Batch exported: 0
+
+CAPACITY
+--------
+Status: clear
+Average opened/week: 0.5
+Average resolved/week: 0.2
+Net clearance/week: -0.2
+Estimated time to clear: 0.0 weeks
+
+CONFIGURATION
+-------------
+stale_after_appearances: 3
+sla_due_after_days: 7
+sla_overdue_after_days: 14
+sla_overdue_after_appearances: 4
+capacity_lookback_runs: 4
+
+ANALYTICAL REPORTS
+------------------
+All completed

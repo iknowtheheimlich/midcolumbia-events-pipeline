@@ -3,15 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Any
 
 from src.category_intelligence import enrich_event_category
 from src.content_classifier import screen_events
-from src.deduplicate import DeduplicationResult, deduplicate_events
 from src.event_completeness import enrich_event_completeness
 from src.geography import enrich_event_geography
 from src.intelligence import attach_intelligence
 from src.occurrence_resolution import resolve_occurrences
+from src.occurrence_expansion import expand_multi_day_occurrences
+from src.production_dispositions import ProductionDispositions
 from src.publisher_editorial import (
     EditorialEvent,
     auto_publish_events,
@@ -25,6 +27,7 @@ from src.publisher_projection import PublisherEvent, project_events
 from src.recurrence_classifier import split_publisher_ready
 from src.text_normalization import normalize_event
 from src.time_semantics import enrich_event_time_semantics
+from src.semantic_projection import transform_semantic_occurrences
 from src.venue_registry import VenueMatch, VenueRegistry
 
 
@@ -102,6 +105,9 @@ def run_pipeline(
     enrich_categories: bool = False,
     enrich_time_semantics: bool = False,
     enrich_completeness: bool = False,
+    production_dispositions: ProductionDispositions | None = None,
+    publication_week_start: date | None = None,
+    publication_days: int = 7,
 ) -> PipelineResult:
     """Run source batches through shared enrichment and publisher preparation.
 
@@ -118,7 +124,11 @@ def run_pipeline(
         enrich_categories=enrich_categories,
         enrich_time_semantics=enrich_time_semantics,
         enrich_completeness=enrich_completeness,
+        publication_week_start=publication_week_start,
+        publication_days=publication_days,
     )
+    if production_dispositions is not None:
+        all_events = production_dispositions.apply(all_events)
 
     content_rejected: list[dict[str, Any]] = []
     publisher_candidates = all_events
@@ -127,13 +137,9 @@ def run_pipeline(
 
     publisher_ready, recurrence_review = split_publisher_ready(publisher_candidates)
 
-    if deduplicate:
-        dedupe_result = deduplicate_events(publisher_ready)
-    else:
-        dedupe_result = DeduplicationResult(events=list(publisher_ready))
-
-    final_events = dedupe_result.events
-    duplicate_groups = list(dedupe_result.duplicate_groups)
+    semantic = transform_semantic_occurrences(publisher_ready, deduplicate=deduplicate)
+    final_events = semantic.events
+    duplicate_groups = list(semantic.duplicate_groups)
     if resolve_cross_source_occurrences:
         resolution = resolve_occurrences(final_events)
         final_events = resolution.events
@@ -146,7 +152,7 @@ def run_pipeline(
         recurrence_review_events=recurrence_review,
         deduplicated_publisher_ready_events=final_events,
         duplicate_groups=duplicate_groups,
-        skipped_low_quality_dedupe=dedupe_result.skipped_low_quality,
+        skipped_low_quality_dedupe=semantic.skipped_low_quality,
     )
 
 
@@ -158,6 +164,8 @@ def combine_source_batches(
     enrich_categories: bool = False,
     enrich_time_semantics: bool = False,
     enrich_completeness: bool = False,
+    publication_week_start: date | None = None,
+    publication_days: int = 7,
 ) -> list[dict[str, Any]]:
     """Combine batches and optionally apply shared enrichment layers."""
     combined: list[dict[str, Any]] = []
@@ -167,42 +175,52 @@ def combine_source_batches(
             copied = normalize_event(event)
             copied.setdefault("source", batch.source_name)
             if enrich_time_semantics:
+                # Range semantics must be established before expansion. Otherwise
+                # transport boundary clocks are copied onto every daily occurrence.
                 copied = enrich_event_time_semantics(copied)
-            if venue_registry is not None:
-                copied, match = venue_registry.enrich_event(copied)
-                copied = _attach_venue_explanation(copied, match)
-                if match.status == "matched" and match.record is not None:
-                    record = match.record
-                    if record.reddit_combo:
-                        copied["venue_reddit_combo"] = record.reddit_combo
-                    if record.website:
-                        copied["venue_website"] = record.website
-                    copied["venue_registry_name"] = record.venue_name
-            if enrich_geography:
-                had_city = bool(str(copied.get("city") or "").strip())
-                had_address = bool(str(copied.get("address") or "").strip())
-                copied = enrich_event_geography(copied)
-                geo_reason = "city_region_lookup" if had_city else "address_city_parse" if had_address else "location_unresolved"
-                geo_confidence = 0.98 if had_city else 0.90 if had_address else 0.0
-                copied = attach_intelligence(
-                    copied,
-                    "geographic_scope",
-                    copied.get("geo_scope"),
-                    geo_confidence,
-                    geo_reason,
+            occurrences = (
+                expand_multi_day_occurrences(
+                    [copied], week_start=publication_week_start, days=publication_days
                 )
-            if enrich_categories:
-                copied = enrich_event_category(copied)
-                copied = attach_intelligence(
-                    copied,
-                    "category",
-                    copied.get("category"),
-                    float(copied.get("category_confidence") or 0.0),
-                    str(copied.get("category_reason") or "no_category_rule_matched"),
-                )
-            if enrich_completeness:
-                copied = enrich_event_completeness(copied)
-            combined.append(copied)
+                if publication_week_start is not None
+                else [copied]
+            )
+            for occurrence in occurrences:
+                if venue_registry is not None:
+                    occurrence, match = venue_registry.enrich_event(occurrence)
+                    occurrence = _attach_venue_explanation(occurrence, match)
+                    if match.status == "matched" and match.record is not None:
+                        record = match.record
+                        if record.reddit_combo:
+                            occurrence["venue_reddit_combo"] = record.reddit_combo
+                        if record.website:
+                            occurrence["venue_website"] = record.website
+                        occurrence["venue_registry_name"] = record.venue_name
+                if enrich_geography:
+                    had_city = bool(str(occurrence.get("city") or "").strip())
+                    had_address = bool(str(occurrence.get("address") or "").strip())
+                    occurrence = enrich_event_geography(occurrence)
+                    geo_reason = "city_region_lookup" if had_city else "address_city_parse" if had_address else "location_unresolved"
+                    geo_confidence = 0.98 if had_city else 0.90 if had_address else 0.0
+                    occurrence = attach_intelligence(
+                        occurrence,
+                        "geographic_scope",
+                        occurrence.get("geo_scope"),
+                        geo_confidence,
+                        geo_reason,
+                    )
+                if enrich_categories:
+                    occurrence = enrich_event_category(occurrence)
+                    occurrence = attach_intelligence(
+                        occurrence,
+                        "category",
+                        occurrence.get("category"),
+                        float(occurrence.get("category_confidence") or 0.0),
+                        str(occurrence.get("category_reason") or "no_category_rule_matched"),
+                    )
+                if enrich_completeness:
+                    occurrence = enrich_event_completeness(occurrence)
+                combined.append(occurrence)
 
     return combined
 

@@ -1,11 +1,4 @@
-"""Group sibling editorial occurrences into publisher-facing programs.
-
-Attempt_41_ProgramIntelligence
-Attempt_42_ExplainableIntelligence
-
-This layer does not deduplicate sources. It groups legitimate occurrences of the
-same cleaned program after editorial styling while preserving every occurrence.
-"""
+"""Group sibling editorial occurrences into publisher-facing programs."""
 
 from __future__ import annotations
 
@@ -30,6 +23,10 @@ class ProgramOccurrence:
     publication_url: str
     source: str
     source_event_id: str | None
+    display_organization: str | None = None
+    display_organization_url: str | None = None
+    display_artist: str | None = None
+    display_artist_url: str | None = None
 
 
 @dataclass(frozen=True)
@@ -51,22 +48,15 @@ class EditorialProgram:
 
 
 def group_editorial_programs(events: Iterable[EditorialEvent]) -> list[EditorialProgram]:
-    """Group same-day sibling occurrences using a conservative exact key."""
     grouped: dict[tuple[str, str, str, str, str], list[EditorialEvent]] = {}
     order: list[tuple[str, str, str, str, str]] = []
-
     for event in events:
         key = _program_key(event)
         if key not in grouped:
             grouped[key] = []
             order.append(key)
         grouped[key].append(event)
-
-    programs: list[EditorialProgram] = []
-    for key in order:
-        rows = sorted(grouped[key], key=_occurrence_sort_key)
-        programs.append(_build_program(rows))
-    return programs
+    return [_build_program(sorted(grouped[key], key=_occurrence_sort_key)) for key in order]
 
 
 def _program_key(event: EditorialEvent) -> tuple[str, str, str, str, str]:
@@ -92,12 +82,14 @@ def _build_program(events: list[EditorialEvent]) -> EditorialProgram:
             publication_url=event.publication_url,
             source=event.source,
             source_event_id=event.source_event_id,
+            display_organization=event.display_organization,
+            display_organization_url=event.display_organization_url,
+            display_artist=event.display_artist,
+            display_artist_url=event.display_artist_url,
         )
         for event in events
     )
-    canonical_titles = tuple(
-        dict.fromkeys((event.canonical_title or event.title) for event in events)
-    )
+    canonical_titles = tuple(dict.fromkeys((event.canonical_title or event.title) for event in events))
     distinct_venues = len({(_normalize(item.display_venue), _normalize(item.display_city)) for item in occurrences})
     distinct_times = len({(item.display_start_time, item.display_end_time) for item in occurrences})
     grouping_reason = "single_occurrence"
@@ -111,14 +103,7 @@ def _build_program(events: list[EditorialEvent]) -> EditorialProgram:
             signals.append("multiple_times")
             evidence.append("multiple_times")
         grouping_reason = "+".join(signals) or "repeated_occurrence"
-
-    confidence = 1.0
-    decision = IntelligenceDecision(
-        value=first.title,
-        confidence=confidence,
-        reason="+".join(evidence),
-    )
-
+    decision = IntelligenceDecision(value=first.title, confidence=1.0, reason="+".join(evidence))
     return EditorialProgram(
         title=first.title,
         start_date=first.start_date,
@@ -128,7 +113,7 @@ def _build_program(events: list[EditorialEvent]) -> EditorialProgram:
         occurrences=occurrences,
         canonical_titles=canonical_titles,
         grouping_reason=grouping_reason,
-        grouping_confidence=confidence,
+        grouping_confidence=1.0,
         intelligence={"program_grouping": decision.to_dict()},
     )
 

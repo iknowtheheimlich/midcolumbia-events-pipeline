@@ -1,0 +1,9 @@
+Attempt 90 Review Capacity Planning
+===================================
+
+Active backlog: 0
+Average opened/week: 0.5
+Average resolved/week: 0.2
+Net clearance/week: -0.2
+Estimated time to clear: 0.0 weeks
+Status: clear

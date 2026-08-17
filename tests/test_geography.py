@@ -1,5 +1,7 @@
 from src.geography import (
     GeoPoint,
+    LOWER_VALLEY,
+    WALLA_WALLA,
     city_state_from_address,
     classify_event,
     classify_region,
@@ -45,10 +47,25 @@ def test_tri_cities_label_is_local_without_inventing_one_city():
     assert result.scope == "LOCAL"
 
 
-def test_regional_and_out_of_area_regions_are_distinct():
+def test_lower_valley_cities_are_outside_publication_scope():
+    assert {classify_event({"city": city, "state": "WA"}).scope for city in LOWER_VALLEY} == {
+        "OUT_OF_AREA"
+    }
+    assert classify_region("Prosser", "WA") == "LOWER_VALLEY"
+    assert classify_region("Grandview", "WA") == "LOWER_VALLEY"
+
+
+def test_walla_walla_cities_are_outside_publication_scope():
+    assert {classify_event({"city": city, "state": "WA"}).scope for city in WALLA_WALLA} == {
+        "OUT_OF_AREA"
+    }
+    assert classify_region("College Place", "WA") == "WALLA_WALLA"
+
+
+def test_known_out_of_area_regions_remain_distinct():
     assert classify_region("Prosser", "WA") == "LOWER_VALLEY"
     assert classify_region("Yakima", "WA") == "YAKIMA"
-    assert classify_event({"city": "Prosser", "state": "WA"}).scope == "REGIONAL_REVIEW"
+    assert classify_event({"city": "Prosser", "state": "WA"}).scope == "OUT_OF_AREA"
     assert classify_event({"city": "Yakima", "state": "WA"}).scope == "OUT_OF_AREA"
 
 

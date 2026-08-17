@@ -61,12 +61,24 @@ class PublisherEvent:
     suppress_display_city: bool = False
     category_confidence: float | None = None
     category_reason: str | None = None
+    organization_url: str | None = None
+    artist: str | None = None
+    artist_url: str | None = None
+    publication_blocker_reason: str | None = None
+    publication_blocker_details: tuple[dict[str, Any], ...] = ()
+    captain_disposition: str | None = None
+    captain_disposition_reason: str | None = None
+    source_start_date: str | None = None
+    source_end_date: str | None = None
+    occurrence_identity: str | None = None
+    source_time_evidence: dict[str, Any] = field(default_factory=dict)
     intelligence: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["source_urls"] = list(self.source_urls)
         payload["duplicate_sources"] = list(self.duplicate_sources)
+        payload["publication_blocker_details"] = list(self.publication_blocker_details)
         return payload
 
 
@@ -126,6 +138,17 @@ def project_event(event: dict[str, Any]) -> PublisherEvent:
         suppress_display_city=presentation.suppress_city,
         category_confidence=_optional_float(event.get("category_confidence")),
         category_reason=_optional_text(event.get("category_reason")),
+        organization_url=_optional_text(event.get("organization_url")),
+        artist=_first_text(event, "artist_registry_name", "artist", "performer"),
+        artist_url=_optional_text(event.get("artist_url")),
+        publication_blocker_reason=_optional_text(event.get("publication_blocker_reason")),
+        publication_blocker_details=tuple(event.get("publication_blocker_details") or ()),
+        captain_disposition=_optional_text(event.get("captain_disposition")),
+        captain_disposition_reason=_optional_text(event.get("captain_disposition_reason")),
+        source_start_date=_optional_text(event.get("source_start_date")),
+        source_end_date=_optional_text(event.get("source_end_date")),
+        occurrence_identity=_optional_text(event.get("occurrence_identity")),
+        source_time_evidence=dict(event.get("source_time_evidence") or {}),
         intelligence=normalize_intelligence(event.get("intelligence")),
     )
 

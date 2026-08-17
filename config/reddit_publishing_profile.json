@@ -19,11 +19,13 @@
     "Tours",
     "Festivals/Fair",
     "Estate/Yard/Garage Sales",
-    "Faith Based"
+    "Faith Based",
+    "Weekly Events"
   ],
   "publication_targets": {
     "MAIN": [
       "Events/Hangouts",
+      "Classes/Workshops",
       "Lectures/Talks",
       "Music/Comedy",
       "Sports",
@@ -36,10 +38,10 @@
       "Markets",
       "Tours",
       "Festivals/Fair",
-      "Estate/Yard/Garage Sales"
+      "Estate/Yard/Garage Sales",
+      "Weekly Events"
     ],
     "COMMUNITY": [
-      "Classes/Workshops",
       "Community Programs",
       "School District Event",
       "Faith Based"

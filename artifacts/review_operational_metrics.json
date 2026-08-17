@@ -1,0 +1,20 @@
+{
+  "active": 0,
+  "new": 0,
+  "recurring": 0,
+  "stale": 0,
+  "resolved": 0,
+  "due_soon": 0,
+  "overdue": 0,
+  "oldest_days": 0,
+  "opened": 0,
+  "carried": 0,
+  "net_change": 0,
+  "trend": "flat",
+  "stale_share": 0.0,
+  "capacity_status": "clear",
+  "average_opened": 0.5,
+  "average_resolved": 0.25,
+  "net_clearance": -0.25,
+  "weeks_to_clear": 0.0
+}

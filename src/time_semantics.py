@@ -10,6 +10,7 @@ legitimate midnight events when no all-day evidence exists.
 from __future__ import annotations
 
 from typing import Any
+from datetime import datetime, timedelta, timezone
 
 from src.intelligence import attach_intelligence
 
@@ -29,10 +30,17 @@ def enrich_event_time_semantics(event: dict[str, Any]) -> dict[str, Any]:
     reasons: list[str] = []
 
     all_day = explicit_all_day or date_only
+    range_boundary = _range_boundary_sentinel(copied, source)
+    day_boundary = start in _MIDNIGHT_VALUES and end in _END_OF_DAY_VALUES and _same_day(copied)
     if explicit_all_day:
         reasons.append("explicit_all_day")
     elif date_only:
         reasons.append("date_only_marker")
+    elif range_boundary or day_boundary:
+        copied["time_unknown"] = True
+        copied["start_time"] = None
+        copied["end_time"] = None
+        reasons.append("range_boundary_sentinel" if range_boundary else "date_boundary_sentinel")
     elif source in _DATE_ONLY_SOURCES and start in _MIDNIGHT_VALUES and (
         end is None or end in _MIDNIGHT_VALUES
     ):
@@ -57,6 +65,10 @@ def enrich_event_time_semantics(event: dict[str, Any]) -> dict[str, Any]:
         if start and end and _normalized_clock(start) == _normalized_clock(end):
             copied["end_time"] = None
             reasons.append("identical_end_removed")
+
+    if _exclusive_midnight_end(copied):
+        copied["exclusive_end_date"] = True
+        reasons.append("exclusive_midnight_end")
 
     reason = "+".join(reasons) if reasons else "unchanged"
     value = {
@@ -97,3 +109,37 @@ def _truthy(value: Any) -> bool:
     if value is None:
         return False
     return str(value).strip().casefold() in {"1", "true", "yes", "y", "all_day", "all-day"}
+
+
+def _exclusive_midnight_end(event: dict[str, Any]) -> bool:
+    start_date = str(event.get("start_date") or "").strip()
+    end_date = str(event.get("end_date") or "").strip()
+    if _time(event.get("end_time")) not in _MIDNIGHT_VALUES or not start_date or not end_date:
+        return False
+    try:
+        return datetime.fromisoformat(end_date).date() == datetime.fromisoformat(start_date).date() + timedelta(days=1)
+    except ValueError:
+        return False
+
+
+def _range_boundary_sentinel(event: dict[str, Any], source: str) -> bool:
+    """Recognize API range endpoints that are not per-occurrence clock times."""
+    if source != "allevents":
+        return False
+    try:
+        start_stamp = int(event.get("source_start_timestamp"))
+        end_stamp = int(event.get("source_end_timestamp"))
+    except (TypeError, ValueError):
+        return False
+    if end_stamp - start_stamp < 86400:
+        return False
+    offset_text = str(event.get("source_timezone") or event.get("timezone") or "").strip()
+    try:
+        sign = -1 if offset_text.startswith("-") else 1
+        hours, minutes = (int(part) for part in offset_text.lstrip("+-").split(":"))
+        offset = timezone(sign * timedelta(hours=hours, minutes=minutes))
+    except (TypeError, ValueError):
+        return False
+    local_start = datetime.fromtimestamp(start_stamp, timezone.utc).astimezone(offset)
+    local_end = datetime.fromtimestamp(end_stamp, timezone.utc).astimezone(offset)
+    return local_start.strftime("%H:%M") == "00:00" and local_end.strftime("%H:%M") in {"00:00", "00:59", "23:59"}

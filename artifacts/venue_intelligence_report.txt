@@ -1,0 +1,143 @@
+Attempt 74 Venue Intelligence Discovery
+=======================================
+
+History inputs: 1
+Historical events loaded: 15
+Venues analyzed: 12
+Promote: 0
+Review: 0
+Insufficient evidence: 3
+Reject: 9
+
+PROMOTE
+-------
+
+None
+
+REVIEW
+------
+
+None
+
+INSUFFICIENT EVIDENCE
+---------------------
+
+Manhattan Project National Historical Park Visitor Center
+  Dominant: Community Events (100.0%)
+  Events: 2
+  Second: None (0.0%)
+  Entropy: 0.000
+  Confidence: 0.091
+  Last seen: 2026-07-04
+  Reason: insufficient_sample=2<25
+
+Pasco Sporting Complex & Gesa Stadium
+  Dominant: Annual Events (100.0%)
+  Events: 1
+  Second: None (0.0%)
+  Entropy: 0.000
+  Confidence: 0.048
+  Last seen: 2026-07-04
+  Reason: insufficient_sample=1<25
+
+Tri-City Raceway
+  Dominant: Annual Events (100.0%)
+  Events: 1
+  Second: None (0.0%)
+  Entropy: 0.000
+  Confidence: 0.048
+  Last seen: 2026-07-04
+  Reason: insufficient_sample=1<25
+
+REJECT
+------
+
+Columbia Point Marina Park
+  Dominant: Annual Events (100.0%)
+  Events: 2
+  Second: None (0.0%)
+  Entropy: 0.000
+  Confidence: 0.091
+  Venue type: park
+  Last seen: 2026-07-04
+  Reason: excluded_venue_type=park
+
+Airfield Estates Winery
+  Dominant: Food & Drink (100.0%)
+  Events: 1
+  Second: None (0.0%)
+  Entropy: 0.000
+  Confidence: 0.048
+  Venue type: winery
+  Last seen: 2026-07-04
+  Reason: excluded_venue_type=winery
+
+Goose Ridge Estate Vineyard and Winery
+  Dominant: Food & Drink (100.0%)
+  Events: 1
+  Second: None (0.0%)
+  Entropy: 0.000
+  Confidence: 0.048
+  Venue type: winery
+  Last seen: 2026-07-03
+  Reason: excluded_venue_type=winery
+
+J. Bookwalter Winery
+  Dominant: Music & Concerts (100.0%)
+  Events: 1
+  Second: None (0.0%)
+  Entropy: 0.000
+  Confidence: 0.048
+  Venue type: winery
+  Last seen: 2026-07-03
+  Reason: excluded_venue_type=winery
+
+Memorial Aquatic Park
+  Dominant: Annual Events (100.0%)
+  Events: 1
+  Second: None (0.0%)
+  Entropy: 0.000
+  Confidence: 0.048
+  Venue type: park
+  Last seen: 2026-07-04
+  Reason: excluded_venue_type=park
+
+Riva Riverside Italian Kitchen
+  Dominant: Community Events (100.0%)
+  Events: 1
+  Second: None (0.0%)
+  Entropy: 0.000
+  Confidence: 0.048
+  Venue type: restaurant
+  Last seen: 2026-07-04
+  Reason: excluded_venue_type=restaurant
+
+Solar Spirits
+  Dominant: Food & Drink (100.0%)
+  Events: 1
+  Second: None (0.0%)
+  Entropy: 0.000
+  Confidence: 0.048
+  Venue type: bar
+  Last seen: 2026-07-03
+  Reason: excluded_venue_type=bar
+
+The Lodge at Columbia Point
+  Dominant: Community Events (100.0%)
+  Events: 1
+  Second: None (0.0%)
+  Entropy: 0.000
+  Confidence: 0.048
+  Venue type: hotel
+  Last seen: 2026-07-03
+  Reason: excluded_venue_type=hotel
+
+The Emerald of Siam Thai Restaurant and Lounge
+  Dominant: Community Events (50.0%)
+  Events: 2
+  Second: Arts & Theater (50.0%)
+  Entropy: 1.000
+  Confidence: 0.000
+  Venue type: bar
+  Last seen: 2026-07-03
+  Reason: excluded_venue_type=bar

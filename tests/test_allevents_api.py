@@ -1,12 +1,32 @@
 from datetime import date
+from email.message import Message
 import json
+from pathlib import Path
+from urllib.error import HTTPError, URLError
+
+import pytest
 
 from adapters.allevents.api import (
     CITY_QUERIES,
+    _decode_api_response,
     _request_payload,
+    harvest_allevents_api,
     normalize_api_event,
     normalize_api_responses,
 )
+from adapters.registry import get_adapter
+from src.harvest_health import assess_harvest_health
+
+
+class _Response:
+    def __init__(self, body: bytes, *, status: int = 200, content_type: str) -> None:
+        self.status = status
+        self._body = body
+        self.headers = Message()
+        self.headers["Content-Type"] = content_type
+
+    def read(self) -> bytes:
+        return self._body
 
 
 def _row(**overrides):
@@ -33,6 +53,210 @@ def _row(**overrides):
     }
     row.update(overrides)
     return row
+
+
+def test_rejects_observed_html_session_response_with_diagnostic_context():
+    response = _Response(
+        ("Not available at this moment" + "x" * 200).encode("utf-8"),
+        content_type="text/html; charset=UTF-8",
+    )
+
+    with pytest.raises(RuntimeError) as captured:
+        _decode_api_response(response)
+
+    diagnostic = str(captured.value)
+    assert "AllEvents session/API rejection" in diagnostic
+    assert "HTTP 200" in diagnostic
+    assert "Content-Type 'text/html'" in diagnostic
+    assert "Not available at this moment" in diagnostic
+    assert len(diagnostic.split("response prefix: ", 1)[1].strip("'")) <= 160
+
+
+def test_accepts_valid_json_response_without_changing_payload():
+    payload = {"error": 0, "page": 1, "search_result": []}
+    response = _Response(
+        json.dumps(payload).encode("utf-8"),
+        content_type="application/json; charset=utf-8",
+    )
+
+    assert _decode_api_response(response) == payload
+
+
+def test_rejected_city_is_attributed_and_successful_city_results_remain_usable(monkeypatch):
+    target = date(2026, 7, 19)
+
+    def fetch_json(_url, *, body, headers):
+        del headers
+        payload = json.loads(body)
+        if payload["city"] == "Pasco":
+            raise RuntimeError(
+                "AllEvents session/API rejection: HTTP 200; Content-Type 'text/html'; "
+                "response prefix: 'Not available at this moment'"
+            )
+        return {"error": 0, "search_result": [_row(event_id=payload["city"])]}
+
+    monkeypatch.setattr("adapters.allevents.api.save_raw_fixture", lambda *_args: None)
+    monkeypatch.setattr("adapters.allevents.api.generated_raw_path", lambda _adapter: Path("raw.json"))
+    adapter = get_adapter("AllEvents")
+    result = harvest_allevents_api(adapter, week_start=target, days=1, fetch_json=fetch_json)
+    health = assess_harvest_health([adapter], [result])
+
+    assert result.normalized_events
+    assert "2026-07-19|Pasco: RuntimeError: AllEvents session/API rejection" in result.error
+    assert health.sources[0].status == "PARTIAL"
+    assert health.sources[0].reason == result.error
+
+
+def test_dns_failure_remains_distinct_from_session_rejection(monkeypatch):
+    def fetch_json(_url, *, body, headers):
+        del headers
+        payload = json.loads(body)
+        if payload["city"] == "Pasco":
+            raise URLError("[Errno 11001] getaddrinfo failed")
+        return {"error": 0, "search_result": [_row(event_id=payload["city"])]}
+
+    monkeypatch.setattr("adapters.allevents.api.save_raw_fixture", lambda *_args: None)
+    monkeypatch.setattr("adapters.allevents.api.generated_raw_path", lambda _adapter: Path("raw.json"))
+    result = harvest_allevents_api(
+        get_adapter("AllEvents"),
+        week_start=date(2026, 7, 19),
+        days=1,
+        fetch_json=fetch_json,
+    )
+
+    assert "2026-07-19|Pasco: URLError: <urlopen error [Errno 11001] getaddrinfo failed>" in result.error
+    assert "session/API rejection" not in result.error
+
+
+def _connection_reset() -> URLError:
+    return URLError(ConnectionResetError(10054, "An existing connection was forcibly closed by the remote host"))
+
+
+def test_city_connection_reset_recovers_after_exactly_one_retry(monkeypatch, caplog):
+    calls: dict[tuple[str, str], int] = {}
+
+    def fetch_json(_url, *, body, headers):
+        del headers
+        payload = json.loads(body)
+        key = (payload["start_date"].split()[0], payload["city"])
+        calls[key] = calls.get(key, 0) + 1
+        if key == ("2026-08-11", "Kennewick") and calls[key] == 1:
+            raise _connection_reset()
+        return {"error": 0, "search_result": [_row(event_id=payload["city"])]}
+
+    monkeypatch.setattr("adapters.allevents.api.time.sleep", lambda seconds: None)
+    monkeypatch.setattr("adapters.allevents.api.save_raw_fixture", lambda *_args: None)
+    monkeypatch.setattr("adapters.allevents.api.generated_raw_path", lambda _adapter: Path("raw.json"))
+    result = harvest_allevents_api(
+        get_adapter("AllEvents"),
+        week_start=date(2026, 8, 11),
+        days=1,
+        fetch_json=fetch_json,
+    )
+
+    assert result.error is None
+    assert calls[("2026-08-11", "Kennewick")] == 2
+    assert all(count == 1 for key, count in calls.items() if key != ("2026-08-11", "Kennewick"))
+    assert "allevents_city_request_connection_reset_recovered" in caplog.text
+    assert "context=2026-08-11|Kennewick" in caplog.text
+
+
+def test_two_city_connection_resets_retain_partial_results_and_diagnostics(monkeypatch, caplog):
+    calls: dict[str, int] = {}
+
+    def fetch_json(_url, *, body, headers):
+        del headers
+        payload = json.loads(body)
+        city = payload["city"]
+        calls[city] = calls.get(city, 0) + 1
+        if city == "Kennewick":
+            raise _connection_reset()
+        return {"error": 0, "search_result": [_row(event_id=city)]}
+
+    monkeypatch.setattr("adapters.allevents.api.time.sleep", lambda seconds: None)
+    monkeypatch.setattr("adapters.allevents.api.save_raw_fixture", lambda *_args: None)
+    monkeypatch.setattr("adapters.allevents.api.generated_raw_path", lambda _adapter: Path("raw.json"))
+    adapter = get_adapter("AllEvents")
+    result = harvest_allevents_api(
+        adapter,
+        week_start=date(2026, 8, 11),
+        days=1,
+        fetch_json=fetch_json,
+    )
+    health = assess_harvest_health([adapter], [result])
+
+    assert calls["Kennewick"] == 2
+    assert result.normalized_events
+    assert "2026-08-11|Kennewick: URLError" in result.error
+    assert health.sources[0].status == "PARTIAL"
+    assert "allevents_city_request_connection_reset_retry_failed" in caplog.text
+    assert "context=2026-08-11|Kennewick" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "failure",
+    (
+        URLError("[Errno 11001] getaddrinfo failed"),
+        URLError(ConnectionRefusedError(10061, "No connection could be made")),
+        HTTPError("https://allevents.in/api", 503, "Service Unavailable", {}, None),
+    ),
+)
+def test_unrelated_url_errors_are_not_retried(monkeypatch, failure):
+    calls = 0
+
+    def fetch_json(_url, *, body, headers):
+        nonlocal calls
+        del headers
+        payload = json.loads(body)
+        if payload["city"] == "Kennewick":
+            calls += 1
+            raise failure
+        return {"error": 0, "search_result": [_row(event_id=payload["city"])]}
+
+    def unexpected_sleep(_seconds):
+        raise AssertionError("unrelated URLError must not sleep or retry")
+
+    monkeypatch.setattr("adapters.allevents.api.time.sleep", unexpected_sleep)
+    monkeypatch.setattr("adapters.allevents.api.save_raw_fixture", lambda *_args: None)
+    monkeypatch.setattr("adapters.allevents.api.generated_raw_path", lambda _adapter: Path("raw.json"))
+    result = harvest_allevents_api(
+        get_adapter("AllEvents"),
+        week_start=date(2026, 8, 11),
+        days=1,
+        fetch_json=fetch_json,
+    )
+
+    assert calls == 1
+    assert result.error is not None
+
+
+def test_session_rejection_is_not_retried(monkeypatch):
+    calls = 0
+
+    def fetch_json(_url, *, body, headers):
+        nonlocal calls
+        del headers
+        payload = json.loads(body)
+        if payload["city"] == "Kennewick":
+            calls += 1
+            raise RuntimeError("AllEvents session/API rejection")
+        return {"error": 0, "search_result": [_row(event_id=payload["city"])]}
+
+    monkeypatch.setattr(
+        "adapters.allevents.api.time.sleep",
+        lambda _seconds: (_ for _ in ()).throw(AssertionError("session rejection retried")),
+    )
+    monkeypatch.setattr("adapters.allevents.api.save_raw_fixture", lambda *_args: None)
+    monkeypatch.setattr("adapters.allevents.api.generated_raw_path", lambda _adapter: Path("raw.json"))
+    result = harvest_allevents_api(
+        get_adapter("AllEvents"),
+        week_start=date(2026, 8, 11),
+        days=1,
+        fetch_json=fetch_json,
+    )
+
+    assert calls == 1
+    assert "AllEvents session/API rejection" in result.error
 
 
 def test_city_queries_do_not_seed_hermiston():
@@ -119,6 +343,39 @@ def test_description_range_overrides_conflicting_epoch():
     assert event["source_time_reason"] == "description_explicit_time_range"
 
 
+@pytest.mark.parametrize(
+    "description",
+    [
+        "A Quiet Life performs Friday. 9 PM - Close.",
+        "People Our Age Suck takes the stage at 9 PM – Close.",
+    ],
+)
+def test_explicit_open_ended_description_time_overrides_conflicting_epoch(description: str):
+    event = normalize_api_event(
+        _row(
+            event_id="200030492623509",
+            start_time="1786750800",
+            end_time="1786754400",
+            description=description,
+        )
+    )
+
+    assert event is not None
+    assert event["start_time"] == "21:00"
+    assert event.get("end_time") is None
+    assert event["source_time_reason"] == "description_explicit_open_ended_start"
+
+
+def test_vague_description_does_not_override_api_epoch():
+    event = normalize_api_event(
+        _row(description="Live music throughout the evening.")
+    )
+
+    assert event is not None
+    assert event["start_time"] == "11:00"
+    assert event["source_time_reason"] == "utc_epoch_converted"
+
+
 def test_description_start_and_end_cues_override_conflicting_epoch():
     event = normalize_api_event(
         _row(
@@ -184,3 +441,24 @@ def test_preserves_structured_ticket_details():
     assert event is not None
     assert event["ticket_url"] == "https://tickets.example.org/buy"
     assert event["cost"] == "$15"
+
+
+def test_date_only_display_marks_wall_clock_epoch_and_preserves_raw_evidence():
+    event = normalize_api_event(_row(start_time="1787337000", end_time="1787344200", app_display_time="Fri, 21 Aug, 2026", start_time_display="Aug 21"))
+    assert event["start_time"] == "18:30"
+    assert event["end_time"] == "20:30"
+    assert event["source_time_reason"] == "date_only_display_wall_clock_repaired"
+    assert event["source_start_timestamp"] == 1787337000
+    assert event["source_display_time"] == "Fri, 21 Aug, 2026"
+
+
+def test_authored_time_display_does_not_shift_unrelated_epoch():
+    event = normalize_api_event(_row(app_display_time="Mon, 13 Jul, 2026 at 11:00 am"))
+    assert event["start_time"] == "11:00"
+    assert event["source_time_reason"] == "utc_epoch_converted"
+
+
+def test_preshow_subwindow_does_not_replace_overall_event_epoch():
+    event = normalize_api_event(_row(start_time="1787428800", end_time="1787439600", app_display_time="Sat, 22 Aug, 2026", description="A full 3-hour show. Agenda: 07:30 PM - 08:00 PM Pre Show comedy."))
+    assert event["start_time"] == "20:00"
+    assert event["end_time"] == "23:00"

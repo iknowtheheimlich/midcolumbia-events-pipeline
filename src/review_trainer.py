@@ -1,8 +1,5 @@
 """Deterministic human-correction artifacts for editorial review items.
 
-Attempt_52_ReviewTrainer
-Attempt_69_ReviewTrainingExport
-
 This module records review decisions; it does not invent classifier policy. Corrections
 remain explicit data that can be promoted into focused rules and regression cases.
 """
@@ -18,7 +15,7 @@ from typing import Any, Iterable
 from src.publisher_editorial import EditorialEvent
 
 DEFAULT_REVIEW_TRAINING_PATH = Path("artifacts/review/Review_Training.json")
-ALLOWED_ACTIONS = {"CATEGORY", "GEOGRAPHY", "SUPPRESS", "ACCEPT_REVIEW"}
+ALLOWED_ACTIONS = {"CATEGORY", "GEOGRAPHY", "SUPPRESS", "ACCEPT_REVIEW", "EDITORIAL"}
 
 
 @dataclass(frozen=True)
@@ -33,6 +30,10 @@ class ReviewTrainingRecord:
     start_time: str | None
     venue: str
     city: str
+    host: str | None
+    host_url: str | None
+    description: str | None
+    duplicate_sources: tuple[str, ...]
     current_category: str | None
     category_confidence: float | None
     category_reason: str | None
@@ -42,7 +43,9 @@ class ReviewTrainingRecord:
     correction: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        payload = asdict(self)
+        payload["duplicate_sources"] = list(self.duplicate_sources)
+        return payload
 
 
 def build_review_training_records(
@@ -63,7 +66,7 @@ def write_review_training_artifact(
     corrections = load_corrections(corrections_path) if corrections_path else {}
     records = build_review_training_records(events, corrections)
     payload = {
-        "schema_version": 2,
+        "schema_version": 3,
         "record_count": len(records),
         "records": [record.to_dict() for record in records],
     }
@@ -112,6 +115,10 @@ def _record(
         start_time=event.display_start_time,
         venue=event.display_venue,
         city=event.display_city,
+        host=event.display_organization,
+        host_url=event.display_organization_url,
+        description=event.description,
+        duplicate_sources=event.duplicate_sources,
         current_category=event.semantic_category,
         category_confidence=event.category_confidence,
         category_reason=event.category_reason,

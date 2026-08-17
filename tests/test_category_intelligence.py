@@ -1,3 +1,5 @@
+import pytest
+
 from src.category_intelligence import classify_event, enrich_event_category
 from src.pipeline import SourceBatch, run_pipeline
 
@@ -25,7 +27,7 @@ def test_preserves_existing_semantic_category() -> None:
 
 
 def test_classifies_storytime_as_community_program() -> None:
-    decision = classify_event(event(title="Baby Storytime With Ms. Amy"))
+    decision = classify_event(event(title="Baby Storytime With Ms. Amy", organizer="Mid-Columbia Libraries"))
     assert decision.category == "Community Programs"
     assert decision.confidence >= 0.9
     assert decision.reason == "title_rule=library_or_community_program"
@@ -125,10 +127,10 @@ def test_live_performer_title_beats_class_language_in_description() -> None:
 
 def test_performer_named_faith_is_not_religious() -> None:
     decision = classify_event(
-        event(title="Faith Martin @ At Michele's", venue="At Michele's")
+        event(title="Faith Martin @ At Michele's", venue="At Michele's", description="Faith Martin performing live")
     )
     assert decision.category == "Music/Comedy"
-    assert decision.reason == "context_rule=performer_at_hospitality_venue"
+    assert decision.reason == "semantic_rule=explicit_musical_performance"
 
 
 def test_participatory_visual_art_is_a_class_even_at_a_winery() -> None:
@@ -169,3 +171,36 @@ def test_explicit_class_can_correct_conflicting_existing_category() -> None:
     )
     assert decision.category == "Classes/Workshops"
     assert decision.reason == "title_rule=explicit_class_or_workshop"
+
+
+@pytest.mark.parametrize(
+    ("payload", "category"),
+    [
+        ({"title": "Gaming Guild", "description": "Tabletop games and creativity.", "source": "MidColumbiaLibraries"}, "Community Programs"),
+        ({"title": "Chamber Luncheon", "description": "Monthly networking luncheon."}, "Events/Hangouts"),
+        ({"title": "Hidden Layers", "description": "In this talk, explore social history.", "venue": "City Museum", "venue_type": "museum"}, "Lectures/Talks"),
+        ({"title": "Pumpkin Stitch", "description": "An instructor will guide you through creating a pumpkin."}, "Classes/Workshops"),
+        ({"title": "Sapphic Sugar Cabaret", "description": "A burlesque show."}, "Art/Theater"),
+        ({"title": "Recovery Dharma", "description": "A supportive gathering and meditation.", "organizer": "Private Yoga Collective"}, "Events/Hangouts"),
+        ({"title": "Silent Auction", "description": "A silent auction to support Jane's cancer care."}, "Fundraisers"),
+        ({"title": "Relief Society and Elders Quorum", "description": "A ward program.", "venue": "LDS Church"}, "Faith Based"),
+        ({"title": "Women's Night Out", "description": "Test your Bible knowledge during trivia with the GracePoint family."}, "Faith Based"),
+        ({"title": "Three Bands Tonight", "description": "A three bands mini music festival."}, "Music/Comedy"),
+        ({"title": "Surplus Sale", "description": "Items sold as-is; buyers must remove purchases."}, "Estate/Yard/Garage Sales"),
+    ],
+)
+def test_approved_durable_semantic_evidence(payload, category):
+    assert classify_event(payload).category == category
+
+
+def test_trusted_library_fallback_does_not_extend_to_private_library_venue():
+    decision = classify_event({"title": "Creative Gathering", "description": "A program.", "source": "AllEvents", "venue": "Private Library Cafe", "organizer": "Cafe LLC"})
+    assert decision.category != "Community Programs"
+
+
+def test_faith_venue_without_program_evidence_stays_unknown():
+    assert classify_event({"title": "Open House", "venue": "Example Church"}).category is None
+
+
+def test_generic_promotion_stays_unknown():
+    assert classify_event({"title": "Product Showcase", "description": "Discover exciting innovation."}).category is None

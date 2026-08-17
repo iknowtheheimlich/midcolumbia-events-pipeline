@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "missions": [
+    {
+      "mission_id": "MC-2026-033",
+      "week_start": "2026-08-10",
+      "resolutions": [
+        {"cohort":"All Genre Karaoke — Daisy Ranch Saloon — 2026-08-11","start_time":"20:00","end_time":"02:00","evidence":"VisitTriCities description explicitly states every Tuesday from 8pm-2am.","selectors":[{"source":"VisitTriCities","source_event_id":"1298225"},{"source":"NotionWeekly","title":"Karaoke","start_date":"2026-08-11","venue_contains":"Daisy Ranch Saloon"}]},
+        {"cohort":"Game Night Live Trivia — Sports Page Bar & Grill — 2026-08-12","start_time":"19:00","end_time":null,"evidence":"The curated weekly template states 7pm; the AllEvents description says the game occurs at night.","selectors":[{"source":"AllEvents","source_event_id":"200030515871259"},{"source":"NotionWeekly","title":"Game Night Live Trivia","start_date":"2026-08-12","venue_contains":"Sports Page Bar & Grill"}]},
+        {"cohort":"The Night Hawks — Upchurch Vineyard — 2026-08-13","title":"The Night Hawks","start_time":"17:00","end_time":"20:00","detail":"music 17:30-19:30","evidence":"VisitTriCities description explicitly names The Night Hawks, states the event is 5-8pm, and states music is 5:30-7:30pm.","selectors":[{"source":"VisitTriCities","source_event_id":"1289089"},{"source":"AllEvents","source_event_id":"100001990897041645"}]},
+        {"cohort":"Barchitects LEGO League — Moonshot Brewing — 2026-08-13","start_time":"18:00","end_time":null,"evidence":"Both descriptions call the program an evening event; VisitTriCities supplies the 6pm start. No event end is explicit.","selectors":[{"source":"VisitTriCities","source_event_id":"1301014"},{"source":"AllEvents","source_event_id":"200030343621730"}]},
+        {"cohort":"Four Shillings Short — Richland Public Library — 2026-08-13","start_time":"17:30","end_time":"19:00","evidence":"Richland Library's structured record is corroborated by the preserved VisitTriCities acquisition at 5:30-7pm.","selectors":[{"source":"AllEvents","source_event_id":"200030498519137"},{"source":"RichlandLibrary","source_event_id":"16157107"}]},
+        {"cohort":"Eli Young Band — Umatilla County Fair — 2026-08-14","start_time":"21:00","end_time":null,"evidence":"The preserved AllEvents description explicitly states 9:00 PM.","selectors":[{"source":"AllEvents","source_event_id":"3200030368824440"},{"source":"AllEvents","source_event_id":"2300030334109758"}]},
+        {"cohort":"Fallout — Ty's Bar & Grill — 2026-08-14","start_time":"19:00","end_time":null,"evidence":"TriCityVibe supplies the 7pm start and the AllEvents description independently identifies a nighttime event.","selectors":[{"source":"TriCityVibe","source_event_id":"fallout-ds-wicked-cider"},{"source":"AllEvents","source_event_id":"200030434710129"}]},
+        {"cohort":"Neon Interstate — Iconic Brewing — 2026-08-15","start_time":"19:00","end_time":"22:00","evidence":"TriCityVibe supplies 7-10pm; the competing AllEvents description is only TBD.","selectors":[{"source":"TriCityVibe","source_event_id":"mia-lenay-live-wine-social"},{"source":"AllEvents","source_event_id":"200030495629604"}]},
+        {"cohort":"Stompin'Ground Rodeo Kickoff — Longbranch Saloon — 2026-08-15","start_time":"20:00","end_time":null,"evidence":"The AllEvents description explicitly says music starts at 8:00 PM, corroborating TriCityVibe.","selectors":[{"source":"TriCityVibe","source_event_id":"dakota-poorman-live-longbranch-saloon"},{"source":"AllEvents","source_event_id":"200030485698206"}]},
+        {"cohort":"Game Night Live R0CK'N Bingo — Sports Page Bar & Grill — 2026-08-16","title":"Game Night Live R0CK'N Bingo","start_time":"16:00","end_time":"18:00","evidence":"Game Night Live's first-party Tri-Cities weekly schedule lists Sports Page Bar & Grill, 6 S Cascade St, Kennewick, WA 99336, Sunday R0CK'N Bingo from 4:00 PM to 6:00 PM.","evidence_url":"https://gamenightlive.com/washington-tri-cities/","evidence_authority":"first_party_organizer_schedule","decision_reason":"captain_approved_external_authority","selectors":[{"source":"AllEvents","source_event_id":"200030535883055"},{"source":"AllEvents","source_event_id":"200030535883258","role":"suppressed"}]},
+        {"cohort":"Sip & Sing — Columbia Gardens — 2026-08-15","title":"Sip & Sing","start_time":"16:00","end_time":"18:00","evidence":"VisitTriCities description explicitly states 4-6pm at 421 E Columbia Drive; TriCityVibe independently lists 4-6pm at Columbia Gardens.","decision_reason":"acceptance_approved_preserved_evidence","selectors":[{"source":"VisitTriCities","source_event_id":"1296002"},{"source":"TriCityVibe","source_event_id":"ben-naught"}]},
+        {"cohort":"Summer Market at Layered — 2026-08-15","title":"Summer Market at Layered Cake Artistry","start_time":"10:00","end_time":"16:00","evidence":"VisitTriCities and AllEvents carry the same description, date, 10am start, and Layered Cake Artistry address; AllEvents supplies the 4pm end.","decision_reason":"acceptance_approved_preserved_evidence","selectors":[{"source":"VisitTriCities","source_event_id":"1298972"},{"source":"AllEvents","source_event_id":"200030413213756"}]},
+        {"cohort":"Groove Principal — Clover Island Concert Series — 2026-08-12","title":"Groove Principal","start_time":"18:00","end_time":null,"evidence":"TriCityVibe lists the concert at 6pm on Clover Island Stage; the competing AllEvents description independently calls it an evening event, contradicting its 11am structured time.","decision_reason":"acceptance_approved_preserved_evidence","selectors":[{"source":"TriCityVibe","source_event_id":"groove-principal-clover-island-concert-series"},{"source":"AllEvents","source_event_id":"100001984681812728"}]},
+        {"cohort":"Faith Martin and Casa Rosita Pop-Up — Hedges Family Estate — 2026-08-15","title":"Faith Martin and Casa Rosita Pop-Up","start_time":"12:00","end_time":"16:00","detail":"music 13:00-16:00","evidence":"VisitTriCities explicitly describes one combined event with food 12-4pm and Faith Martin 1-4pm; TriCityVibe lists the same music segment at the same Hedges venue from 1-4pm.","decision_reason":"acceptance_approved_preserved_evidence","selectors":[{"source":"VisitTriCities","source_event_id":"1300892"},{"source":"TriCityVibe","source_event_id":"faith-martin-at-hedges-wines"}]},
+        {"cohort":"ArtLab for Kids — Richland Public Library — 2026-08-13","title":"ArtLab for Kids","start_time":"13:00","end_time":"15:00","evidence":"The preserved AllEvents and RichlandLibrary descriptions independently identify the same drop-in program with five or six art activities and the Group Art Project; the first-party RichlandLibrary structured record supplies 1-3pm.","decision_reason":"launch_gate_resolved_preserved_first_party_evidence","selectors":[{"source":"AllEvents","source_event_id":"200030538706203"},{"source":"RichlandLibrary","source_event_id":"16753117"}]},
+        {"cohort":"Shinedown: Dance, Kid, Dance Act II Tour — 2026-08-14","title":"Shinedown: Dance, Kid, Dance Act II Tour","start_time":"19:00","end_time":null,"geography_correction":{"venue":"Numerica Veterans Arena","city":"Spokane","state":"WA","evidence_basis":"The preserved event description explicitly names Numerica Veterans Arena and Spokane, WA for the August 14, 2026 7:00 PM occurrence; the separate source venue field also states Spokane, Wa."},"evidence":"The preserved AllEvents event description explicitly states Venue: Numerica Veterans Arena, Spokane, WA, Date: 14 Aug, 2026 - 07:00 PM. The separate source venue/location field independently states Spokane, Wa. Kennewick acquisition fields are contradictory search metadata.","decision_reason":"captain_approved_preserved_event_description_geography","selectors":[{"source":"AllEvents","source_event_id":"200030090187451"}]},
+        {"cohort":"Women's Retreat — Hansen Park — 2026-08-14","title":"WOMEN's RETREAT - KENNEWICK WA","evidence":"The raw AllEvents title is WOMEN's RETREAT - KENENEWICK WA!; structured city, venue address, URL locality, and share locality all independently state Kennewick. Only the title contains the KENENEWICK typo.","decision_reason":"captain_approved_exact_source_title_typo_correction","selectors":[{"source":"AllEvents","source_event_id":"200030132700216"}]}
+      ],
+      "exclusions": [
+        {"cohort":"HAPO Center regional concert cohort — 2026-08-15","reason":"captain_excluded_this_week","evidence":"Preserved descriptions conflict between 3pm and 7pm and do not establish whether the listings are distinct.","selectors":[{"source":"AllEvents","source_event_id":"3300030346137209"},{"source":"AllEvents","source_event_id":"3300030436561402"},{"source":"AllEvents","source_event_id":"2300030372129110"}]},
+        {"cohort":"Richland Estate Sale — 2026-08-13","reason":"captain_excluded_this_week","evidence":"The source explicitly says the address will be posted later; no venue is established.","selectors":[{"source":"AllEvents","source_event_id":"200030527358744","role":"safe_absence"}]},
+        {"cohort":"Team Policy Debate Camp — 2026-08-13","reason":"captain_excluded_this_week","evidence":"The preserved source provides only Richland, Washington and no venue authority.","selectors":[{"source":"AllEvents","source_event_id":"200030489981013"}]},
+        {"cohort":"Perseid Meteor Shower Watch Party — 2026-08-12","reason":"captain_excluded_this_week","evidence":"The preserved AllEvents record identifies the venue as Finley, Washington while its structured city, URL path, and share text identify Burbank; its full address combines both localities and its description says the actual address will be supplied later. Existing authority cannot establish one publication locality.","decision_reason":"conflicting_locality_authority_insufficient","selectors":[{"source":"AllEvents","source_event_id":"200030305782421"}]},
+        {"cohort":"Solar Sessions, Blending Lab — 2026-08-11","reason":"captain_excluded_this_week","evidence":"The raw AllEvents title explicitly calls the event an evening; its description repeatedly says night, but the only structured timestamps resolve to 11:30 AM-1:30 PM. No explicit human-readable clock time or independent corroborating source exists, so no occurrence time is selected or repaired.","decision_reason":"contradictory_time_authority_insufficient","selectors":[{"source":"AllEvents","source_event_id":"100001996050056451"}]}
+      ]
+    },
+    {
+      "mission_id": "MC-2026-034",
+      "week_start": "2026-08-17",
+      "resolutions": [
+        {
+          "cohort": "CEH Certification duplicate representations â€” 2026-08-18",
+          "captain_authority": {"Captain Title Override": "CEH Certification"},
+          "apply_during_frozen_replay": true,
+          "evidence": "The Captain classified both AllEvents records as the same occurrence and selected CEH Certification as the authoritative consolidated publication title. Both original identities and Captain EXCLUDE decisions remain preserved as frozen provenance.",
+          "decision_reason": "captain_approved_duplicate_title_authority",
+          "selectors": [
+            {"source": "AllEvents", "source_event_id": "100001986976982643"},
+            {"source": "AllEvents", "source_event_id": "100001987038569852"}
+          ]
+        },
+        {
+          "cohort": "Everett AquaSox at Tri-City Dust Devils — 2026-08-20 through 2026-08-23",
+          "time_unknown": true,
+          "apply_during_frozen_replay": true,
+          "evidence": "The Captain confirmed that the authoritative MiLB schedule establishes the four dates but does not provide trustworthy game clock times. The AllEvents 07:00-07:59 values are range-boundary transport evidence, not occurrence clocks.",
+          "decision_reason": "captain_approved_date_known_time_unknown",
+          "selectors": [
+            {"source": "AllEvents", "source_event_id": "200030558055913"}
+          ]
+        }
+      ],
+      "exclusions": []
+    }
+  ]
+}

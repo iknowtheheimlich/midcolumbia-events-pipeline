@@ -3,8 +3,8 @@
 Attempt_28_ProductionPolish
 
 The classifier is intentionally conservative. Only strong navigation, account,
-policy, employment, and pagination titles are rejected automatically. Everything
-else remains an event or review candidate.
+policy, employment, contact, and pagination titles are rejected automatically.
+Everything else remains an event or review candidate.
 """
 
 from __future__ import annotations
@@ -17,6 +17,9 @@ from typing import Any, Iterable
 _SPACE_RE = re.compile(r"\s+")
 _PAGE_NUMBER_RE = re.compile(r"^page\s+\d+$", re.IGNORECASE)
 _CURRENT_PAGE_RE = re.compile(r"^current\s+page\s+\d+$", re.IGNORECASE)
+_PHONE_ONLY_RE = re.compile(
+    r"^(?:\+?1[\s.-]*)?(?:\(\s*\d{3}\s*\)|\d{3})[\s.-]*\d{3}[\s.-]*\d{4}$"
+)
 
 NAVIGATION_TITLES = {
     "next page",
@@ -81,6 +84,8 @@ def classify_content(event: dict[str, Any]) -> ContentClassification:
         return ContentClassification("JOB", False, "employment_page")
     if title in ADMIN_TITLES:
         return ContentClassification("PAGE", False, "administrative_page")
+    if _PHONE_ONLY_RE.fullmatch(title):
+        return ContentClassification("CONTACT", False, "phone_number_title")
 
     return ContentClassification("EVENT", True)
 

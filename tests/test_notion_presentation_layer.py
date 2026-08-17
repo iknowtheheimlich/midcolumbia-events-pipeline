@@ -49,7 +49,7 @@ def test_registry_presentation_metadata_does_not_replace_canonical_identity() ->
     assert enriched["venue_reddit_combo"].startswith("[Kennewick Mid-Columbia Library]")
 
 
-def test_notion_reddit_combo_survives_projection_and_renders_unchanged() -> None:
+def test_notion_reddit_combo_uses_single_publication_url_path() -> None:
     enriched = combine_source_batches(
         [SourceBatch(source_name="MidColumbiaLibraries", events=[_event()])],
         venue_registry=_registry(),
@@ -62,10 +62,8 @@ def test_notion_reddit_combo_survives_projection_and_renders_unchanged() -> None
 
     assert projected.venue == "Mid-Columbia Libraries - Kennewick Branch"
     assert projected.venue_registry_name == "Kennewick Mid-Columbia Library"
-    assert editorial.display_venue == (
-        "[Kennewick Mid-Columbia Library]"
-        "(https://midcolumbialibraries.org/branch/kennewick), Kennewick"
-    )
+    assert editorial.display_venue == "Kennewick Mid-Columbia Library"
+    assert editorial.publication_url == "https://midcolumbialibraries.org/branch/kennewick"
     assert line == (
         "LEGO Club | [Kennewick Mid-Columbia Library]"
         "(https://midcolumbialibraries.org/branch/kennewick), Kennewick | 4-5p"

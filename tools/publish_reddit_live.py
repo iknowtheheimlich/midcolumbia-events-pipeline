@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import date, datetime, timedelta
+import os
 from pathlib import Path
 from time import perf_counter
 
@@ -22,11 +23,15 @@ from src.harvest_telemetry import (
     append_harvest_telemetry,
     build_harvest_telemetry_records,
 )
+from src.mission_run_summary import write_production_mission_control
+from src.notion_weekly import load_notion_weekly_rows, materialize_weekly_events
+from src.notion_weekly_curation import NotionCurationClient
 from src.pipeline import PipelineResult, SourceBatch, run_pipeline
 from src.pipeline_inspector import DEFAULT_INSPECTOR_PATH, write_pipeline_inspector
+from src.production_dispositions import DEFAULT_PRODUCTION_DISPOSITIONS_PATH, ProductionDispositions
 from src.program_intelligence import group_editorial_programs
 from src.publisher_audit import default_audit_path, write_publisher_audit
-from src.publisher_editorial import EditorialEvent, community_events, main_events, rejected_events, review_events
+from src.publisher_editorial import COMPLETED_REJECTION_REASONS, EditorialEvent, community_events, main_events, rejected_events, review_events
 from src.publishing_contract import PublishingProfile
 from src.reddit_renderer import default_community_artifact_path, default_main_artifact_path, render_program_line, write_reddit_artifact
 from src.review_trainer import DEFAULT_REVIEW_TRAINING_PATH, write_review_training_artifact
@@ -34,8 +39,11 @@ from src.source_attribution import build_source_attribution
 from src.source_metrics import DEFAULT_SOURCE_METRICS_PATH, build_source_metrics, write_source_metrics
 from src.supplemental_detail_audit import DEFAULT_SUPPLEMENTAL_DETAIL_PATH, write_supplemental_detail_audit
 from src.venue_registry import VenueRegistry
+from src.weekly_curation_workflow import WEEKLY_CURATION_DATA_SOURCE_ID, prepare_curation
+from tools.build_review_triage import build_review_triage_from_file
 
 DEFAULT_REGISTRY = Path("generated/venue_registry/registry.json")
+EDITORIAL_REVIEW_REASONS = {"missing_or_unknown_category"}
 
 
 def main() -> int:
@@ -44,6 +52,7 @@ def main() -> int:
     parser.add_argument("--days", type=int, default=7)
     parser.add_argument("--months", type=int, default=2)
     parser.add_argument("--registry", type=Path, default=DEFAULT_REGISTRY)
+    parser.add_argument("--notion-weekly-export", type=Path, help="Optional Notion weekly-event export (.csv or .json)")
     parser.add_argument("--output", type=Path, help="Legacy alias for --output-main")
     parser.add_argument("--output-main", type=Path)
     parser.add_argument("--output-community", type=Path)
@@ -55,10 +64,15 @@ def main() -> int:
     parser.add_argument("--output-completeness-audit", type=Path)
     parser.add_argument("--output-event-graph", type=Path)
     parser.add_argument("--review-corrections", type=Path, help="Optional curated JSON corrections keyed by review fingerprint")
+    parser.add_argument("--production-dispositions", type=Path, default=DEFAULT_PRODUCTION_DISPOSITIONS_PATH)
     parser.add_argument("--allow-degraded", action="store_true", help="Permit normal artifact paths despite failed live-source coverage")
     parser.add_argument("--inspect-title", help="Write an HTML trace for records containing this title or text")
     parser.add_argument("--output-inspector", type=Path)
     parser.add_argument("--source", action="append", choices=SOURCE_REGISTRY.names(), help="Limit harvesting to configured source names")
+    parser.add_argument("--prepare-curation", action="store_true", help="Harvest, classify, sync Weekly Curation, and stop before rendering")
+    parser.add_argument("--curation-data-source-id", default=WEEKLY_CURATION_DATA_SOURCE_ID)
+    parser.add_argument("--curation-inventory", type=Path)
+    parser.add_argument("--curation-sync-audit", type=Path)
     args = parser.parse_args()
 
     if args.days < 1:
@@ -69,6 +83,10 @@ def main() -> int:
         parser.error("--output-inspector requires --inspect-title")
     if args.review_corrections and not args.review_corrections.exists():
         parser.error(f"review corrections not found: {args.review_corrections}")
+    if args.notion_weekly_export and not args.notion_weekly_export.exists():
+        parser.error(f"Notion weekly export not found: {args.notion_weekly_export}")
+    if not args.production_dispositions.exists():
+        parser.error(f"production dispositions not found: {args.production_dispositions}")
     if not args.registry.exists():
         parser.error(f"venue registry not found: {args.registry}. Run python -m tools.import_venue_registry first.")
 
@@ -96,6 +114,20 @@ def main() -> int:
     blocked = health.degraded and not args.allow_degraded
 
     batches = [SourceBatch(source_name=result.source_name, events=result.normalized_events) for result in harvest_results]
+    notion_weekly_events: list[dict[str, object]] = []
+    if args.notion_weekly_export:
+        notion_rows = load_notion_weekly_rows(args.notion_weekly_export)
+        notion_weekly_events = materialize_weekly_events(
+            notion_rows,
+            week_start=args.week_start,
+            days=args.days,
+        )
+        batches.append(SourceBatch(source_name="NotionWeekly", events=notion_weekly_events))
+        source_names.append("NotionWeekly")
+
+    production_dispositions = ProductionDispositions.load(
+        args.week_start.isoformat(), args.production_dispositions
+    )
     pipeline = run_pipeline(
         batches,
         deduplicate=True,
@@ -105,16 +137,37 @@ def main() -> int:
         screen_content=True,
         enrich_categories=True,
         enrich_time_semantics=True,
+        production_dispositions=production_dispositions,
+        publication_week_start=args.week_start,
+        publication_days=args.days,
     )
 
     weekly_projection = [event for event in pipeline.publisher_projection if _in_week(event.start_date, args.week_start, args.days)]
     editorial = _weekly_editorial_events(pipeline, args.week_start, args.days)
+    if args.prepare_curation:
+        token=os.environ.get("NOTION_TOKEN","").strip()
+        if not token: parser.error("--prepare-curation requires NOTION_TOKEN")
+        inventory=args.curation_inventory or Path("artifacts/review/notion_curation")/f"Weekly_Curation_Inventory_{args.week_start.isoformat()}.json"
+        sync_audit=args.curation_sync_audit or Path("artifacts/review/notion_curation")/f"Weekly_Curation_Sync_Audit_{args.week_start.isoformat()}.json"
+        client=NotionCurationClient(token,args.curation_data_source_id)
+        try:
+            evidence={"production_status":health.status,"sources":[{"source_name":item.source_name,"status":item.status,"event_count":item.event_count,"reason":item.reason} for item in health.sources],"source_durations_ms":harvest_durations_ms,"warnings":[f"{result.source_name}: {result.error}" for result in harvest_results if result.error]}
+            audit=prepare_curation(client,editorial,week=args.week_start.isoformat(),run_id=f"prepare-{datetime.now().strftime('%Y%m%dT%H%M%S')}",inventory_path=inventory,audit_path=sync_audit,production_evidence=evidence)
+        finally: client.close()
+        print(f"Weekly Curation: {audit['database_url']}")
+        print(f"Data source: {audit['data_source_id']}")
+        print(f"Synced inventory: {audit['inventory_count']}; stopped before render")
+        return 0
     main_publishable = main_events(editorial)
     community_publishable = community_events(editorial)
     main_programs = group_editorial_programs(main_publishable)
     community_programs = group_editorial_programs(community_publishable)
     review = review_events(editorial)
     rejected = rejected_events(editorial)
+    completed_rejections = [event for event in rejected if event.editorial_reason in COMPLETED_REJECTION_REASONS]
+    unresolved_rejections = [event for event in rejected if event.editorial_reason not in COMPLETED_REJECTION_REASONS]
+    editorial_reviews = [event for event in review if event.editorial_reason in EDITORIAL_REVIEW_REASONS]
+    publication_blockers = [event for event in review if event.editorial_reason not in EDITORIAL_REVIEW_REASONS]
     profile = PublishingProfile.load()
 
     main_output = args.output_main or args.output or default_main_artifact_path()
@@ -156,6 +209,10 @@ def main() -> int:
     )
     write_source_metrics(source_metrics, metrics_output)
     write_review_training_artifact(review, review_training_output, corrections_path=args.review_corrections)
+    _, review_triage_outputs = build_review_triage_from_file(
+        review_training_output,
+        review_training_output.parent / "triage",
+    )
 
     inspector_output: Path | None = None
     if args.inspect_title:
@@ -163,6 +220,7 @@ def main() -> int:
         if blocked:
             inspector_output = degraded_artifact_path(inspector_output)
         collected = [event for result in harvest_results for event in result.normalized_events]
+        collected.extend(notion_weekly_events)
         programs = [*main_programs, *community_programs]
         write_pipeline_inspector(
             args.inspect_title,
@@ -179,18 +237,70 @@ def main() -> int:
             rendered_lines=[render_program_line(program) for program in programs],
         )
 
+    run_warnings = [
+        f"{result.source_name}: {result.error}"
+        for result in harvest_results
+        if result.error
+    ]
+    mission_artifact_paths = {
+        "main_reddit": main_output,
+        "community_reddit": community_output,
+        "publisher_audit": audit_output,
+        "supplemental_details": supplemental_output,
+        "completeness_audit": completeness_output,
+        "event_knowledge_graph": graph_output,
+        "source_metrics": metrics_output,
+        "harvest_telemetry": telemetry_output,
+        "review_training": review_training_output,
+        "review_triage_json": review_triage_outputs["json"],
+        "review_triage_csv": review_triage_outputs["csv"],
+        "review_triage_report": review_triage_outputs["report"],
+    }
+    if inspector_output:
+        mission_artifact_paths["pipeline_inspector"] = inspector_output
+
+    mission_report, mission_outputs = write_production_mission_control(
+        week_start=args.week_start.isoformat(),
+        production_status=health.status,
+        source_health=health.sources,
+        source_durations_ms=harvest_durations_ms,
+        counts={
+            "harvested": len(pipeline.all_events),
+            "deduplicated": len(pipeline.deduplicated_publisher_ready_events),
+            "weekly": len(weekly_projection),
+            "main": len(main_publishable),
+            "main_programs": len(main_programs),
+            "community": len(community_publishable),
+            "community_programs": len(community_programs),
+            "review": len(review),
+            "publication_blockers": len(publication_blockers),
+            "editorial_reviews": len(editorial_reviews),
+            "rejected": len(rejected),
+            "completed_rejections": len(completed_rejections),
+            "unresolved_rejections": len(unresolved_rejections),
+        },
+        artifacts=mission_artifact_paths,
+        warnings=run_warnings,
+    )
+
     print(f"Production status: {health.status}{' (override)' if health.degraded and args.allow_degraded else ''}")
     for item in health.failed_required_sources:
         print(f"  {item.source_name}: {item.status} - {item.reason or 'live coverage unavailable'}")
-    print(f"Sources: {len(harvest_results)} ({', '.join(source_names)})")
+    print(f"Sources: {len(source_names)} ({', '.join(source_names)})")
     print(f"Harvested events: {len(pipeline.all_events)}")
+    if args.notion_weekly_export:
+        print(f"Notion weekly events: {len(notion_weekly_events)}")
     print(f"Content rejected: {len(pipeline.content_rejected_events)}")
     print(f"Deduplicated publisher events: {len(pipeline.deduplicated_publisher_ready_events)}")
     print(f"Weekly events: {len(weekly_projection)}")
     print(f"Main events: {len(main_publishable)} -> {len(main_programs)} programs")
     print(f"Community events: {len(community_publishable)} -> {len(community_programs)} programs")
-    print(f"Review queue: {len(review)}")
+    print(f"Review queue: {len(review)} ({len(publication_blockers)} blockers, {len(editorial_reviews)} editorial)")
     print(f"Rejected: {len(rejected)}")
+    print(f"Mission: {mission_report.mission_id}")
+    print(f"Mission Control: {'READY TO PUBLISH' if mission_report.ready_to_publish else 'HOLD FOR REVIEW'}")
+    print(f"Mission dashboard: {mission_outputs['latest_dashboard']}")
+    print(f"Mission archive: {mission_outputs['archive_dashboard'].parent}")
     print(f"Main artifact: {main_output}")
     print(f"Community artifact: {community_output}")
     print(f"Audit artifact: {audit_output}")
@@ -200,9 +310,9 @@ def main() -> int:
     print(f"Source metrics: {metrics_output}")
     print(f"Harvest telemetry: {telemetry_output}")
     print(f"Review training: {review_training_output}")
-    for result in harvest_results:
-        if result.error:
-            print(f"Warning: {result.source_name}: {result.error}")
+    print(f"Review triage (blockers first): {review_triage_outputs['report']}")
+    for warning in run_warnings:
+        print(f"Warning: {warning}")
     return 2 if blocked else 0
 
 

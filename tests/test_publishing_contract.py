@@ -28,7 +28,30 @@ EXPECTED_CATEGORY_ORDER = (
     "Festivals/Fair",
     "Estate/Yard/Garage Sales",
     "Faith Based",
+    "Weekly Events",
 )
+
+EXPECTED_PUBLICATION_TARGETS = {
+    "Events/Hangouts": "MAIN",
+    "Classes/Workshops": "MAIN",
+    "Lectures/Talks": "MAIN",
+    "Music/Comedy": "MAIN",
+    "Sports": "MAIN",
+    "Food & Drink": "MAIN",
+    "Restaurants/Bars/Wineries": "MAIN",
+    "Art/Theater": "MAIN",
+    "Trivia/Game Night": "MAIN",
+    "Karaoke/Open Mic": "MAIN",
+    "Fundraisers": "MAIN",
+    "Markets": "MAIN",
+    "Community Programs": "COMMUNITY",
+    "School District Event": "COMMUNITY",
+    "Tours": "MAIN",
+    "Festivals/Fair": "MAIN",
+    "Estate/Yard/Garage Sales": "MAIN",
+    "Faith Based": "COMMUNITY",
+    "Weekly Events": "MAIN",
+}
 
 
 def test_default_profile_loads_exact_category_vocabulary():
@@ -44,8 +67,28 @@ def test_profile_routes_categories_to_separate_posts():
     assert profile.publication_target("Music/Comedy") == "MAIN"
     assert profile.publication_target("Food & Drink") == "MAIN"
     assert profile.publication_target("Lectures/Talks") == "MAIN"
+    assert profile.publication_target("Weekly Events") == "MAIN"
     assert profile.publication_target("Community Programs") == "COMMUNITY"
     assert profile.publication_target(None) == "REVIEW"
+
+
+def test_profile_preserves_exact_category_target_contract():
+    profile = PublishingProfile.load()
+
+    assert {
+        category: profile.publication_target(category)
+        for category in profile.category_order
+    } == EXPECTED_PUBLICATION_TARGETS
+
+
+def test_profile_normalizes_live_source_category_aliases():
+    profile = PublishingProfile.load()
+
+    assert profile.normalize_category("Live Music") == "Music/Comedy"
+    assert profile.normalize_category("Arts & Theater") == "Art/Theater"
+    assert profile.normalize_category("Winery Events") == "Restaurants/Bars/Wineries"
+    assert profile.normalize_category("Kids and Families") == "Community Programs"
+    assert profile.normalize_category("Annual Events") == "Festivals/Fair"
 
 
 def test_explicit_publication_target_overrides_category_default():
@@ -54,6 +97,7 @@ def test_explicit_publication_target_overrides_category_default():
     assert profile.publication_target("Community Programs", "MAIN") == "MAIN"
     assert profile.publication_target("Music/Comedy", "BOTH") == "BOTH"
     assert profile.publication_target("Music/Comedy", "nonsense") == "REVIEW"
+    assert profile.publication_target("Classes/Workshops", "COMMUNITY") == "COMMUNITY"
 
 
 @pytest.mark.parametrize(
