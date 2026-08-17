@@ -223,3 +223,13 @@ def test_same_street_with_different_place_ids_remains_ambiguous():
     enriched, match = registry.enrich_event({"venue": "6481 W Skagit Ave"})
     assert match.status == "ambiguous"
     assert enriched["venue"] == "6481 W Skagit Ave"
+
+
+def test_malformed_display_label_falls_back_to_canonical_name_and_city():
+    registry = VenueRegistry([VenueRecord(
+        venue_name="Summer's Hub of Pasco", display_name="Summers Hub of", display_city="Pasco WA"
+    )])
+    enriched, match = registry.enrich_event({"venue":"Summer's Hub of Pasco", "city":"Pasco WA"})
+    assert match.status == "matched"
+    assert enriched["display_venue"] == "Summer's Hub of Pasco"
+    assert enriched["display_city"] == "Pasco"

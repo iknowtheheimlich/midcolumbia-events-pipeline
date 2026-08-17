@@ -35,6 +35,8 @@ def expand_multi_day_occurrences(
             continue
         first = max(source_start, week_start)
         last = min(source_end, week_end - timedelta(days=1))
+        if event.get("exclusive_end_date") and last == source_end:
+            last -= timedelta(days=1)
         if first > last:
             continue
         current = first

@@ -28,6 +28,7 @@ from src.publisher_projection import PublisherEvent, project_events
 from src.recurrence_classifier import split_publisher_ready
 from src.text_normalization import normalize_event
 from src.time_semantics import enrich_event_time_semantics
+from src.source_attribution import quarantine_attribution_conflicts
 from src.venue_registry import VenueMatch, VenueRegistry
 
 
@@ -178,6 +179,10 @@ def combine_source_batches(
         for event in batch.events:
             copied = normalize_event(event)
             copied.setdefault("source", batch.source_name)
+            if enrich_time_semantics:
+                # Range semantics must be established before expansion. Otherwise
+                # transport boundary clocks are copied onto every daily occurrence.
+                copied = enrich_event_time_semantics(copied)
             occurrences = (
                 expand_multi_day_occurrences(
                     [copied], week_start=publication_week_start, days=publication_days
@@ -186,8 +191,6 @@ def combine_source_batches(
                 else [copied]
             )
             for occurrence in occurrences:
-                if enrich_time_semantics:
-                    occurrence = enrich_event_time_semantics(occurrence)
                 if venue_registry is not None:
                     occurrence, match = venue_registry.enrich_event(occurrence)
                     occurrence = _attach_venue_explanation(occurrence, match)
@@ -198,6 +201,7 @@ def combine_source_batches(
                         if record.website:
                             occurrence["venue_website"] = record.website
                         occurrence["venue_registry_name"] = record.venue_name
+                occurrence = quarantine_attribution_conflicts(occurrence)
                 if enrich_geography:
                     had_city = bool(str(occurrence.get("city") or "").strip())
                     had_address = bool(str(occurrence.get("address") or "").strip())

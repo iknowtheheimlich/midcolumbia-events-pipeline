@@ -351,6 +351,7 @@ def normalize_api_event(row: dict[str, Any]) -> CanonicalEvent | None:
         "source_category": _clean(row.get("label")),
         "source_start_timestamp": int_or_none(row.get("start_time")),
         "source_end_timestamp": int_or_none(row.get("end_time")),
+        "source_timezone": _clean(row.get("timezone")),
         "source_display_time": _clean(row.get("app_display_time") or row.get("start_time_display")),
         "recurring_event_details": row.get("recurring_event_details"),
         "source_time_reason": time_reason if time_reason == end_reason else f"start={time_reason};end={end_reason}",

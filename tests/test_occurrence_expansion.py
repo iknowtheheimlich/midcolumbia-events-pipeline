@@ -154,3 +154,10 @@ def test_out_of_area_range_remains_out_of_area_after_expansion():
     )
     assert len(result.all_events) == 4
     assert all(x["geo_scope"] == "OUT_OF_AREA" for x in result.all_events)
+
+
+def test_exclusive_midnight_end_does_not_create_next_day_occurrence():
+    source = event(start="2026-08-22", end="2026-08-23", start_time="20:00", end_time="00:00")
+    source["exclusive_end_date"] = True
+    expanded = expand_multi_day_occurrences([source], week_start=date(2026, 8, 17))
+    assert [row["start_date"] for row in expanded] == ["2026-08-22"]
