@@ -26,6 +26,8 @@ Supported multi-day source ranges are expanded into one occurrence per in-week c
 
 Pipeline-owned, Captain-owned, and derived properties are declared separately in `src/notion_weekly_curation.py`. Normal synchronization sends no Captain-owned properties, so Notion values survive every upsert. Duplicate keys, malformed Captain selects, and incomplete read-back are hard failures. Missing rows are retained; synchronization never deletes pages.
 
+Post-curation validation reconciles the exact frozen Curation Key cohort and separately verifies the retained keys recorded by PREPARE. A Captain Category derives its default Main/Community target from the publishing profile unless Captain Target explicitly overrides it. Captains Venue Override resolves the single related Ultimate Venues page and applies its canonical name and direct URL while retaining frozen city or URL evidence when the venue record does not provide an explicit replacement. Captain Description Override replaces only the editorial projection description; frozen pipeline evidence remains unchanged.
+
 The database currently has an All Events/default table. `Needs Review`, `Included`, and `Excluded` are operator views; creating them is optional and never changes row data.
 
 Curated render fails closed when Notion is unavailable, the inventory/audit boundary is absent or changed, keys are duplicated, Captain selects are malformed, or Notion rows do not exactly reconcile with the frozen pipeline inventory. There is no autonomous fallback. `--excel-fallback` is deliberately rejected until a separately reviewed explicit fallback workflow exists.

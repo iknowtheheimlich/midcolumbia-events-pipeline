@@ -12,6 +12,7 @@ from typing import Any, Iterable
 
 import httpx
 
+from src.notion_live import _fetch_venue
 from src.occurrence_identity import canonical_occurrence_identity
 
 NOTION_API_VERSION = "2026-03-11"
@@ -51,6 +52,13 @@ class NotionCurationClient:
     def __post_init__(self): self._client=self.client or httpx.Client(timeout=30)
     def close(self):
         if self.client is None: self._client.close()
+    def resolve_venue_override(self,page_id: str) -> dict[str,str]:
+        if not str(page_id or "").strip():
+            raise CurationIntegrityError("Captain venue override is missing a relation page ID")
+        venue=_fetch_venue(self._client,self.token,page_id)
+        if not venue.get("Venue Name"):
+            raise CurationIntegrityError(f"Captain venue override {page_id} lacks a canonical name")
+        return venue
     def query_week(self, week: str) -> list[dict[str, Any]]:
         out=[]; cursor=None
         while True:

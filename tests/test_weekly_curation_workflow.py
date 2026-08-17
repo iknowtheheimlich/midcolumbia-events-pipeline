@@ -18,17 +18,17 @@ def event():
     )
 
 
-def boundary(tmp_path):
+def boundary(tmp_path, *, retained=None):
     row=workflow.inventory_rows([event()])[0]
     payload={"week":"2026-08-10","rows":[row]}
     inventory=tmp_path/"inventory.json"; audit=tmp_path/"audit.json"
     inventory.write_text(json.dumps(payload),encoding="utf-8")
-    audit.write_text(json.dumps({"week":"2026-08-10","inventory_count":1,"inventory_sha256":workflow._digest(payload)}),encoding="utf-8")
+    audit.write_text(json.dumps({"week":"2026-08-10","run_id":"run","inventory_count":1,"inventory_sha256":workflow._digest(payload),"sync":{"retained_rows":retained or []}}),encoding="utf-8")
     return row,inventory,audit
 
 
 def notion_row(row, **captain):
-    result={"Curation Key":curation_key(row,"2026-08-10"),"Original Title":row["Title"],"Event Date":row["Date"],"Source Start Date":row["Source Start Date"],"Source End Date":row["Source End Date"],"Occurrence Identity":row["Occurrence Identity"],"Source Time Evidence":row["Source Time Evidence"],"Source":row["Source"],"Source Event ID":row["Source Event ID"],"Source URL":row["URL"],"Venue":row["Venue"],"City":row["City"],"Pipeline Category":row["Current Category"],"Pipeline Target":row["Current Target"],"Pipeline Disposition":row["Current Disposition"],"Original Time":"10:00-11:00"}
+    result={"Curation Key":curation_key(row,"2026-08-10"),"Original Title":row["Title"],"Event Date":row["Date"],"Source Start Date":row["Source Start Date"],"Source End Date":row["Source End Date"],"Occurrence Identity":row["Occurrence Identity"],"Source Time Evidence":row["Source Time Evidence"],"Source":row["Source"],"Source Event ID":row["Source Event ID"],"Source URL":row["URL"],"Venue":row["Venue"],"City":row["City"],"Pipeline Category":row["Current Category"],"Pipeline Target":row["Current Target"],"Pipeline Disposition":row["Current Disposition"],"Pipeline Run ID":"run","Original Time":"10:00-11:00"}
     result.update(captain); return result
 
 
@@ -61,6 +61,67 @@ def test_explicit_captain_values_override_pipeline(monkeypatch,tmp_path):
     monkeypatch.setattr(workflow,"read_week",lambda client,week:[notion_row(row,**{"Captain Include":"INCLUDE","Captain Category":"Sports","Captain Target":"COMMUNITY","Captain Title Override":"Captain Class","Captain Time Override":"7-8p"})])
     rendered=workflow.load_curated_editorial(object(),week="2026-08-10",inventory_path=inventory,audit_path=audit)[0]
     assert (rendered.title,rendered.display_time,rendered.semantic_category,rendered.publication_target)==("Captain Class","7-8p","Sports","COMMUNITY")
+
+def test_captain_category_derives_target_when_target_override_is_blank(monkeypatch,tmp_path):
+    row,inventory,audit=boundary(tmp_path)
+    row["Current Target"]="REVIEW"; row["Current Category"]=""
+    payload={"week":"2026-08-10","rows":[row]}; inventory.write_text(json.dumps(payload),encoding="utf-8")
+    audit.write_text(json.dumps({"week":"2026-08-10","run_id":"run","inventory_count":1,"inventory_sha256":workflow._digest(payload),"sync":{"retained_rows":[]}}),encoding="utf-8")
+    monkeypatch.setattr(workflow,"read_week",lambda client,week:[notion_row(row,**{"Captain Include":"INCLUDE","Captain Category":"Community Programs"})])
+    rendered=workflow.load_curated_editorial(object(),week="2026-08-10",inventory_path=inventory,audit_path=audit)[0]
+    assert rendered.publication_target=="COMMUNITY"
+
+def test_audited_retained_rows_are_preserved_outside_frozen_cohort(monkeypatch,tmp_path):
+    retained=[{"curation_key":"retained","title":"Old","event_date":"2026-08-09","source":"AllEvents","source_event_id":"old-1","prior_pipeline_run_id":"old"}]; row,inventory,audit=boundary(tmp_path,retained=retained)
+    stale={"Curation Key":"retained","Original Title":"Old","Event Date":"2026-08-09","Source":"AllEvents","Source Event ID":"old-1","Pipeline Run ID":"old"}
+    monkeypatch.setattr(workflow,"read_week",lambda client,week:[notion_row(row),stale])
+    assert len(workflow.load_curated_editorial(object(),week="2026-08-10",inventory_path=inventory,audit_path=audit))==1
+
+def test_unexpected_or_missing_audited_retained_row_aborts(monkeypatch,tmp_path):
+    row,inventory,audit=boundary(tmp_path,retained=[{"curation_key":"retained"}])
+    monkeypatch.setattr(workflow,"read_week",lambda client,week:[notion_row(row)])
+    with pytest.raises(CurationIntegrityError,match="missing_retained"):
+        workflow.load_curated_editorial(object(),week="2026-08-10",inventory_path=inventory,audit_path=audit)
+
+def test_changed_retained_pipeline_identity_aborts(monkeypatch,tmp_path):
+    retained=[{"curation_key":"retained","title":"Old","event_date":"2026-08-09","source":"AllEvents","source_event_id":"old-1","prior_pipeline_run_id":"old"}]; row,inventory,audit=boundary(tmp_path,retained=retained)
+    stale={"Curation Key":"retained","Original Title":"Changed","Event Date":"2026-08-09","Source":"AllEvents","Source Event ID":"old-1","Pipeline Run ID":"old"}
+    monkeypatch.setattr(workflow,"read_week",lambda client,week:[notion_row(row),stale])
+    with pytest.raises(CurationIntegrityError,match="retained row differs"):
+        workflow.load_curated_editorial(object(),week="2026-08-10",inventory_path=inventory,audit_path=audit)
+
+def test_retained_captain_state_remains_outside_frozen_projection(monkeypatch,tmp_path):
+    retained=[{"curation_key":"retained","title":"Old","event_date":"2026-08-09","source":"AllEvents","source_event_id":"old-1","prior_pipeline_run_id":"old"}]; row,inventory,audit=boundary(tmp_path,retained=retained)
+    stale={"Curation Key":"retained","Original Title":"Old","Event Date":"2026-08-09","Source":"AllEvents","Source Event ID":"old-1","Pipeline Run ID":"old","Captain Include":"EXCLUDE"}
+    monkeypatch.setattr(workflow,"read_week",lambda client,week:[notion_row(row),stale])
+    assert len(workflow.load_curated_editorial(object(),week="2026-08-10",inventory_path=inventory,audit_path=audit))==1
+
+def test_captain_venue_and_description_overrides_are_applied(monkeypatch,tmp_path):
+    row,inventory,audit=boundary(tmp_path)
+    monkeypatch.setattr(workflow,"read_week",lambda client,week:[notion_row(row,**{"Captains Venue Override":"venue-page","Captain Description Override":"Captain description"})])
+    client=type("Client",(),{"resolve_venue_override":lambda self,page_id:{"Venue Reddit Combo":"[Canonical Hall](https://hall.example/), Pasco","Venue Name":"Ignored","Venue URL":"https://ignored.example/","City":"Ignored"}})()
+    rendered=workflow.load_curated_editorial(client,week="2026-08-10",inventory_path=inventory,audit_path=audit)[0]
+    assert (rendered.display_venue,rendered.publication_url,rendered.display_city,rendered.description)==("Canonical Hall","https://hall.example/","Pasco","Captain description")
+
+def test_invalid_captain_venue_override_fails_closed(monkeypatch,tmp_path):
+    row,inventory,audit=boundary(tmp_path)
+    monkeypatch.setattr(workflow,"read_week",lambda client,week:[notion_row(row,**{"Captains Venue Override":"venue-page"})])
+    client=type("Client",(),{"resolve_venue_override":lambda self,page_id:{"Venue Name":"","Venue URL":"https://hall.example/","City":"Pasco"}})()
+    with pytest.raises(CurationIntegrityError,match="lacks canonical presentation"):
+        workflow.load_curated_editorial(client,week="2026-08-10",inventory_path=inventory,audit_path=audit)
+
+def test_captain_venue_without_website_preserves_existing_publication_url(monkeypatch,tmp_path):
+    row,inventory,audit=boundary(tmp_path)
+    monkeypatch.setattr(workflow,"read_week",lambda client,week:[notion_row(row,**{"Captains Venue Override":"venue-page"})])
+    client=type("Client",(),{"resolve_venue_override":lambda self,page_id:{"Venue Name":"Downtown","Venue URL":"","City":"Benton City"}})()
+    rendered=workflow.load_curated_editorial(client,week="2026-08-10",inventory_path=inventory,audit_path=audit)[0]
+    assert (rendered.display_venue,rendered.display_city,rendered.publication_url)==("Downtown","Richland","https://example.com/event")
+
+def test_pipeline_original_title_drift_still_fails(monkeypatch,tmp_path):
+    row,inventory,audit=boundary(tmp_path)
+    monkeypatch.setattr(workflow,"read_week",lambda client,week:[notion_row(row,**{"Original Title":"Clas"})])
+    with pytest.raises(CurationIntegrityError,match="Original Title"):
+        workflow.load_curated_editorial(object(),week="2026-08-10",inventory_path=inventory,audit_path=audit)
 
 
 def test_missing_row_aborts(monkeypatch,tmp_path):
