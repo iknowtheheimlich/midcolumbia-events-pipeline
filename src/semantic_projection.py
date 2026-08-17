@@ -97,7 +97,14 @@ def _validate_captain_compatibility(groups: list[dict[str, Any]], events: list[d
         visible=[item for item in members if item.get("publication_blocker_reason")!="source_attribution_conflict"]
         if visible: members=visible
         for field in ("Captain Include", "Captain Category", "Captain Target", "Captain Title Override", "Captain Time Override", "Captains Venue Override", "Captain Description Override"):
-            values={str(item.get("captain_state",{}).get(field) or "").strip() for item in members}
+            values={
+                str(
+                    item.get("captain_authority", {}).get(field)
+                    or item.get("captain_state", {}).get(field)
+                    or ""
+                ).strip()
+                for item in members
+            }
             values.discard("")
             if len(values)>1:
                 raise ValueError(f"contradictory Captain decisions for semantic duplicate cohort: field={field} values={sorted(values)}")

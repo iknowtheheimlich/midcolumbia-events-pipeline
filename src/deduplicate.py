@@ -144,6 +144,7 @@ def summarize_source_event(event: dict[str, Any]) -> dict[str, Any]:
         "completeness_percent": event.get("completeness_percent"),
         "publication_blocker_reason": event.get("publication_blocker_reason"),
         "captain_state": event.get("captain_state"),
+        "captain_authority": event.get("captain_authority"),
     }
 
 

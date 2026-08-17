@@ -45,6 +45,32 @@ def test_compatible_captain_decisions_consolidate():
     assert len(transform_semantic_occurrences(rows).events)==1
 
 
+def test_explicit_captain_authority_resolves_duplicate_title_conflict():
+    policy=ProductionDispositions("m","2026-08-17",({
+        "cohort":"CEH duplicate","captain_authority":{"Captain Title Override":"CEH Certification"},
+        "evidence":"Captain decision","selectors":[
+            {"source":"AllEvents","source_event_id":"one"},
+            {"source":"AllEvents","source_event_id":"two"},
+        ],
+    },),())
+    rows=[
+        event(source="AllEvents",source_event_id="one",captain_state={"Captain Include":"EXCLUDE","Captain Title Override":"CEH Certification"}),
+        event(source="AllEvents",source_event_id="two",captain_state={"Captain Include":"EXCLUDE","Captain Title Override":"AWS Solutions Architect Certification"}),
+    ]
+
+    result=transform_semantic_occurrences(rows,production_dispositions=policy)
+
+    assert len(result.events)==1
+    provenance=result.events[0]["dedupe_provenance"]
+    assert {item["source_event_id"] for item in provenance}=={"one","two"}
+    assert {item["captain_state"]["Captain Title Override"] for item in provenance}=={
+        "CEH Certification","AWS Solutions Architect Certification",
+    }
+    assert {item["captain_authority"]["Captain Title Override"] for item in provenance}=={
+        "CEH Certification",
+    }
+
+
 def test_quarantined_source_is_provenance_not_visible_authority():
     valid=event(title="After Hours at Hedges: Payton Layne Drury",venue="Hedges Family Estate",source="VisitTriCities",source_event_id="1300893",url="https://valid.example/",captain_state={"Captain Title Override":"Payton Layne Drury"})
     stale=event(title="Payton Drury at Hedges Winery",venue="Hedges Family Estate Wine",source="TriCityVibe",source_event_id="john-boudreau-at-hedges-wines",url="https://tricityvibe.com/event/john-boudreau-at-hedges-wines/",captain_state={"Captain Title Override":"Payton Drury"})

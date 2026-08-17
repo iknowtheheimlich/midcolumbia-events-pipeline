@@ -36,6 +36,17 @@
       "week_start": "2026-08-17",
       "resolutions": [
         {
+          "cohort": "CEH Certification duplicate representations â€” 2026-08-18",
+          "captain_authority": {"Captain Title Override": "CEH Certification"},
+          "apply_during_frozen_replay": true,
+          "evidence": "The Captain classified both AllEvents records as the same occurrence and selected CEH Certification as the authoritative consolidated publication title. Both original identities and Captain EXCLUDE decisions remain preserved as frozen provenance.",
+          "decision_reason": "captain_approved_duplicate_title_authority",
+          "selectors": [
+            {"source": "AllEvents", "source_event_id": "100001986976982643"},
+            {"source": "AllEvents", "source_event_id": "100001987038569852"}
+          ]
+        },
+        {
           "cohort": "Everett AquaSox at Tri-City Dust Devils — 2026-08-20 through 2026-08-23",
           "time_unknown": true,
           "apply_during_frozen_replay": true,

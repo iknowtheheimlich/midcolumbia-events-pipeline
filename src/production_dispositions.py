@@ -67,6 +67,8 @@ class ProductionDispositions:
                         copied["start_time"] = None
                         copied["end_time"] = None
                         copied["time_unknown"] = True
+                    if disposition.get("captain_authority"):
+                        copied["captain_authority"] = dict(disposition["captain_authority"])
                     geography_correction = disposition.get("geography_correction")
                     if geography_correction:
                         copied = _apply_geography_correction(copied, geography_correction)
@@ -131,7 +133,10 @@ class ProductionDispositions:
                         f"RESOLVE Captain disposition requires a surviving selector: {cohort_index}"
                     )
                 if action == "RESOLVE" and not any(
-                    field in cohort for field in ("title", "start_time", "time_unknown", "geography_correction")
+                    field in cohort for field in (
+                        "title", "start_time", "time_unknown", "geography_correction",
+                        "captain_authority",
+                    )
                 ):
                     raise ValueError(
                         f"RESOLVE Captain disposition requires a correction: {cohort_index}"

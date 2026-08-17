@@ -188,7 +188,19 @@ def _captain_merge_changes(members):
     changes={}
     visible=[(item,summary) for item,summary in members if summary.get("publication_blocker_reason")!="source_attribution_conflict"]
     if visible: members=visible
+    authoritative_titles={
+        _norm((summary.get("captain_authority") or {}).get("Captain Title Override"))
+        for item,summary in members
+        if _norm((summary.get("captain_authority") or {}).get("Captain Title Override"))
+    }
+    if len(authoritative_titles)>1:
+        raise CurationIntegrityError(
+            f"contradictory resolved Captain titles: {sorted(authoritative_titles)}"
+        )
+    if authoritative_titles:
+        changes["title"]=next(iter(authoritative_titles))
     for captain_field,editorial_fields in mapping.items():
+        if captain_field=="Captain Title Override" and authoritative_titles: continue
         donor=next((item for item,summary in members if item.get("captain_state",{}).get(captain_field)),None)
         if donor is None: continue
         editorial=donor["_editorial"]
