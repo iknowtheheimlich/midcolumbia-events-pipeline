@@ -8,7 +8,6 @@ from typing import Any
 
 from src.category_intelligence import enrich_event_category
 from src.content_classifier import screen_events
-from src.deduplicate import DeduplicationResult, deduplicate_events
 from src.event_completeness import enrich_event_completeness
 from src.geography import enrich_event_geography
 from src.intelligence import attach_intelligence
@@ -28,7 +27,7 @@ from src.publisher_projection import PublisherEvent, project_events
 from src.recurrence_classifier import split_publisher_ready
 from src.text_normalization import normalize_event
 from src.time_semantics import enrich_event_time_semantics
-from src.source_attribution import quarantine_attribution_conflicts
+from src.semantic_projection import transform_semantic_occurrences
 from src.venue_registry import VenueMatch, VenueRegistry
 
 
@@ -138,13 +137,9 @@ def run_pipeline(
 
     publisher_ready, recurrence_review = split_publisher_ready(publisher_candidates)
 
-    if deduplicate:
-        dedupe_result = deduplicate_events(publisher_ready)
-    else:
-        dedupe_result = DeduplicationResult(events=list(publisher_ready))
-
-    final_events = dedupe_result.events
-    duplicate_groups = list(dedupe_result.duplicate_groups)
+    semantic = transform_semantic_occurrences(publisher_ready, deduplicate=deduplicate)
+    final_events = semantic.events
+    duplicate_groups = list(semantic.duplicate_groups)
     if resolve_cross_source_occurrences:
         resolution = resolve_occurrences(final_events)
         final_events = resolution.events
@@ -157,7 +152,7 @@ def run_pipeline(
         recurrence_review_events=recurrence_review,
         deduplicated_publisher_ready_events=final_events,
         duplicate_groups=duplicate_groups,
-        skipped_low_quality_dedupe=dedupe_result.skipped_low_quality,
+        skipped_low_quality_dedupe=semantic.skipped_low_quality,
     )
 
 
@@ -201,7 +196,6 @@ def combine_source_batches(
                         if record.website:
                             occurrence["venue_website"] = record.website
                         occurrence["venue_registry_name"] = record.venue_name
-                occurrence = quarantine_attribution_conflicts(occurrence)
                 if enrich_geography:
                     had_city = bool(str(occurrence.get("city") or "").strip())
                     had_address = bool(str(occurrence.get("address") or "").strip())

@@ -37,6 +37,14 @@ class ProductionDispositions:
         row = matches[0]
         return cls(str(row["mission_id"]), week_start, tuple(row.get("resolutions", ())), tuple(row.get("exclusions", ())))
 
+    @classmethod
+    def load_frozen_replay(cls, week_start: str, path: Path = DEFAULT_PRODUCTION_DISPOSITIONS_PATH) -> "ProductionDispositions | None":
+        policy=cls.load(week_start,path)
+        if policy is None: return None
+        resolutions=tuple(item for item in policy.resolutions if item.get("apply_during_frozen_replay"))
+        exclusions=tuple(item for item in policy.exclusions if item.get("apply_during_frozen_replay"))
+        return cls(policy.mission_id,week_start,resolutions,exclusions) if resolutions or exclusions else None
+
     def apply(self, events: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
         self._validate_selector_roles()
         output: list[dict[str, Any]] = []
@@ -55,6 +63,10 @@ class ProductionDispositions:
                     if "start_time" in disposition:
                         copied["start_time"] = disposition["start_time"]
                         copied["end_time"] = disposition.get("end_time")
+                    if disposition.get("time_unknown"):
+                        copied["start_time"] = None
+                        copied["end_time"] = None
+                        copied["time_unknown"] = True
                     geography_correction = disposition.get("geography_correction")
                     if geography_correction:
                         copied = _apply_geography_correction(copied, geography_correction)
@@ -119,7 +131,7 @@ class ProductionDispositions:
                         f"RESOLVE Captain disposition requires a surviving selector: {cohort_index}"
                     )
                 if action == "RESOLVE" and not any(
-                    field in cohort for field in ("title", "start_time", "geography_correction")
+                    field in cohort for field in ("title", "start_time", "time_unknown", "geography_correction")
                 ):
                     raise ValueError(
                         f"RESOLVE Captain disposition requires a correction: {cohort_index}"

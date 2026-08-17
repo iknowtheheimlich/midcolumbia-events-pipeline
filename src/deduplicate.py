@@ -142,17 +142,20 @@ def summarize_source_event(event: dict[str, Any]) -> dict[str, Any]:
         "end_time": event.get("end_time"),
         "source_event_id": event.get("source_event_id"),
         "completeness_percent": event.get("completeness_percent"),
+        "publication_blocker_reason": event.get("publication_blocker_reason"),
+        "captain_state": event.get("captain_state"),
     }
 
 
-def _canonical_rank(event: dict[str, Any]) -> tuple[float, int, int]:
+def _canonical_rank(event: dict[str, Any]) -> tuple[int, float, int, int]:
     completeness, populated = completeness_rank(event)
     source = str(event.get("source") or "")
     try:
         priority = SOURCE_REGISTRY.get(source).priority
     except KeyError:
         priority = 0
-    return completeness, priority, populated
+    unblocked = int(not bool(event.get("publication_blocker_reason")))
+    return unblocked, completeness, priority, populated
 
 
 def normalize_text(value: Any) -> str:

@@ -30,6 +30,23 @@
         {"cohort":"Perseid Meteor Shower Watch Party — 2026-08-12","reason":"captain_excluded_this_week","evidence":"The preserved AllEvents record identifies the venue as Finley, Washington while its structured city, URL path, and share text identify Burbank; its full address combines both localities and its description says the actual address will be supplied later. Existing authority cannot establish one publication locality.","decision_reason":"conflicting_locality_authority_insufficient","selectors":[{"source":"AllEvents","source_event_id":"200030305782421"}]},
         {"cohort":"Solar Sessions, Blending Lab — 2026-08-11","reason":"captain_excluded_this_week","evidence":"The raw AllEvents title explicitly calls the event an evening; its description repeatedly says night, but the only structured timestamps resolve to 11:30 AM-1:30 PM. No explicit human-readable clock time or independent corroborating source exists, so no occurrence time is selected or repaired.","decision_reason":"contradictory_time_authority_insufficient","selectors":[{"source":"AllEvents","source_event_id":"100001996050056451"}]}
       ]
+    },
+    {
+      "mission_id": "MC-2026-034",
+      "week_start": "2026-08-17",
+      "resolutions": [
+        {
+          "cohort": "Everett AquaSox at Tri-City Dust Devils — 2026-08-20 through 2026-08-23",
+          "time_unknown": true,
+          "apply_during_frozen_replay": true,
+          "evidence": "The Captain confirmed that the authoritative MiLB schedule establishes the four dates but does not provide trustworthy game clock times. The AllEvents 07:00-07:59 values are range-boundary transport evidence, not occurrence clocks.",
+          "decision_reason": "captain_approved_date_known_time_unknown",
+          "selectors": [
+            {"source": "AllEvents", "source_event_id": "200030558055913"}
+          ]
+        }
+      ],
+      "exclusions": []
     }
   ]
 }

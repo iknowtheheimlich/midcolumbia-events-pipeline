@@ -17,7 +17,9 @@ from src.notion_weekly_curation import (
 )
 from src.notion_weekly import _parse_reddit_combo
 from src.publisher_editorial import EditorialEvent
-from src.publishing_contract import PublishingProfile
+from src.publishing_contract import PublishingProfile, format_compact_range
+from src.production_dispositions import ProductionDispositions
+from src.semantic_projection import transform_semantic_occurrences
 
 WEEKLY_CURATION_DATABASE_URL = "https://app.notion.com/p/971914760da0416f970beea53a2b49a0"
 WEEKLY_CURATION_DATA_SOURCE_ID = "c4d70d49-4009-4607-a003-9ccb2c302634"
@@ -80,7 +82,7 @@ def load_curated_editorial(client: NotionCurationClient, *, week: str, inventory
     wrong_run=sorted(key for key in expected if _norm(actual[key].get("Pipeline Run ID"))!=run_id)
     if wrong_run: raise CurationIntegrityError(f"frozen rows have wrong Pipeline Run ID: {wrong_run}")
     profile=PublishingProfile.load()
-    output=[]
+    semantic_input=[]
     for key, source in expected.items():
         notion=actual[key]
         _validate_pipeline_identity(source,notion)
@@ -109,8 +111,93 @@ def load_curated_editorial(client: NotionCurationClient, *, week: str, inventory
             changes["display_venue"]=venue["name"]
             if venue["city"]: changes["display_city"]=venue["city"]
             if venue["url"]: changes["publication_url"]=venue["url"]
+        curated_event=replace(base,**changes)
+        semantic_input.append(_frozen_semantic_record(source,notion,curated_event))
+    policy=ProductionDispositions.load_frozen_replay(week)
+    transformed=transform_semantic_occurrences(
+        semantic_input, deduplicate=True, apply_time_semantics=True,
+        production_dispositions=policy,
+    )
+    return _restore_curated_editorial(transformed.events,semantic_input)
+
+
+def _frozen_semantic_record(source, notion, editorial):
+    try: time_evidence=json.loads(source.get("Source Time Evidence") or "{}")
+    except json.JSONDecodeError: time_evidence={}
+    intelligence=(source.get("Editorial Event") or {}).get("intelligence") or {}
+    venue_decision=intelligence.get("venue") or {}
+    canonical_venue=venue_decision.get("value") if isinstance(venue_decision,dict) else None
+    captain_state={field:_norm(notion.get(field)) for field in (
+        "Captain Include","Captain Category","Captain Target","Captain Title Override",
+        "Captain Time Override","Captains Venue Override","Captain Description Override",
+    )}
+    return {
+        "title":source.get("Title"),"start_date":source.get("Date"),
+        "end_date":source.get("Date"),"occurrence_date":source.get("Date"),
+        "start_time":time_evidence.get("start_time"),"end_time":time_evidence.get("end_time"),
+        "source_start_date":source.get("Source Start Date"),"source_end_date":source.get("Source End Date"),
+        "source_time_evidence":time_evidence,"venue":source.get("Venue"),
+        "canonical_venue":canonical_venue,"city":source.get("City"),"source":source.get("Source"),
+        "source_event_id":source.get("Source Event ID"),"url":source.get("URL"),
+        "description":source.get("Description"),"event_kind":"single",
+        "captain_state":captain_state,"_editorial":editorial,
+    }
+
+
+def _restore_curated_editorial(transformed, original):
+    by_identity={}
+    for item in original: by_identity.setdefault(_semantic_identity(item),[]).append(item)
+    output=[]
+    for item in transformed:
+        base=item["_editorial"]
+        changes={
+            "display_start_time":item.get("start_time"),"display_end_time":item.get("end_time"),
+            "display_time":format_compact_range(item.get("start_time"),item.get("end_time")),
+            "display_venue":item.get("venue") or base.display_venue,
+            "display_city":item.get("city") or base.display_city,
+        }
+        members=[]
+        for summary in item.get("dedupe_provenance") or (item,):
+            matches=by_identity.get(_semantic_identity(summary),[])
+            if matches: members.append((matches[0],summary))
+        changes.update(_captain_merge_changes(members))
+        intelligence=dict(base.intelligence)
+        intelligence["semantic_projection"]={
+            "value":{"duplicate_count":item.get("duplicate_count",1),"sources":item.get("sources") or [item.get("source")],"provenance":item.get("dedupe_provenance") or []},
+            "confidence":1.0,"reason":"shared_semantic_occurrence_transformation",
+        }
+        changes["intelligence"]=intelligence
+        changes["duplicate_count"]=int(item.get("duplicate_count") or 1)
+        changes["duplicate_sources"]=tuple(item.get("sources") or ())
+        if item.get("publication_blocker_reason")=="source_attribution_conflict":
+            changes.update({"publication_disposition":"REVIEW","editorial_reason":"source_attribution_conflict"})
         output.append(replace(base,**changes))
     return output
+
+
+def _captain_merge_changes(members):
+    mapping={
+        "Captain Include":("publication_disposition",),
+        "Captain Category":("semantic_category","category"),
+        "Captain Target":("publication_target",),
+        "Captain Title Override":("title",),
+        "Captain Time Override":("display_start_time","display_end_time","display_time"),
+        "Captains Venue Override":("display_venue","display_city","publication_url"),
+        "Captain Description Override":("description",),
+    }
+    changes={}
+    visible=[(item,summary) for item,summary in members if summary.get("publication_blocker_reason")!="source_attribution_conflict"]
+    if visible: members=visible
+    for captain_field,editorial_fields in mapping.items():
+        donor=next((item for item,summary in members if item.get("captain_state",{}).get(captain_field)),None)
+        if donor is None: continue
+        editorial=donor["_editorial"]
+        for field in editorial_fields: changes[field]=getattr(editorial,field)
+    return changes
+
+
+def _semantic_identity(item):
+    return tuple(_norm(item.get(field)) for field in ("source","source_event_id","start_date","title"))
 
 def _resolve_captain_venue(client, relation_id):
     if "," in relation_id: raise CurationIntegrityError(f"Captain venue override is ambiguous: {relation_id}")
