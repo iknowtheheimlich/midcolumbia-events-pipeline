@@ -225,7 +225,7 @@ def _semantic_duplicate(first: dict[str, Any], second: dict[str, Any]) -> bool:
         _token_subset(first.get("venue"), second.get("description"))
         or _token_subset(second.get("venue"), first.get("description"))
     )
-    return venue_score >= 0.45 or description_score >= 0.45 or title_score >= 0.82 or venue_cross_support
+    return venue_score >= 0.40 or description_score >= 0.45 or title_score >= 0.82 or venue_cross_support
 
 
 def _jaccard(left: Any, right: Any) -> float:

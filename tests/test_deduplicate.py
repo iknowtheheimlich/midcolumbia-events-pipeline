@@ -116,7 +116,7 @@ def test_same_venue_time_generic_music_titles_preserve_distinct_artists() -> Non
 def test_merge_uses_venue_corroborated_by_cross_source_content() -> None:
     common = {"start_date":"2026-08-19", "start_time":"15:00", "city":"Prosser"}
     result = deduplicate_events([
-        {**common, "title":"Wine Down Wednesday @ Evergreen Family Wines", "venue":"Milbrandt Family Wines -", "description":"Join us at Evergreen Family Wines", "url":"https://evergreenfamilywines.com/events/", "source":"VisitTriCities"},
+        {**common, "title":"Wine Down Wednesday @ Evergreen Family Wines", "venue":"Milbrandt Family Wines - Prosser", "description":"Join us at Evergreen Family Wines", "url":"https://evergreenfamilywines.com/events/", "source":"VisitTriCities"},
         {**common, "title":"Wine Down Wednesday", "venue":"Evergreen Family Wines", "url":"https://evergreenfamilywines.com/", "source":"NotionWeekly"},
     ])
     assert result.events[0]["venue"] == "Evergreen Family Wines"
