@@ -98,6 +98,34 @@ def test_render_event_line_supports_compact_time_range() -> None:
     assert line.endswith("6-8p")
 
 
+@pytest.mark.parametrize(
+    ("start", "end", "expected"),
+    [
+        ("06:30", None, "6:30a"),
+        ("09:00", None, "9a"),
+        ("12:00", None, "12p"),
+        ("13:00", None, "1p"),
+        ("18:00", None, "6p"),
+        ("21:00", None, "9p"),
+        ("09:00", "12:30", "9a-12:30p"),
+        ("18:30", "21:00", "6:30-9p"),
+        ("20:00", "00:00", "8p-12a"),
+    ],
+)
+def test_renderer_formats_canonical_times_at_reddit_presentation_boundary(
+    start: str, end: str | None, expected: str,
+) -> None:
+    line = render_event_line(
+        editorial_event(
+            display_start_time=start,
+            display_end_time=end,
+            display_time=f"{start}-{end}" if end else start,
+        )
+    )
+
+    assert line.endswith(f" | {expected}")
+
+
 def test_date_known_time_unknown_omits_time_segment_cleanly() -> None:
     line = render_event_line(editorial_event(
         display_start_time=None, display_end_time=None, display_time=None,

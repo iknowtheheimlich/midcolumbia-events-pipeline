@@ -121,3 +121,27 @@ def test_repeated_unknown_time_program_omits_placeholder_and_delimiter() -> None
     line = render_program_line(program)
     assert "time TBD" not in line
     assert not line.endswith("|")
+
+
+def test_grouped_occurrences_use_reddit_time_presentation() -> None:
+    program = group_editorial_programs([
+        editorial_event(
+            source_event_id="one",
+            display_start_time="18:30",
+            display_end_time="21:00",
+            display_time="18:30-21:00",
+        ),
+        editorial_event(
+            source_event_id="two",
+            display_start_time="20:00",
+            display_end_time="00:00",
+            display_time="20:00-00:00",
+        ),
+    ])[0]
+
+    line = render_program_line(program)
+
+    assert "6:30-9p" in line
+    assert "8p-12a" in line
+    assert "18:30" not in line
+    assert "20:00" not in line

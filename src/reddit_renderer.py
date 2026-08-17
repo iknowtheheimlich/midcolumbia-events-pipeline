@@ -10,7 +10,7 @@ from typing import Iterable, Sequence, TypeAlias
 
 from src.program_intelligence import EditorialProgram, ProgramOccurrence
 from src.publisher_editorial import EditorialEvent
-from src.publishing_contract import PublishingProfile
+from src.publishing_contract import PublishingProfile, format_compact_range
 from src.url_canonicalizer import validate_public_http_url
 
 Renderable: TypeAlias = EditorialEvent | EditorialProgram
@@ -49,8 +49,9 @@ def render_item_line(event: Renderable) -> str:
 
 def render_event_line(event: EditorialEvent) -> str:
     parts = [_render_title(event.title), _render_location(event)]
-    if event.display_time:
-        parts.append(event.display_time)
+    display_time = _reddit_display_time(event)
+    if display_time:
+        parts.append(display_time)
     parts.extend(_render_credit_parts(event))
     return " | ".join(parts)
 
@@ -59,8 +60,9 @@ def render_program_line(program: EditorialProgram) -> str:
     if len(program.occurrences) == 1:
         occurrence = program.occurrences[0]
         parts = [_render_title(program.title), _render_occurrence_location(occurrence)]
-        if occurrence.display_time:
-            parts.append(occurrence.display_time)
+        display_time = _reddit_display_time(occurrence)
+        if display_time:
+            parts.append(display_time)
         parts.extend(_render_credit_parts(occurrence))
         return " | ".join(parts)
 
@@ -70,7 +72,11 @@ def render_program_line(program: EditorialProgram) -> str:
     }
     if len(venue_keys) == 1:
         occurrence = program.occurrences[0]
-        time_chain = " • ".join(item.display_time for item in program.occurrences if item.display_time)
+        time_chain = " • ".join(
+            display_time
+            for item in program.occurrences
+            if (display_time := _reddit_display_time(item))
+        )
         parts = [_render_title(program.title), _render_occurrence_location(occurrence)]
         if time_chain:
             parts.append(time_chain)
@@ -185,7 +191,16 @@ def _plain_venue_label(value: str) -> str:
 
 def _render_occurrence_summary(occurrence: ProgramOccurrence) -> str:
     location = _render_occurrence_location(occurrence)
-    return f"{location} {occurrence.display_time}" if occurrence.display_time else location
+    display_time = _reddit_display_time(occurrence)
+    return f"{location} {display_time}" if display_time else location
+
+
+def _reddit_display_time(value: object) -> str | None:
+    """Format canonical occurrence clocks at the Reddit presentation boundary."""
+    return format_compact_range(
+        getattr(value, "display_start_time", None),
+        getattr(value, "display_end_time", None),
+    )
 
 
 def _render_credit_parts(value: object) -> list[str]:
